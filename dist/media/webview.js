@@ -237,7 +237,11 @@ window.addEventListener('message', event => {
                 let assistantTime = "";
                 let assistantTokens = "";
 
-                if (msg.content && typeof msg.content === 'string') {
+                if (msg.content && typeof msg.content === 'object') {
+                    assistantText = msg.content.text || "";
+                    assistantTime = msg.content.time || "";
+                    assistantTokens = msg.content.tokens || "";
+                } else if (typeof msg.content === 'string') {
                     const cleanStr = msg.content.trim();
                     if (cleanStr.startsWith('{') && cleanStr.endsWith('}')) {
                         try {
@@ -251,10 +255,6 @@ window.addEventListener('message', event => {
                     } else {
                         assistantText = msg.content;
                     }
-                } else if (msg.content && typeof msg.content === 'object') {
-                    assistantText = msg.content.text || "";
-                    assistantTime = msg.content.time || "";
-                    assistantTokens = msg.content.tokens || "";
                 }
 
                 if (assistantText) {
@@ -262,23 +262,94 @@ window.addEventListener('message', event => {
                     assistantContainer.className = 'message-container assistant';
                     const msgBubble = document.createElement('div');
                     msgBubble.className = 'message';
-                    msgBubble.innerHTML = `<span>${assistantText}</span>`;
+
+                    // Procesar código y texto igual que en sesión viva
+                    const parts = assistantText.split(/(```[\s\S]*?```)/g);
+                    let ultimoCodigoDetectado = "";
+                    let tieneCodigo = false;
+                    let contenidoPintado = false;
+
+                    parts.forEach(part => {
+                        if (part.startsWith('```') && part.endsWith('```')) {
+                            tieneCodigo = true;
+                            contenidoPintado = true;
+                            let codigoLimpio = part.replace(/^```[a-zA-Z]*\s*/, '').replace(/```$/, '').trim();
+                            ultimoCodigoDetectado = codigoLimpio;
+
+                            const pre = document.createElement('pre');
+                            const code = document.createElement('code');
+                            code.innerText = codigoLimpio;
+                            pre.appendChild(code);
+                            msgBubble.appendChild(pre);
+                        } else {
+                            const textoNormal = part.trim();
+                            if (textoNormal) {
+                                contenidoPintado = true;
+                                const p = document.createElement('div');
+                                p.style.margin = "10px 0";
+                                p.style.lineHeight = "1.5";
+                                p.innerText = textoNormal;
+                                msgBubble.appendChild(p);
+                            }
+                        }
+                    });
+
+                    if (!contenidoPintado) {
+                        const fallbackDiv = document.createElement('div');
+                        fallbackDiv.style.whiteSpace = "pre-wrap";
+                        fallbackDiv.innerText = assistantText;
+                        msgBubble.appendChild(fallbackDiv);
+                    }
+
+                    // Crear footer con copy button y stats (igual que en sesión viva)
+                    const codigoACopiar = tieneCodigo ? ultimoCodigoDetectado : assistantText;
+                    const footerRow = document.createElement('div');
+                    footerRow.className = 'chat-footer-row';
+
+                    const copyIconBtn = document.createElement('div');
+                    copyIconBtn.className = 'copy-icon-button';
+                    copyIconBtn.title = 'Copiar al portapapeles';
+
+                    copyIconBtn.innerHTML = `
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://w3.org">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                        </svg>
+                    `;
+
+                    copyIconBtn.onclick = () => {
+                        navigator.clipboard.writeText(codigoACopiar).then(() => {
+                            copyIconBtn.innerHTML = `
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://w3.org">
+                                    <path d="M20 6 9 17l-5-5"/>
+                                </svg>
+                            `;
+                            copyIconBtn.classList.add('copied');
+
+                            setTimeout(() => {
+                                copyIconBtn.innerHTML = `
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://w3.org">
+                                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                                    </svg>
+                                `;
+                                copyIconBtn.classList.remove('copied');
+                            }, 2000);
+                        }).catch(err => {
+                            console.error('Error al copiar: ', err);
+                        });
+                    };
+
+                    const statsDiv = document.createElement('div');
+                    statsDiv.className = 'chat-stats';
+                    statsDiv.innerText = `${assistantTime}s  •  ${assistantTokens} tokens`;
+
+                    footerRow.appendChild(copyIconBtn);
+                    footerRow.appendChild(statsDiv);
+                    msgBubble.appendChild(footerRow);
+
                     assistantContainer.appendChild(msgBubble);
                     chatDiv.appendChild(assistantContainer);
-
-                    // Mostrar tiempo y tokens si existen
-                    if (assistantTime || assistantTokens) {
-                        const statsContainer = document.createElement('div');
-                        statsContainer.style.fontSize = '0.8em';
-                        statsContainer.style.color = '#888';
-                        statsContainer.style.marginTop = '4px';
-                        statsContainer.style.marginBottom = '12px';
-                        let statsText = '';
-                        if (assistantTime) statsText += `⏱️ ${assistantTime}s`;
-                        if (assistantTokens) statsText += ` | 🔢 ${assistantTokens} tokens`;
-                        statsContainer.textContent = statsText;
-                        chatDiv.appendChild(statsContainer);
-                    }
                 }
             }
 

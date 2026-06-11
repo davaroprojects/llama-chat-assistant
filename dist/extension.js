@@ -299,11 +299,24 @@ ${userPrompt}`;
           const systemPrompt = config.get("systemPrompt") || "Eres un asistente de programaci\xF3n para VS Code.";
           const updatedSession = this.sessionManager.getCurrentSession();
           const baseMessages = updatedSession ? [...updatedSession.messages] : [];
-          if (baseMessages.length > 0 && baseMessages[baseMessages.length - 1].role === "user") {
-            baseMessages[baseMessages.length - 1].content = userContentWithContext;
-          }
-          const hasSystemPrompt = baseMessages.some((m) => m.role === "system");
-          const fullMessagesPayload = hasSystemPrompt ? baseMessages : [{ role: "system", content: systemPrompt }, ...baseMessages];
+          const messagesForLlama = baseMessages.map((msg) => {
+            if (msg.role === "user" && msg === baseMessages[baseMessages.length - 1]) {
+              return { role: "user", content: userContentWithContext };
+            }
+            if (msg.role === "user") {
+              if (typeof msg.content === "object" && msg.content.text) {
+                return { role: "user", content: msg.content.text };
+              }
+            }
+            if (msg.role === "assistant") {
+              if (typeof msg.content === "object" && msg.content.text) {
+                return { role: "assistant", content: msg.content.text };
+              }
+            }
+            return msg;
+          });
+          const hasSystemPrompt = messagesForLlama.some((m) => m.role === "system");
+          const fullMessagesPayload = hasSystemPrompt ? messagesForLlama : [{ role: "system", content: systemPrompt }, ...messagesForLlama];
           const response = await globalThis.fetch(apiUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -366,11 +379,11 @@ ${userPrompt}`;
             const endTime = performance.now();
             const durationSeconds = ((endTime - startTime) / 1e3).toFixed(2);
             const finalTokensCount = serverUsageTokens > 0 ? serverUsageTokens : Math.round(generatedCharactersLength / 3.2);
-            const richAssistantPayload = JSON.stringify({
+            const richAssistantPayload = {
               text: assistantReplyAccumulator,
               time: durationSeconds,
               tokens: finalTokensCount
-            });
+            };
             this.sessionManager.addMessageToCurrentSession("assistant", richAssistantPayload);
             webviewView.webview.postMessage({
               type: "endStreaming",
@@ -385,11 +398,11 @@ ${userPrompt}`;
           const finalTokensCount = Math.round(generatedCharactersLength / 3.2);
           if (error.name === "AbortError") {
             if (assistantReplyAccumulator) {
-              const richAssistantPayload = JSON.stringify({
+              const richAssistantPayload = {
                 text: assistantReplyAccumulator,
                 time: durationSeconds,
                 tokens: finalTokensCount
-              });
+              };
               this.sessionManager.addMessageToCurrentSession("assistant", richAssistantPayload);
             }
             webviewView.webview.postMessage({

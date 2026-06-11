@@ -213,25 +213,35 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                     const temperature = config.get<number>('temperature') ?? 0.2;
                     const systemPrompt = config.get<string>('systemPrompt') || 'Eres un asistente de programación para VS Code.';
 
-                    // 🧠 REGLA DE ORO DE TURNOS (No duplicar escrituras)
+                    // 🧠 CONSTRUIR PAYLOAD TEMPORAL PARA LLAMA.CPP (Solo en memoria, sin guardar)
                     const updatedSession = this.sessionManager.getCurrentSession();
                     const baseMessages = updatedSession ? [...updatedSession.messages] : [];
                     
-                    // 🔄 Inyectamos temporalmente el código fuente gigante solo en memoria para Llama.cpp
-                    if (baseMessages.length > 0 && baseMessages[baseMessages.length - 1].role === 'user') {
-                        baseMessages[baseMessages.length - 1].content = userContentWithContext;
-                    }
+                    // 🔄 Crear una COPIA PROFUNDA solo para Llama.cpp con el contexto completo
+                    const messagesForLlama = baseMessages.map(msg => {
+                        if (msg.role === 'user' && msg === baseMessages[baseMessages.length - 1]) {
+                            // Solo modificar el último mensaje de usuario para incluir el contexto
+                            return { role: 'user', content: userContentWithContext };
+                        }
+                        // Para mensajes anteriores, usar solo el texto limpio
+                        if (msg.role === 'user') {
+                            if (typeof msg.content === 'object' && (msg.content as any).text) {
+                                return { role: 'user', content: (msg.content as any).text };
+                            }
+                        }
+                        // Para asistentes, usar solo el texto
+                        if (msg.role === 'assistant') {
+                            if (typeof msg.content === 'object' && (msg.content as any).text) {
+                                return { role: 'assistant', content: (msg.content as any).text };
+                            }
+                        }
+                        return msg;
+                    });
 
-                    // ❌ ELIMINAR O BORRAR TODO ESTE BLOQUE CORRUPTO QUE TENÍAS AQUÍ:
-                    // let currentSession = this.sessionManager.getCurrentSession(); <-- BORRAR
-                    // if (!currentSession) { ... }                                 <-- BORRAR
-                    // const richUserPayload = JSON.stringify({ ...Set });          <-- BORRAR
-                    // this.sessionManager.addMessageToCurrentSession('user', ...); <-- BORRAR (Duplicaba y rompía con el Set plano)
-
-                    const hasSystemPrompt = baseMessages.some(m => m.role === 'system');
+                    const hasSystemPrompt = messagesForLlama.some(m => m.role === 'system');
                     const fullMessagesPayload = hasSystemPrompt
-                        ? baseMessages
-                        : [{ role: "system", content: systemPrompt }, ...baseMessages];
+                        ? messagesForLlama
+                        : [{ role: "system", content: systemPrompt }, ...messagesForLlama];
 
                     const response = await globalThis.fetch(apiUrl, {
                         method: 'POST',
@@ -307,15 +317,15 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                         const durationSeconds = ((endTime - startTime) / 1000).toFixed(2);
                         const finalTokensCount = serverUsageTokens > 0 ? serverUsageTokens : Math.round(generatedCharactersLength / 3.2);
 
-                        // 1. Guardar con estructura rica en el disco para cuando cambies a Gradle
-                        const richAssistantPayload = JSON.stringify({
+                        // 1. Guardar estructura limpia en el disco (solo valores, sin calcular)
+                        const richAssistantPayload = {
                             text: assistantReplyAccumulator,
                             time: durationSeconds,
                             tokens: finalTokensCount
-                        });
-                        this.sessionManager.addMessageToCurrentSession('assistant', richAssistantPayload);
+                        };
+                        this.sessionManager.addMessageToCurrentSession('assistant', richAssistantPayload as any);
 
-                        // 2. 🛠️ ENVIAR LIMPIO AL FRONT: Enviamos las variables sueltas por separado para que el JS las pinte ordenadas
+                        // 2. 🛠️ ENVIAR AL FRONT: Enviamos las variables para que el JS las pinte ordenadas
                         webviewView.webview.postMessage({
                             type: 'endStreaming',
                             time: durationSeconds,
@@ -333,12 +343,12 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                     if (error.name === 'AbortError') {
                         // 📊 CASO ABORTAR: También empaquetamos las métricas parciales si el usuario detiene la IA
                         if (assistantReplyAccumulator) {
-                            const richAssistantPayload = JSON.stringify({
+                            const richAssistantPayload = {
                                 text: assistantReplyAccumulator,
                                 time: durationSeconds,
                                 tokens: finalTokensCount
-                            });
-                            this.sessionManager.addMessageToCurrentSession('assistant', richAssistantPayload);
+                            };
+                            this.sessionManager.addMessageToCurrentSession('assistant', richAssistantPayload as any);
                         }
 
                         webviewView.webview.postMessage({
