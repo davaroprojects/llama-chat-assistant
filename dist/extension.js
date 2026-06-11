@@ -120,6 +120,250 @@ var SessionManager = class {
 var vscode = __toESM(require("vscode"));
 var fs = __toESM(require("node:fs"));
 var path = __toESM(require("node:path"));
+
+// src/sessionPayloadBuilder.ts
+var SessionPayloadBuilder = class {
+  /**
+   * Creates a user message payload for session storage
+   * @param userPrompt - The user's text input
+   * @param filesMetadata - Array of attached files with metadata
+   * @returns User message payload object
+   */
+  static createUserMessagePayload(userPrompt, filesMetadata) {
+    return {
+      text: userPrompt,
+      filesMetadata
+    };
+  }
+  /**
+   * Creates an assistant message payload for session storage
+   * @param assistantText - The generated assistant response
+   * @param durationSeconds - Response generation time in seconds
+   * @param tokenCount - Number of tokens generated
+   * @returns Assistant message payload object
+   */
+  static createAssistantMessagePayload(assistantText, durationSeconds, tokenCount) {
+    return {
+      text: assistantText,
+      time: durationSeconds,
+      tokens: tokenCount
+    };
+  }
+  /**
+   * Builds the context string for Llama.cpp (temporary, not stored)
+   * @param userPrompt - User's input text
+   * @param currentEditorName - Name of currently open editor file
+   * @param currentEditorContext - Content of current editor file
+   * @param attachedFiles - User-selected files to attach
+   * @returns Full context string with file contents and prompt
+   */
+  static buildLlamaContextPrompt(userPrompt, currentEditorName, currentEditorContext, attachedFiles) {
+    let context = "";
+    if (currentEditorContext) {
+      context += `--- ARCHIVO EN EDITOR ACTIVO: ${currentEditorName} ---
+`;
+      context += `${currentEditorContext}
+`;
+      context += `--- FIN ARCHIVO ---
+
+`;
+    }
+    attachedFiles.forEach((file) => {
+      if (file.name === currentEditorName && currentEditorContext) {
+        return;
+      }
+      context += `--- ARCHIVO ADJUNTO MANUAL: ${file.name} ---
+`;
+      context += `${file.content}
+`;
+      context += `--- FIN ARCHIVO ---
+
+`;
+    });
+    context += `Indicaci\xF3n del usuario:
+${userPrompt}`;
+    return context;
+  }
+  /**
+   * Collects all file metadata from editor and attached files
+   * @param currentEditorName - Active editor filename
+   * @param currentEditorContent - Active editor content (if exists)
+   * @param attachedFiles - User-attached files
+   * @returns Array of file metadata objects
+   */
+  static collectFilesMetadata(currentEditorName, currentEditorContent, attachedFiles) {
+    const filesMetadata = [];
+    if (currentEditorContent) {
+      filesMetadata.push({
+        name: currentEditorName,
+        content: currentEditorContent
+      });
+    }
+    const fileNames = new Set(filesMetadata.map((f) => f.name));
+    attachedFiles.forEach((file) => {
+      if (!fileNames.has(file.name)) {
+        filesMetadata.push(file);
+      }
+    });
+    return filesMetadata;
+  }
+};
+
+// src/llamaService.ts
+var LlamaService = class {
+  static DEFAULT_CONFIG = {
+    apiUrl: "http://127.0.0.1:8033/v1/chat/completions",
+    temperature: 0.2,
+    systemPrompt: "Eres un asistente de programaci\xF3n para VS Code."
+  };
+  /**
+   * Prepares messages for Llama.cpp API
+   * Converts stored session messages to API format with proper context
+   * @param baseMessages - Session history messages
+   * @param userContextPrompt - Full context for current user prompt
+   * @param systemPrompt - System instruction
+   * @returns Messages ready for API request
+   */
+  static prepareMessagesForLlama(baseMessages, userContextPrompt, systemPrompt) {
+    const messagesForLlama = baseMessages.map((msg, index) => {
+      const isLastMessage = index === baseMessages.length - 1;
+      if (msg.role === "user" && isLastMessage) {
+        return { role: "user", content: userContextPrompt };
+      }
+      if (msg.role === "user") {
+        const content = this.extractTextContent(msg.content);
+        return { role: "user", content };
+      }
+      if (msg.role === "assistant") {
+        const content = this.extractTextContent(msg.content);
+        return { role: "assistant", content };
+      }
+      return msg;
+    });
+    const hasSystemPrompt = messagesForLlama.some((m) => m.role === "system");
+    return hasSystemPrompt ? messagesForLlama : [{ role: "system", content: systemPrompt }, ...messagesForLlama];
+  }
+  /**
+   * Extracts text content from message object or string
+   * @param content - Message content (string or object)
+   * @returns Plain text string
+   */
+  static extractTextContent(content) {
+    if (typeof content === "string") {
+      return content;
+    }
+    if (typeof content === "object" && content.text) {
+      return content.text;
+    }
+    return "";
+  }
+  /**
+   * Streams response from Llama.cpp API
+   * Yields tokens as they arrive from the server
+   * @param messages - Messages for API request
+   * @param config - API configuration
+   * @param onToken - Callback for each received token
+   * @returns Promise resolving to { totalText, tokenCount, serverUsageTokens }
+   */
+  static async streamLlamaResponse(messages, config, onToken) {
+    const abortController = new AbortController();
+    let accumulatedText = "";
+    let characterCount = 0;
+    let serverUsageTokens = 0;
+    try {
+      const response = await globalThis.fetch(config.apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "local",
+          messages,
+          temperature: config.temperature,
+          stream: true
+        }),
+        signal: abortController.signal
+      });
+      if (!response.ok) {
+        throw new Error(`Server responded: ${response.status}`);
+      }
+      if (!response.body) {
+        throw new Error("No response body received.");
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          const cleanLine = line.trim();
+          if (!cleanLine || !cleanLine.startsWith("data:")) {
+            continue;
+          }
+          const jsonString = cleanLine.substring(5).trim();
+          if (jsonString === "[DONE]") {
+            break;
+          }
+          try {
+            const parsed = JSON.parse(jsonString);
+            const token = this.extractTokenFromResponse(parsed);
+            if (token) {
+              characterCount += token.length;
+              accumulatedText += token;
+              onToken(token);
+            }
+            if (parsed.usage?.completion_tokens) {
+              serverUsageTokens = parsed.usage.completion_tokens;
+            }
+          } catch (e) {
+          }
+        }
+      }
+      return {
+        totalText: accumulatedText,
+        tokenCount: serverUsageTokens > 0 ? serverUsageTokens : Math.round(characterCount / 3.2),
+        serverUsageTokens
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+  /**
+   * Extracts token text from Llama.cpp response
+   * Handles multiple response format variations
+   * @param response - Parsed JSON response from API
+   * @returns Token text or empty string
+   */
+  static extractTokenFromResponse(response) {
+    if (response.choices && response.choices.length > 0) {
+      const choice = response.choices[0];
+      if (choice.delta?.content) {
+        return choice.delta.content;
+      }
+      if (choice.text) {
+        return choice.text;
+      }
+      return "";
+    }
+    return "";
+  }
+  /**
+   * Calculates response generation time
+   * @param startTime - Performance.now() timestamp
+   * @returns Duration in seconds as string (fixed to 2 decimals)
+   */
+  static calculateDuration(startTime) {
+    const endTime = performance.now();
+    const durationSeconds = ((endTime - startTime) / 1e3).toFixed(2);
+    return durationSeconds;
+  }
+};
+
+// src/webviewProvider.ts
 var LlamaChatViewProvider = class {
   constructor(_extensionUri, context, sessionManager) {
     this._extensionUri = _extensionUri;
@@ -131,6 +375,8 @@ var LlamaChatViewProvider = class {
   sessionManager;
   currentAbortController = null;
   _view;
+  isPickerOpen = false;
+  isGenerationActive = false;
   resolveWebviewView(webviewView, context, _token) {
     this._view = webviewView;
     webviewView.webview.options = {
@@ -138,343 +384,323 @@ var LlamaChatViewProvider = class {
       localResourceRoots: [this._extensionUri]
     };
     webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
-    let isPickerOpen = false;
-    let isGenerationActive = false;
-    const sendActiveEditorContext = (editor) => {
-      if (isPickerOpen || isGenerationActive) {
-        return;
-      }
-      if (editor) {
-        const document = editor.document;
-        if (document.uri.scheme === "file") {
-          const fileName = path.basename(document.fileName);
-          const selection = editor.selection;
-          if (!selection.isEmpty) {
-            const selectedText = document.getText(selection);
-            const startLine = selection.start.line + 1;
-            const endLine = selection.end.line + 1;
-            const lineSuffix = startLine === endLine ? `:${startLine}` : `:${startLine}-${endLine}`;
-            webviewView.webview.postMessage({
-              type: "codeSelectionCaptured",
-              name: `${fileName}${lineSuffix}`,
-              content: selectedText
-            });
-          } else {
-            const fullContent = document.getText();
-            webviewView.webview.postMessage({
-              type: "codeSelectionCaptured",
-              name: fileName,
-              content: fullContent
-            });
-          }
-        }
-      } else {
-        webviewView.webview.postMessage({ type: "clearActiveEditorContext" });
-      }
-    };
+    this.setupMessageHandlers(webviewView);
+    this.setupEditorListeners();
+  }
+  setupMessageHandlers(webviewView) {
     webviewView.webview.onDidReceiveMessage(async (data) => {
-      if (data.type === "webviewReady") {
-        const activeSession = this.sessionManager.getCurrentSession();
-        if (activeSession) {
-          webviewView.webview.postMessage({ type: "restoreActiveChat", title: activeSession.title, messages: activeSession.messages });
-        } else {
-          const initialSessions = this.sessionManager.getAllSessions();
-          if (initialSessions.length > 0) {
-            webviewView.webview.postMessage({ type: "renderSessionsList", sessions: initialSessions });
-          }
-        }
-        if (!activeSession) {
-          sendActiveEditorContext(vscode.window.activeTextEditor);
-        }
-      }
-      if (data.type === "stopGeneration") {
-        if (this.currentAbortController) {
-          this.currentAbortController.abort();
-          this.currentAbortController = null;
-        }
-      } else if (data.type === "openFilePicker") {
-        isPickerOpen = true;
-        const fileUri = await vscode.window.showOpenDialog({
-          canSelectMany: false,
-          openLabel: "Agregar al contexto",
-          filters: { "C\xF3digo": ["ts", "js", "json", "py", "go", "rs", "txt", "html", "css", "md", "java", "cpp"] }
-        });
-        if (fileUri && fileUri[0]) {
-          try {
-            const filePath = fileUri[0].fsPath;
-            const fileName = path.basename(filePath);
-            const fileContent = fs.readFileSync(filePath, "utf8");
-            webviewView.webview.postMessage({
-              type: "fileSelected",
-              name: fileName,
-              content: fileContent
-            });
-          } catch (err) {
-            vscode.window.showErrorMessage(`Error al leer archivo: ${err.message}`);
-          }
-        }
-        setTimeout(() => {
-          isPickerOpen = false;
-        }, 400);
-      } else if (data.type === "selectSession") {
-        this.sessionManager.setCurrentSession(data.sessionId);
-        const activeSession = this.sessionManager.getCurrentSession();
-        if (activeSession) {
-          webviewView.webview.postMessage({
-            type: "restoreActiveChat",
-            title: activeSession.title,
-            messages: activeSession.messages
-          });
-        }
-      } else if (data.type === "askLlama") {
-        const userPrompt = data.value;
-        const editor = vscode.window.activeTextEditor;
-        let currentEditorContext = "";
-        let currentEditorName = "";
-        if (editor && editor.document.uri.scheme === "file") {
-          currentEditorName = path.basename(editor.document.fileName);
-          const textSelection = editor.document.getText(editor.selection);
-          currentEditorContext = textSelection ? textSelection : editor.document.getText();
-        }
-        const startTime = performance.now();
-        let generatedCharactersLength = 0;
-        let serverUsageTokens = 0;
-        let assistantReplyAccumulator = "";
-        isGenerationActive = true;
-        let userContentWithContext = "";
-        const uniqueFilesSet = /* @__PURE__ */ new Set();
-        const filesMetadata = [];
-        if (currentEditorContext) {
-          uniqueFilesSet.add(currentEditorName);
-        }
-        if (data.attachedFiles && Array.isArray(data.attachedFiles)) {
-          data.attachedFiles.forEach((file) => {
-            uniqueFilesSet.add(file.name);
-            filesMetadata.push({ name: file.name, content: file.content });
-          });
-        }
-        const uniqueFilesNames = [...uniqueFilesSet];
-        if (currentEditorContext) {
-          userContentWithContext += `--- ARCHIVO EN EDITOR ACTIVO: ${currentEditorName} ---
-${currentEditorContext}
---- FIN ARCHIVO ---
-
-`;
-        }
-        if (data.attachedFiles && Array.isArray(data.attachedFiles)) {
-          data.attachedFiles.forEach((file) => {
-            if (file.name === currentEditorName && currentEditorContext) {
-              return;
-            }
-            userContentWithContext += `--- ARCHIVO ADJUNTO MANUAL: ${file.name} ---
-${file.content}
---- FIN ARCHIVO ---
-
-`;
-          });
-        }
-        userContentWithContext += `Indicaci\xF3n del usuario:
-${userPrompt}`;
-        let currentSession = this.sessionManager.getCurrentSession();
-        if (!currentSession) {
-          currentSession = this.sessionManager.createSession(userPrompt);
-        }
-        const richUserPayloadObj = {
-          text: userPrompt,
-          filesMetadata
-        };
-        this.sessionManager.addMessageToCurrentSession("user", richUserPayloadObj);
-        webviewView.webview.postMessage({
-          type: "addMessage",
-          role: "user",
-          text: userPrompt,
-          filesMetadata
-        });
-        webviewView.webview.postMessage({ type: "startStreaming" });
-        try {
-          this.currentAbortController = new AbortController();
-          const config = vscode.workspace.getConfiguration("llamaChat");
-          const apiUrl = config.get("apiUrl") || "http://127.0.0";
-          const temperature = config.get("temperature") ?? 0.2;
-          const systemPrompt = config.get("systemPrompt") || "Eres un asistente de programaci\xF3n para VS Code.";
-          const updatedSession = this.sessionManager.getCurrentSession();
-          const baseMessages = updatedSession ? [...updatedSession.messages] : [];
-          const messagesForLlama = baseMessages.map((msg) => {
-            if (msg.role === "user" && msg === baseMessages[baseMessages.length - 1]) {
-              return { role: "user", content: userContentWithContext };
-            }
-            if (msg.role === "user") {
-              if (typeof msg.content === "object" && msg.content.text) {
-                return { role: "user", content: msg.content.text };
-              }
-            }
-            if (msg.role === "assistant") {
-              if (typeof msg.content === "object" && msg.content.text) {
-                return { role: "assistant", content: msg.content.text };
-              }
-            }
-            return msg;
-          });
-          const hasSystemPrompt = messagesForLlama.some((m) => m.role === "system");
-          const fullMessagesPayload = hasSystemPrompt ? messagesForLlama : [{ role: "system", content: systemPrompt }, ...messagesForLlama];
-          const response = await globalThis.fetch(apiUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "local",
-              messages: fullMessagesPayload,
-              temperature,
-              stream: true
-            }),
-            signal: this.currentAbortController.signal
-          });
-          if (!response.ok) {
-            throw new Error(`Servidor respondi\xF3: ${response.status}`);
-          }
-          if (!response.body) {
-            throw new Error("No se recibi\xF3 cuerpo de respuesta.");
-          }
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder("utf-8");
-          let buffer = "";
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              break;
-            }
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split("\n");
-            buffer = lines.pop() || "";
-            for (const line of lines) {
-              const cleanLine = line.trim();
-              if (!cleanLine || !cleanLine.startsWith("data:")) {
-                continue;
-              }
-              const jsonString = cleanLine.substring(5).trim();
-              if (jsonString === "[DONE]") {
-                break;
-              }
-              try {
-                const parsed = JSON.parse(jsonString);
-                if (parsed.choices && parsed.choices.length > 0) {
-                  const choice = parsed.choices[0];
-                  const tokenText = choice.delta && choice.delta.content ? choice.delta.content : choice.text || "";
-                  if (tokenText) {
-                    generatedCharactersLength += tokenText.length;
-                    assistantReplyAccumulator += tokenText;
-                    webviewView.webview.postMessage({
-                      type: "appendToken",
-                      text: tokenText
-                    });
-                  }
-                }
-                if (parsed.usage && parsed.usage.completion_tokens) {
-                  serverUsageTokens = parsed.usage.completion_tokens;
-                }
-              } catch (e) {
-              }
-            }
-          }
-          if (assistantReplyAccumulator) {
-            const endTime = performance.now();
-            const durationSeconds = ((endTime - startTime) / 1e3).toFixed(2);
-            const finalTokensCount = serverUsageTokens > 0 ? serverUsageTokens : Math.round(generatedCharactersLength / 3.2);
-            const richAssistantPayload = {
-              text: assistantReplyAccumulator,
-              time: durationSeconds,
-              tokens: finalTokensCount
-            };
-            this.sessionManager.addMessageToCurrentSession("assistant", richAssistantPayload);
-            webviewView.webview.postMessage({
-              type: "endStreaming",
-              time: durationSeconds,
-              tokens: finalTokensCount
-            });
-          }
-        } catch (error) {
-          console.error("Error durante la generaci\xF3n:", error);
-          const endTime = performance.now();
-          const durationSeconds = ((endTime - startTime) / 1e3).toFixed(2);
-          const finalTokensCount = Math.round(generatedCharactersLength / 3.2);
-          if (error.name === "AbortError") {
-            if (assistantReplyAccumulator) {
-              const richAssistantPayload = {
-                text: assistantReplyAccumulator,
-                time: durationSeconds,
-                tokens: finalTokensCount
-              };
-              this.sessionManager.addMessageToCurrentSession("assistant", richAssistantPayload);
-            }
-            webviewView.webview.postMessage({
-              type: "endStreaming",
-              time: durationSeconds,
-              tokens: finalTokensCount
-            });
-          } else {
-            let errorMessage = "Error desconocido durante la generaci\xF3n";
-            if (error.message) {
-              errorMessage = error.message;
-            }
-            webviewView.webview.postMessage({
-              type: "errorStreaming",
-              text: `\u274C Error: ${errorMessage}`
-            });
-          }
-        } finally {
-          this.currentAbortController = null;
-          isGenerationActive = false;
-          sendActiveEditorContext(vscode.window.activeTextEditor);
-        }
-      } else if (data.type === "applyCode") {
-        const editor = vscode.window.activeTextEditor;
-        if (editor) {
-          editor.edit((editBuilder) => {
-            if (!editor.selection.isEmpty) {
-              editBuilder.replace(editor.selection, data.value);
-            } else {
-              editBuilder.insert(editor.selection.active, data.value);
-            }
-          });
-        }
-      } else if (data.type === "deleteSession") {
-        this.sessionManager.deleteSession(data.sessionId);
-        const updatedSessions = this.sessionManager.getAllSessions();
-        if (updatedSessions.length > 0) {
-          webviewView.webview.postMessage({
-            type: "renderSessionsList",
-            sessions: updatedSessions
-          });
-        } else {
-          webviewView.webview.postMessage({
-            type: "renderSessionsList",
-            sessions: []
-          });
-        }
-      } else if (data.type === "requestSessionsUpdate") {
-        const freshSessions = this.sessionManager.getAllSessions();
-        webviewView.webview.postMessage({
-          type: "renderSessionsList",
-          sessions: freshSessions
-        });
-      } else if (data.type === "requestActiveEditorRefresh") {
-        sendActiveEditorContext(vscode.window.activeTextEditor);
+      try {
+        await this.routeMessage(data, webviewView);
+      } catch (error) {
+        console.error("Error handling message:", error);
       }
     });
+  }
+  async routeMessage(data, webviewView) {
+    switch (data.type) {
+      case "webviewReady":
+        this.handleWebviewReady(webviewView);
+        break;
+      case "stopGeneration":
+        this.handleStopGeneration();
+        break;
+      case "openFilePicker":
+        await this.handleOpenFilePicker(webviewView);
+        break;
+      case "selectSession":
+        this.handleSelectSession(data, webviewView);
+        break;
+      case "askLlama":
+        await this.handleAskLlama(data, webviewView);
+        break;
+      case "applyCode":
+        this.handleApplyCode(data);
+        break;
+      case "deleteSession":
+        this.handleDeleteSession(data, webviewView);
+        break;
+      case "requestSessionsUpdate":
+        this.handleRequestSessionsUpdate(webviewView);
+        break;
+      case "requestActiveEditorRefresh":
+        this.handleRequestActiveEditorRefresh(webviewView);
+        break;
+    }
+  }
+  handleWebviewReady(webviewView) {
+    const activeSession = this.sessionManager.getCurrentSession();
+    if (activeSession) {
+      webviewView.webview.postMessage({
+        type: "restoreActiveChat",
+        title: activeSession.title,
+        messages: activeSession.messages
+      });
+    } else {
+      const initialSessions = this.sessionManager.getAllSessions();
+      if (initialSessions.length > 0) {
+        webviewView.webview.postMessage({
+          type: "renderSessionsList",
+          sessions: initialSessions
+        });
+      }
+    }
+    if (!activeSession) {
+      this.sendActiveEditorContext(webviewView, vscode.window.activeTextEditor);
+    }
+  }
+  handleStopGeneration() {
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.currentAbortController = null;
+    }
+  }
+  async handleOpenFilePicker(webviewView) {
+    this.isPickerOpen = true;
+    try {
+      const fileUri = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        openLabel: "Agregar al contexto",
+        filters: {
+          "C\xF3digo": ["ts", "js", "json", "py", "go", "rs", "txt", "html", "css", "md", "java", "cpp"]
+        }
+      });
+      if (fileUri?.[0]) {
+        this.processSelectedFile(fileUri[0], webviewView);
+      }
+    } catch (error) {
+      vscode.window.showErrorMessage(`Error al leer archivo: ${error.message}`);
+    } finally {
+      setTimeout(() => {
+        this.isPickerOpen = false;
+      }, 400);
+    }
+  }
+  processSelectedFile(fileUri, webviewView) {
+    try {
+      const filePath = fileUri.fsPath;
+      const fileName = path.basename(filePath);
+      const fileContent = fs.readFileSync(filePath, "utf8");
+      webviewView.webview.postMessage({
+        type: "fileSelected",
+        name: fileName,
+        content: fileContent
+      });
+    } catch (error) {
+      vscode.window.showErrorMessage(`Error al leer archivo: ${error.message}`);
+    }
+  }
+  handleSelectSession(data, webviewView) {
+    this.sessionManager.setCurrentSession(data.sessionId);
+    const activeSession = this.sessionManager.getCurrentSession();
+    if (activeSession) {
+      webviewView.webview.postMessage({
+        type: "restoreActiveChat",
+        title: activeSession.title,
+        messages: activeSession.messages
+      });
+    }
+  }
+  async handleAskLlama(data, webviewView) {
+    this.isGenerationActive = true;
+    try {
+      const userPrompt = data.value;
+      const editorContext = this.getActiveEditorContext();
+      const filesMetadata = this.collectFilesMetadata(data.attachedFiles, editorContext);
+      const userPayload = SessionPayloadBuilder.createUserMessagePayload(userPrompt, filesMetadata);
+      this.saveUserMessageToSession(userPayload);
+      webviewView.webview.postMessage({
+        type: "addMessage",
+        role: "user",
+        text: userPrompt,
+        filesMetadata
+      });
+      webviewView.webview.postMessage({ type: "startStreaming" });
+      await this.generateLlamaResponse(
+        userPrompt,
+        editorContext,
+        filesMetadata,
+        webviewView
+      );
+    } catch (error) {
+      console.error("Error in askLlama:", error);
+    } finally {
+      this.isGenerationActive = false;
+    }
+  }
+  handleApplyCode(data) {
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      editor.edit((editBuilder) => {
+        if (!editor.selection.isEmpty) {
+          editBuilder.replace(editor.selection, data.value);
+        } else {
+          editBuilder.insert(editor.selection.active, data.value);
+        }
+      });
+    }
+  }
+  handleDeleteSession(data, webviewView) {
+    this.sessionManager.deleteSession(data.sessionId);
+    const remainingSessions = this.sessionManager.getAllSessions();
+    webviewView.webview.postMessage({
+      type: "renderSessionsList",
+      sessions: remainingSessions
+    });
+  }
+  handleRequestSessionsUpdate(webviewView) {
+    const freshSessions = this.sessionManager.getAllSessions();
+    webviewView.webview.postMessage({
+      type: "renderSessionsList",
+      sessions: freshSessions
+    });
+  }
+  handleRequestActiveEditorRefresh(webviewView) {
+    this.sendActiveEditorContext(webviewView, vscode.window.activeTextEditor);
+  }
+  async generateLlamaResponse(userPrompt, editorContext, filesMetadata, webviewView) {
+    try {
+      this.currentAbortController = new AbortController();
+      const config = this.getLlamaConfig();
+      const contextPrompt = SessionPayloadBuilder.buildLlamaContextPrompt(
+        userPrompt,
+        editorContext.name,
+        editorContext.content,
+        filesMetadata
+      );
+      const startTime = performance.now();
+      const session = this.sessionManager.getCurrentSession();
+      const baseMessages = session ? [...session.messages] : [];
+      const messagesForLlama = LlamaService.prepareMessagesForLlama(
+        baseMessages,
+        contextPrompt,
+        config.systemPrompt
+      );
+      const result = await LlamaService.streamLlamaResponse(
+        messagesForLlama,
+        config,
+        (token) => {
+          webviewView.webview.postMessage({
+            type: "appendToken",
+            text: token
+          });
+        }
+      );
+      const duration = LlamaService.calculateDuration(startTime);
+      const assistantPayload = SessionPayloadBuilder.createAssistantMessagePayload(
+        result.totalText,
+        duration,
+        result.tokenCount
+      );
+      this.sessionManager.addMessageToCurrentSession("assistant", assistantPayload);
+      webviewView.webview.postMessage({
+        type: "endStreaming",
+        time: duration,
+        tokens: result.tokenCount
+      });
+    } catch (error) {
+      this.handleGenerationError(error, webviewView);
+    } finally {
+      this.currentAbortController = null;
+      this.isGenerationActive = false;
+      this.sendActiveEditorContext(webviewView, vscode.window.activeTextEditor);
+    }
+  }
+  handleGenerationError(error, webviewView) {
+    if (error.name === "AbortError") {
+      return;
+    }
+    const errorMessage = error.message || "Unknown error during generation";
+    webviewView.webview.postMessage({
+      type: "errorStreaming",
+      text: `\u274C Error: ${errorMessage}`
+    });
+  }
+  setupEditorListeners() {
     const activeEditorListener = vscode.window.onDidChangeActiveTextEditor((editor) => {
-      sendActiveEditorContext(editor);
+      if (this._view) {
+        this.sendActiveEditorContext(this._view, editor);
+      }
     });
     this.context.subscriptions.push(activeEditorListener);
     const selectionListener = vscode.window.onDidChangeTextEditorSelection((event) => {
-      sendActiveEditorContext(event.textEditor);
+      if (this._view) {
+        this.sendActiveEditorContext(this._view, event.textEditor);
+      }
     });
     this.context.subscriptions.push(selectionListener);
+  }
+  sendActiveEditorContext(webviewView, editor) {
+    if (this.isPickerOpen || this.isGenerationActive) {
+      return;
+    }
+    if (editor && editor.document.uri.scheme === "file") {
+      const fileName = path.basename(editor.document.fileName);
+      const selection = editor.selection;
+      const message = this.buildEditorContextMessage(fileName, editor, selection);
+      webviewView.webview.postMessage(message);
+    } else {
+      webviewView.webview.postMessage({ type: "clearActiveEditorContext" });
+    }
+  }
+  buildEditorContextMessage(fileName, editor, selection) {
+    if (!selection.isEmpty) {
+      const selectedText = editor.document.getText(selection);
+      const startLine = selection.start.line + 1;
+      const endLine = selection.end.line + 1;
+      const lineSuffix = startLine === endLine ? `:${startLine}` : `:${startLine}-${endLine}`;
+      return {
+        type: "codeSelectionCaptured",
+        name: `${fileName}${lineSuffix}`,
+        content: selectedText
+      };
+    } else {
+      const fullContent = editor.document.getText();
+      return {
+        type: "codeSelectionCaptured",
+        name: fileName,
+        content: fullContent
+      };
+    }
+  }
+  getActiveEditorContext() {
+    const editor = vscode.window.activeTextEditor;
+    let name = "";
+    let content = "";
+    if (editor && editor.document.uri.scheme === "file") {
+      name = path.basename(editor.document.fileName);
+      const selection = editor.document.getText(editor.selection);
+      content = selection ? selection : editor.document.getText();
+    }
+    return { name, content };
+  }
+  collectFilesMetadata(attachedFiles, editorContext) {
+    return SessionPayloadBuilder.collectFilesMetadata(
+      editorContext.name,
+      editorContext.content,
+      attachedFiles || []
+    );
+  }
+  saveUserMessageToSession(payload) {
+    let currentSession = this.sessionManager.getCurrentSession();
+    if (!currentSession) {
+      currentSession = this.sessionManager.createSession(payload.text);
+    }
+    this.sessionManager.addMessageToCurrentSession("user", payload);
+  }
+  getLlamaConfig() {
+    const config = vscode.workspace.getConfiguration("llamaChat");
+    return {
+      apiUrl: config.get("apiUrl") || "http://127.0.0.1:8033/v1/chat/completions",
+      temperature: config.get("temperature") ?? 0.2,
+      systemPrompt: config.get("systemPrompt") || "Eres un asistente de programaci\xF3n para VS Code."
+    };
   }
   getHtmlForWebview(webview) {
     const htmlPath = path.join(this._extensionUri.fsPath, "dist", "media", "webview.html");
     const cssPath = path.join(this._extensionUri.fsPath, "dist", "media", "webview.css");
     const jsPath = path.join(this._extensionUri.fsPath, "dist", "media", "webview.js");
     if (!fs.existsSync(htmlPath) || !fs.existsSync(cssPath) || !fs.existsSync(jsPath)) {
-      return `<h3>Error: Resources not found in dist/media. Run npm run compile.</h3>`;
+      return "<h3>Error: Resources not found in dist/media. Run npm run compile.</h3>";
     }
     let htmlContent = fs.readFileSync(htmlPath, "utf8");
     const cssUri = webview.asWebviewUri(vscode.Uri.file(cssPath));
