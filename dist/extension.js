@@ -243,12 +243,14 @@ var LlamaChatViewProvider = class {
         isGenerationActive = true;
         let userContentWithContext = "";
         const uniqueFilesSet = /* @__PURE__ */ new Set();
+        const filesMetadata = [];
         if (currentEditorContext) {
           uniqueFilesSet.add(currentEditorName);
         }
         if (data.attachedFiles && Array.isArray(data.attachedFiles)) {
           data.attachedFiles.forEach((file) => {
             uniqueFilesSet.add(file.name);
+            filesMetadata.push({ name: file.name, content: file.content });
           });
         }
         const uniqueFilesNames = [...uniqueFilesSet];
@@ -279,14 +281,14 @@ ${userPrompt}`;
         }
         const richUserPayloadObj = {
           text: userPrompt,
-          files: uniqueFilesNames
+          filesMetadata
         };
         this.sessionManager.addMessageToCurrentSession("user", richUserPayloadObj);
         webviewView.webview.postMessage({
           type: "addMessage",
           role: "user",
           text: userPrompt,
-          files: uniqueFilesNames
+          filesMetadata
         });
         webviewView.webview.postMessage({ type: "startStreaming" });
         try {

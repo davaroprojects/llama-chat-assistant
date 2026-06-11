@@ -155,10 +155,14 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
                 let userContentWithContext = "";
                 const uniqueFilesSet = new Set<string>();
+                const filesMetadata: Array<{name: string, content: string}> = [];
 
                 if (currentEditorContext) { uniqueFilesSet.add(currentEditorName); }
                 if (data.attachedFiles && Array.isArray(data.attachedFiles)) {
-                    data.attachedFiles.forEach((file: any) => { uniqueFilesSet.add(file.name); });
+                    data.attachedFiles.forEach((file: any) => { 
+                        uniqueFilesSet.add(file.name);
+                        filesMetadata.push({name: file.name, content: file.content});
+                    });
                 }
 
                 const uniqueFilesNames = [...uniqueFilesSet];
@@ -184,7 +188,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
                 const richUserPayloadObj = {
                     text: userPrompt,
-                    files: uniqueFilesNames
+                    filesMetadata: filesMetadata
                 };
 
                 // Forzamos a TypeScript a aceptar el objeto enviándolo como un string tipado
@@ -197,7 +201,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                     type: 'addMessage', 
                     role: 'user', 
                     text: userPrompt,
-                    files: uniqueFilesNames 
+                    filesMetadata: filesMetadata 
                 });
                 webviewView.webview.postMessage({ type: 'startStreaming' });
 

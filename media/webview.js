@@ -164,7 +164,7 @@ window.addEventListener('message', event => {
                 // Si el backend guardó el objeto puro, msg.content vendrá como un Objeto de JS directo
                 if (msg.content && typeof msg.content === 'object') {
                     textoAVisualizar = msg.content.text || "";
-                    archivosAsociados = msg.content.files || [];
+                    archivosAsociados = msg.content.filesMetadata || [];
                     esFormatoNuevo = true;
                 }
                 // Si viene como string, validamos si parece un JSON estructurado de texto plano
@@ -174,7 +174,7 @@ window.addEventListener('message', event => {
                         try {
                             const parsed = JSON.parse(cleanStr);
                             textoAVisualizar = parsed.text || "";
-                            archivosAsociados = parsed.files || [];
+                            archivosAsociados = parsed.filesMetadata || [];
                             esFormatoNuevo = true;
                         } catch (e) {
                             esFormatoNuevo = false;
@@ -192,7 +192,8 @@ window.addEventListener('message', event => {
                     }
 
                     if (archivosAsociados.length > 0) {
-                        archivosAsociados.forEach(fileName => {
+                        archivosAsociados.forEach(fileObj => {
+                            const fileName = fileObj.name || 'archivo';
                             const badge = document.createElement('div');
                             badge.className = 'attached-file-badge';
                             badge.style.margin = "4px 0 8px auto"; // Alineado a la derecha con la burbuja
@@ -228,6 +229,55 @@ window.addEventListener('message', event => {
                         container.className = 'message-container user';
                         container.innerHTML = `<div class="message"><span>${rawText}</span></div>`;
                         chatDiv.appendChild(container);
+                    }
+                }
+            } else if (msg.role === 'assistant') {
+                // 🤖 Renderizar mensajes del asistente
+                let assistantText = "";
+                let assistantTime = "";
+                let assistantTokens = "";
+
+                if (msg.content && typeof msg.content === 'string') {
+                    const cleanStr = msg.content.trim();
+                    if (cleanStr.startsWith('{') && cleanStr.endsWith('}')) {
+                        try {
+                            const parsed = JSON.parse(cleanStr);
+                            assistantText = parsed.text || "";
+                            assistantTime = parsed.time || "";
+                            assistantTokens = parsed.tokens || "";
+                        } catch (e) {
+                            assistantText = msg.content;
+                        }
+                    } else {
+                        assistantText = msg.content;
+                    }
+                } else if (msg.content && typeof msg.content === 'object') {
+                    assistantText = msg.content.text || "";
+                    assistantTime = msg.content.time || "";
+                    assistantTokens = msg.content.tokens || "";
+                }
+
+                if (assistantText) {
+                    const assistantContainer = document.createElement('div');
+                    assistantContainer.className = 'message-container assistant';
+                    const msgBubble = document.createElement('div');
+                    msgBubble.className = 'message';
+                    msgBubble.innerHTML = `<span>${assistantText}</span>`;
+                    assistantContainer.appendChild(msgBubble);
+                    chatDiv.appendChild(assistantContainer);
+
+                    // Mostrar tiempo y tokens si existen
+                    if (assistantTime || assistantTokens) {
+                        const statsContainer = document.createElement('div');
+                        statsContainer.style.fontSize = '0.8em';
+                        statsContainer.style.color = '#888';
+                        statsContainer.style.marginTop = '4px';
+                        statsContainer.style.marginBottom = '12px';
+                        let statsText = '';
+                        if (assistantTime) statsText += `⏱️ ${assistantTime}s`;
+                        if (assistantTokens) statsText += ` | 🔢 ${assistantTokens} tokens`;
+                        statsContainer.textContent = statsText;
+                        chatDiv.appendChild(statsContainer);
                     }
                 }
             }
@@ -327,38 +377,24 @@ window.addEventListener('message', event => {
 
             const rawText = message.text;
 
-            // 🧠 PARSEADOR DE HISTORIAL MULTI-ARCHIVO SEGURO
-            if (rawText.includes('[Archivo Adjunto:')) {
-                // Extraer la pregunta limpia buscando todo lo que no sea bloques técnicos de marcas
-                let userQuestion = rawText
-                    .replace(/\[Archivo Adjunto:.*?\][\s\S]*?```[\s\S]*?```/g, '')
-                    .trim();
+            // 1. Mostrar la pregunta del usuario
+            if (rawText) {
+                const userContainer = document.createElement('div');
+                userContainer.className = 'message-container user';
+                userContainer.innerHTML = `<div class="message"><span>${rawText}</span></div>`;
+                chatDiv.appendChild(userContainer);
+            }
 
-                // 1. Primero inyectamos la burbuja del usuario arriba
-                if (userQuestion) {
-                    const userContainer = document.createElement('div');
-                    userContainer.className = 'message-container user';
-                    userContainer.innerHTML = `<div class="message"><span>${userQuestion}</span></div>`;
-                    chatDiv.appendChild(userContainer);
-                }
-
-                // 2. Extraer todos los nombres de archivos adjuntados para pintarlos secuencialmente abajo
-                const matches = [...rawText.matchAll(/\[Archivo Adjunto:\s*(.*?)\]/g)];
-                matches.forEach(match => {
-                    const fileName = match[1] || 'archivo';
+            // 2. Mostrar los archivos adjuntos si existen
+            if (message.filesMetadata && Array.isArray(message.filesMetadata) && message.filesMetadata.length > 0) {
+                message.filesMetadata.forEach(fileObj => {
+                    const fileName = fileObj.name || 'archivo';
                     const fileBadgeInChat = document.createElement('div');
                     fileBadgeInChat.className = 'attached-file-badge';
-                    fileBadgeInChat.style.margin = "4px 0 8px 0";
+                    fileBadgeInChat.style.margin = "4px 0 8px auto";
                     fileBadgeInChat.innerHTML = `<span>📄 ${fileName}</span>`;
                     chatDiv.appendChild(fileBadgeInChat);
                 });
-            }
-            else {
-                // Mensaje de texto ordinario
-                const container = document.createElement('div');
-                container.className = 'message-container user';
-                container.innerHTML = `<div class="message"><span>${rawText}</span></div>`;
-                chatDiv.appendChild(container);
             }
 
             chatDiv.scrollTop = chatDiv.scrollHeight;
