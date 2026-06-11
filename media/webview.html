@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    {{stylePlaceholder}}
+</head>
+
+<body>
+    <!-- 🌟 NUEVO: Contenedor para mostrar el listado de sesiones previas -->
+    <!-- Contenedor superior dinámico de navegación -->
+    <div id="active-session-header" class="active-session-nav" style="display: none;">
+        <div id="back-to-sessions-btn" class="back-icon-button" title="Volver a las sesiones">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+        </div>
+        <div id="active-session-title" class="active-session-title-text"></div>
+    </div>
+
+    <!-- Contenedor exclusivo para el listado de sesiones inicial -->
+    <div id="sessions-container" style="display: none;">
+        <div id="sessions-main-title" class="sessions-header">Sesiones</div>
+        <div id="sessions-list"></div>
+    </div>
+
+    <!-- Zona principal donde aparecen los mensajes del chat activo -->
+    <div id="chat"></div>
+
+    <div class="input-container">
+        <!-- 🌟 MODIFICADO: Contenedor flexible para múltiples badges que crece hacia arriba -->
+        <div id="attached-files-container" class="attached-files-container">
+            <!-- Los badges dinámicos se inyectarán aquí individualmente desde JS -->
+        </div>
+
+        <textarea id="prompt" rows="2" placeholder="Pregúntale a tu Llama local o pide cambios..."></textarea>
+        <div class="input-actions">
+            <div id="attach-file-btn" class="add-icon-button" title="Agregar archivo al contexto">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14M12 5v14" />
+                </svg>
+            </div>
+            <div class="chat-action-buttons">
+                <button id="send" title="Enviar mensaje">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m5 12 7-7 7 7M12 5v14" />
+                    </svg>
+                </button>
+                <button id="stop" title="Detener generación" style="display: none;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://w3.org">
+                        <rect x="4" y="4" width="16" height="16" rx="2" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {{scriptPlaceholder}}
+</body>
+
+</html>

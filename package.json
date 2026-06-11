@@ -1,0 +1,100 @@
+{
+  "name": "llama-chat-assistant",
+  "displayName": "llama-chat-assistant",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.120.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Llama Chat Assistant",
+      "properties": {
+        "llamaChat.apiUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8033/v1/chat/completions",
+          "description": "URL del servidor API compatible con OpenAI de Llama.cpp."
+        },
+        "llamaChat.temperature": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Temperatura del modelo (valores más bajos son más deterministas y precisos)."
+        },
+        "llamaChat.systemPrompt": {
+          "type": "string",
+          "default": "Eres un asistente de programación para VS Code. Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
+          "description": "Instrucciones de sistema que definen el comportamiento, personalidad y restricciones del modelo local.",
+          "editPresentation": "multilineText" 
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "llama-chat-assistant.openSettings",
+        "title": "Llama Chat: Configurar",
+        "icon": "settings-gear"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "llama-chat-sidebar",
+          "title": "Llama Chat",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "llama-chat-sidebar": [
+        {
+          "type": "webview",
+          "id": "llama-chat-view",
+          "name": "Chat con Llama.cpp"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "llama-chat-assistant.openSettings",
+          "when": "view == llama-chat-view",
+          "group": "$(navigation)"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "copy-media": "node -e \"const fs=require('fs'); fs.mkdirSync('dist/media', {recursive:true}); fs.copyFileSync('media/webview.html', 'dist/media/webview.html'); fs.copyFileSync('media/webview.css', 'dist/media/webview.css'); fs.copyFileSync('media/webview.js', 'dist/media/webview.js');\"",
+    "compile": "npm run check-types && npm run lint && node esbuild.js && npm run copy-media",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run copy-media",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.120.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.56.1",
+    "eslint": "^9.39.3",
+    "esbuild": "^0.27.3",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
