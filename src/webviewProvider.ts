@@ -357,7 +357,16 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                             tokens: finalTokensCount
                         });
                     } else {
-                        // ... (Mantén tu bloque de error convencional igual)
+                        // 🛠️ CASO ERROR: Desbloquear interfaz y mostrar error al usuario
+                        let errorMessage = 'Error desconocido durante la generación';
+                        if (error.message) {
+                            errorMessage = error.message;
+                        }
+
+                        webviewView.webview.postMessage({
+                            type: 'errorStreaming',
+                            text: `❌ Error: ${errorMessage}`
+                        });
                     }
                 } finally {
                     this.currentAbortController = null;

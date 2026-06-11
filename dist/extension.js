@@ -411,6 +411,14 @@ ${userPrompt}`;
               tokens: finalTokensCount
             });
           } else {
+            let errorMessage = "Error desconocido durante la generaci\xF3n";
+            if (error.message) {
+              errorMessage = error.message;
+            }
+            webviewView.webview.postMessage({
+              type: "errorStreaming",
+              text: `\u274C Error: ${errorMessage}`
+            });
           }
         } finally {
           this.currentAbortController = null;
