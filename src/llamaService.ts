@@ -24,10 +24,11 @@ export interface StreamingState {
 }
 
 export class LlamaService {
+
     private static readonly DEFAULT_CONFIG: LlamaConfig = {
         apiUrl: 'http://127.0.0.1:8033/v1/chat/completions',
-        temperature: 0.2,
-        systemPrompt: 'Eres un asistente de programación para VS Code.'
+        temperature: 0.0,
+        systemPrompt: '# REGLAS DE COMPORTAMIENTO (INGENIERO PRINCIPAL)\n- INICIO: Prohibido saludar o introducir. Empieza directamente con el diagnóstico técnico o el bloque de código corregido.\n- CÓDIGO DE SALIDA: Entrega única y exclusivamente las líneas de código modificadas exactas. Prohibido reescribir funciones completas si no cambiaron. Prohibido incluir boilerplate.\n- TONO: Factual, imperativo, absoluto. No uses "creo que", "podría ser" o terminología dubitativa.\n- CONCISIÓN: Elimina explicaciones obvias o de nivel junior. Si el código habla por sí mismo, no agregues texto descriptivo.'
     };
 
     /**
@@ -108,18 +109,33 @@ export class LlamaService {
         let characterCount = 0;
         let serverUsageTokens = 0;
 
+        // Normalización de la estructura para compatibilidad con la API OpenAI / Llama.cpp
+        const openAiCompliantMessages = messages.map(msg => ({
+            role: msg.role,
+            content: (msg as any).text || (msg as any).content || ""
+        }));
+
         try {
+
+            const requestPayload = {
+                model: 'local',
+                messages: openAiCompliantMessages,
+                temperature: config.temperature,
+                max_tokens: 2048,
+                stream: true
+            };
+
+            console.log("=== LLAMA.CPP REQUEST PAYLOAD ===");
+            console.log(JSON.stringify(requestPayload, null, 2));
+            console.log("=================================");
+
             const response = await globalThis.fetch(config.apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: 'local',
-                    messages,
-                    temperature: config.temperature,
-                    stream: true
-                }),
+                body: JSON.stringify(requestPayload),
                 signal: abortController.signal
             });
+
 
             if (!response.ok) {
                 throw new Error(`Server responded: ${response.status}`);
@@ -176,8 +192,8 @@ export class LlamaService {
 
             return {
                 totalText: accumulatedText,
-                tokenCount: serverUsageTokens > 0 
-                    ? serverUsageTokens 
+                tokenCount: serverUsageTokens > 0
+                    ? serverUsageTokens
                     : Math.round(characterCount / 3.2),
                 serverUsageTokens
             };
