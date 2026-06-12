@@ -4,11 +4,11 @@
 const HTML_TEMPLATES = {
     userMessage: (text) => `<div class="message"><span>${text}</span></div>`,
     attachedFileBadge: (filename) => `<span>📄 ${filename}</span>`,
-    copyIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://w3.org">
+    copyIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
         <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
     </svg>`,
-    checkmarkIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://w3.org">
+    checkmarkIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M20 6 9 17l-5-5"/>
     </svg>`,
     typingIndicator: '<div class="typing-indicator"><span></span><span></span><span></span></div>',
@@ -70,7 +70,6 @@ elements.prompt.addEventListener('keydown', (e) => {
         sendMessage();
     }
 });
-document.getElementById('send').addEventListener('click', sendMessage);
 window.addEventListener('message', handleWebsocketMessage);
 
 // ============================================================
@@ -78,7 +77,7 @@ window.addEventListener('message', handleWebsocketMessage);
 // ============================================================
 function handleWebsocketMessage(event) {
     const message = event.data;
-    
+
     switch (message.type) {
         case 'codeSelectionCaptured':
             handleCodeSelectionCaptured(message);
@@ -183,7 +182,6 @@ function handleAddMessage(message) {
             elements.activeSessionTitle.innerText = truncateTitle(message.text);
             elements.activeSessionHeader.style.display = 'flex';
         }
-
         renderUserMessageLive(message);
     }
 }
@@ -198,11 +196,16 @@ function handleStartStreaming() {
     container.className = 'message-container assistant';
     const msgBubble = document.createElement('div');
     msgBubble.className = 'message';
+
     currentAssistantBubble = document.createElement('div');
     currentAssistantBubble.style.whiteSpace = "pre-wrap";
-    
     msgBubble.appendChild(currentAssistantBubble);
-    msgBubble.innerHTML += HTML_TEMPLATES.typingIndicator;
+
+    const indicatorContainer = document.createElement('div');
+    indicatorContainer.innerHTML = HTML_TEMPLATES.typingIndicator;
+    const indicatorNode = indicatorContainer.firstChild;
+    msgBubble.appendChild(indicatorNode);
+
     container.appendChild(msgBubble);
     elements.chat.appendChild(container);
     elements.chat.scrollTop = elements.chat.scrollHeight;
@@ -216,12 +219,16 @@ function handleAppendToken(message) {
         try {
             const parsed = JSON.parse(tokenText);
             tokenText = parsed.text;
-        } catch (e) {}
+        } catch (e) { }
     }
 
     const bubbleNode = currentAssistantBubble.closest('.message');
-    const indicator = bubbleNode.querySelector('.typing-indicator');
-    if (indicator) indicator.remove();
+    if (bubbleNode) {
+        const indicator = bubbleNode.querySelector('.typing-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+    }
 
     currentAssistantText += tokenText;
     currentAssistantBubble.innerText = currentAssistantText;
@@ -242,7 +249,7 @@ function handleEndStreaming(message) {
             try {
                 const parsedData = JSON.parse(finalContent);
                 finalContent = parsedData.text.trim();
-            } catch (e) {}
+            } catch (e) { }
         }
 
         bubbleNode.innerHTML = '';
@@ -277,7 +284,7 @@ function renderAllBadges() {
     if (!container) return;
 
     container.innerHTML = '';
-    currentAttachedFiles.forEach((file, index) => {
+    currentAttachedFiles.forEach((file) => {
         const badge = document.createElement('div');
         badge.className = 'attached-file-badge';
         badge.innerHTML = `<span>${HTML_TEMPLATES.attachedFileBadge(file.name)}</span>`;
@@ -288,12 +295,11 @@ function renderAllBadges() {
             removeBtn.innerText = '×';
             removeBtn.title = 'Quitar archivo';
             removeBtn.onclick = () => {
-                currentAttachedFiles.splice(index, 1);
+                currentAttachedFiles = currentAttachedFiles.filter(f => f.name !== file.name);
                 renderAllBadges();
             };
             badge.appendChild(removeBtn);
         }
-
         container.appendChild(badge);
     });
 }
@@ -316,7 +322,7 @@ function renderUserMessageLive(message) {
 
 function renderUserMessageFromHistory(msg) {
     const { text, files } = parseUserMessage(msg);
-    
+
     if (text) {
         const userContainer = document.createElement('div');
         userContainer.className = 'message-container user';
@@ -333,7 +339,6 @@ function renderUserMessageFromHistory(msg) {
 
 function renderAssistantMessageFromHistory(msg) {
     const { text, time, tokens } = parseAssistantMessage(msg);
-    
     if (!text) return;
 
     const container = document.createElement('div');
@@ -350,19 +355,20 @@ function renderAssistantMessageFromHistory(msg) {
 
 function renderFormattedContent(bubbleNode, content) {
     const parts = content.split(/(```[\s\S]*?```)/g);
-    let lastCode = "";
-    let hasCode = false;
     let rendered = false;
 
     parts.forEach(part => {
         if (part.startsWith('```') && part.endsWith('```')) {
-            hasCode = true;
             rendered = true;
-            const cleanCode = part.replace(/^```[a-zA-Z]*\s*/, '').replace(/```$/, '').trim();
-            lastCode = cleanCode;
+            const langMatch = part.match(/^```([a-zA-Z0-9+-]+)/);
+            const language = langMatch ? langMatch[1] : '';
+            const cleanCode = part.replace(/^```[a-zA-Z0-9+-]*\s*/, '').replace(/```$/, '').trim();
 
             const pre = document.createElement('pre');
             const code = document.createElement('code');
+            if (language) {
+                code.className = `language-${language}`;
+            }
             code.innerText = cleanCode;
             pre.appendChild(code);
             bubbleNode.appendChild(pre);
@@ -395,7 +401,10 @@ function addMessageFooter(bubbleNode, content, time, tokens) {
     const copyBtn = createCopyButton(codeToCopy);
     const statsDiv = document.createElement('div');
     statsDiv.className = 'chat-stats';
-    statsDiv.innerText = `${time}s  •  ${tokens} tokens`;
+
+    const cleanTime = time !== undefined ? time : '0.00';
+    const cleanTokens = tokens !== undefined ? tokens : '0';
+    statsDiv.innerText = `${cleanTime}s  •  ${cleanTokens} tokens`;
 
     footerRow.appendChild(copyBtn);
     footerRow.appendChild(statsDiv);
@@ -418,7 +427,6 @@ function createCopyButton(content) {
             }, 2000);
         }).catch(err => console.error('Copy error:', err));
     };
-
     return copyBtn;
 }
 
@@ -435,20 +443,20 @@ function createSessionCard(session) {
     card.className = 'session-card';
     card.innerHTML = `
         <div class="session-card-body">
-            <div class="session-card-title">${session.title}</div>
-            <div class="session-card-time">${session.relativeTime}</div>
+            <div class="session-card-title"></div>
+            <div class="session-card-time"></div>
         </div>
         <div class="delete-session-button" title="Eliminar sesión permanentemente">
             ${HTML_TEMPLATES.deleteSessionIcon}
         </div>
     `;
 
+    card.querySelector('.session-card-title').innerText = session.title || "Nueva Sesión";
+    card.querySelector('.session-card-time').innerText = session.relativeTime || "";
+
     card.onclick = () => {
-        elements.sessionsMainTitle.style.display = 'none';
-        elements.sessionsList.style.display = 'none';
+        showChatView();
         elements.activeSessionTitle.innerText = session.title;
-        elements.activeSessionHeader.style.display = 'flex';
-        elements.chat.style.display = 'flex';
         elements.chat.innerHTML = '';
         elements.vscode.postMessage({ type: 'selectSession', sessionId: session.id });
     };
@@ -463,7 +471,6 @@ function createSessionCard(session) {
             elements.vscode.postMessage({ type: 'deleteSession', sessionId: session.id });
         }, 200);
     };
-
     elements.sessionsList.appendChild(card);
 }
 
@@ -474,6 +481,7 @@ function createSessionCard(session) {
 function showChatView() {
     elements.sessionsContainer.style.display = 'none';
     elements.sessionsList.style.display = 'none';
+    elements.sessionsMainTitle.style.display = 'none';
     elements.activeSessionHeader.style.display = 'flex';
     elements.chat.style.display = 'flex';
 }
@@ -501,34 +509,16 @@ function parseUserMessage(msg) {
     let isNewFormat = false;
 
     if (msg.content && typeof msg.content === 'object') {
-        text = msg.content.text || "";
-        files = msg.content.filesMetadata || [];
-        isNewFormat = true;
-    } else if (typeof msg.content === 'string') {
-        const cleanStr = msg.content.trim();
-        if (cleanStr.startsWith('{') && cleanStr.endsWith('}')) {
-            try {
-                const parsed = JSON.parse(cleanStr);
-                text = parsed.text || "";
-                files = parsed.filesMetadata || [];
-                isNewFormat = true;
-            } catch (e) {
-                isNewFormat = false;
-            }
-        }
-    }
-
-    return { text, files, isNewFormat };
+        text = msg.content.text || ""; files = msg.content.filesMetadata || []; isNewFormat = true;
+    } else if (typeof msg.content === 'string') { const cleanStr = msg.content.trim(); if (cleanStr.startsWith('{') && cleanStr.endsWith('}')) { try { const parsed = JSON.parse(cleanStr); text = parsed.text || ""; files = parsed.filesMetadata || []; isNewFormat = true; } catch (e) { isNewFormat = false; } } else { text = msg.content; } } return { text, files, isNewFormat };
 }
 
 function parseAssistantMessage(msg) {
     let text = "";
     let time = "";
     let tokens = "";
-
     if (msg.content && typeof msg.content === 'object') {
-        text = msg.content.text || "";
-        time = msg.content.time || "";
+        text = msg.content.text || ""; time = msg.content.time || "";
         tokens = msg.content.tokens || "";
     } else if (typeof msg.content === 'string') {
         const cleanStr = msg.content.trim();
@@ -544,35 +534,25 @@ function parseAssistantMessage(msg) {
         } else {
             text = msg.content;
         }
-    }
-
-    return { text, time, tokens };
+    } return {
+        text, time, tokens
+    };
 }
 
 function extractLastCode(content) {
-    const match = content.match(/```[\s\S]*?```/);
-    if (match) {
-        return match[0].replace(/^```[a-zA-Z]*\s*/, '').replace(/```$/, '').trim();
+    const matches = [...content.matchAll(/[a-zA-Z0-9+-]*\s*([\s\S]*?)/g)];
+    if (matches.length > 0) {
+        return matches[matches.length - 1][1].trim();
     }
     return content;
 }
 
-// ============================================================
-// MESSAGE SENDING
-// ============================================================
-
 function sendMessage() {
     const text = elements.prompt.value.trim();
     if (text || currentAttachedFiles.length > 0) {
-        elements.vscode.postMessage({
-            type: 'askLlama',
-            value: text,
-            attachedFiles: currentAttachedFiles
-        });
-
+        elements.vscode.postMessage({ type: 'askLlama', value: text, attachedFiles: currentAttachedFiles });
         elements.prompt.value = '';
         elements.prompt.rows = 2;
-
         setTimeout(() => {
             currentAttachedFiles = currentAttachedFiles.filter(file => !file.isManual);
             renderAllBadges();
@@ -580,17 +560,11 @@ function sendMessage() {
     }
 }
 
-// ============================================================
-// UTILITY FUNCTIONS
-// ============================================================
-
 function truncateTitle(text) {
-    const cleanText = text.split('Indicación:').pop()?.trim() || text;
+    if (!text) return "Nueva Sesión";
+    let cleanText = text.replace(/---[\s\S]*?---/g, '');
+    cleanText = cleanText.split(/Indicación(?: del usuario)?:/i).pop()?.trim() || cleanText; cleanText = cleanText.replace(/\s+/g, ' ');
     return cleanText.length > 30 ? cleanText.substring(0, 27) + '...' : cleanText;
 }
-
-// ============================================================
-// INITIALIZATION
-// ============================================================
-
+// ============================================================// INITIALIZATION// ============================================================
 elements.vscode.postMessage({ type: 'webviewReady' });
