@@ -315,31 +315,38 @@ function renderAllBadges() {
 }
 
 function renderUserMessageLive(message) {
-    if (message.text) {
-        const userContainer = document.createElement('div');
+    let userContainer = null;
+
+    if (message.text || (message.filesMetadata && message.filesMetadata.length > 0)) {
+        userContainer = document.createElement('div');
         userContainer.className = 'message-container user';
-        userContainer.innerHTML = HTML_TEMPLATES.userMessage(message.text);
+        if (message.text) {
+            userContainer.innerHTML = HTML_TEMPLATES.userMessage(message.text);
+        }
         elements.chat.appendChild(userContainer);
     }
 
-    if (message.filesMetadata && Array.isArray(message.filesMetadata) && message.filesMetadata.length > 0) {
-        renderFileBadgesInChat(message.filesMetadata.map(fileObj => fileObj.name));
+    if (userContainer && message.filesMetadata && Array.isArray(message.filesMetadata) && message.filesMetadata.length > 0) {
+        renderFileBadgesInChat(message.filesMetadata.map(fileObj => fileObj.name), userContainer);
     }
     elements.chat.scrollTop = elements.chat.scrollHeight;
 }
 
 function renderUserMessageFromHistory(msg) {
     const { text, files } = parseUserMessage(msg);
+    let userContainer = null;
 
-    if (text) {
-        const userContainer = document.createElement('div');
+    if (text || files.length > 0) {
+        userContainer = document.createElement('div');
         userContainer.className = 'message-container user';
-        userContainer.innerHTML = HTML_TEMPLATES.userMessage(text);
+        if (text) {
+            userContainer.innerHTML = HTML_TEMPLATES.userMessage(text);
+        }
         elements.chat.appendChild(userContainer);
     }
 
-    if (files.length > 0) {
-        renderFileBadgesInChat(files.map(fileObj => fileObj.name));
+    if (userContainer && files.length > 0) {
+        renderFileBadgesInChat(files.map(fileObj => fileObj.name), userContainer);
     }
 }
 
@@ -436,7 +443,7 @@ function createCopyButton(content) {
     return copyBtn;
 }
 
-function renderFileBadgesInChat(fileNames) {
+function renderFileBadgesInChat(fileNames, targetContainer = elements.chat) {
     if (!fileNames || fileNames.length === 0) {
         return;
     }
@@ -451,7 +458,7 @@ function renderFileBadgesInChat(fileNames) {
         filesContainer.appendChild(badge);
     });
 
-    elements.chat.appendChild(filesContainer);
+    targetContainer.appendChild(filesContainer);
 }
 
 function createSessionCard(session) {

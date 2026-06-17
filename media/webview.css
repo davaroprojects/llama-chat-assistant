@@ -447,7 +447,7 @@ textarea:disabled {
 .chat-attached-files-container {
     justify-content: flex-end;
     align-self: flex-end;
-    margin: 4px 0 8px auto;
+    margin: 6px 0 0 auto;
     width: auto;
     max-width: 90%;
     min-width: 0;
