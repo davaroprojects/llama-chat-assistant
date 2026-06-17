@@ -18,19 +18,19 @@
         "llamaChat.apiUrl": {
           "type": "string",
           "default": "http://127.0.0.1:8033/v1/chat/completions",
-          "description": "URL del servidor API compatible con OpenAI de Llama.cpp."
+          "description": "The API URL for LlamaChat."
         },
         "llamaChat.temperature": {
           "type": "number",
           "default": 0.2,
           "minimum": 0,
           "maximum": 2,
-          "description": "Temperatura del modelo (valores más bajos son más deterministas y precisos)."
+          "description": "The temperature for the model."
         },
         "llamaChat.systemPrompt": {
           "type": "string",
-          "default": "Eres un asistente de programación para VS Code. Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
-          "description": "Instrucciones de sistema que definen el comportamiento, personalidad y restricciones del modelo local.",
+          "default": "Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
+          "description": "The system prompt for the model.",
           "editPresentation": "multilineText" 
         }
       }

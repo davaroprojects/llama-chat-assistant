@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SessionManager } from './sessionManager';
+import { SessionManager } from './chat/sessionManager';
 import { LlamaChatViewProvider } from './webviewProvider';
 
 export function activate(context: vscode.ExtensionContext) {

@@ -318,19 +318,19 @@ textarea {
     justify-content: center;
     cursor: pointer;
     color: var(--vscode-foreground);
-    opacity: 0.25;
+    opacity: 0.4;
     transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
     padding: 4px;
     border-radius: 4px;
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     box-sizing: border-box;
 }
 
 .delete-session-button:hover {
     opacity: 0.9;
-    color: var(--vscode-errorForeground, #f44336);
-    background-color: rgba(244, 67, 54, 0.1);
+    color: var(--vscode-button-background);
+    background-color: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.05));
 }
 
 /* Contenedor de navegación superior estilo Copilot */
@@ -442,6 +442,19 @@ textarea:disabled {
     width: 100%;
     box-sizing: border-box;
     min-height: 0; /* Permite un tamaño dinámico */
+}
+
+.chat-attached-files-container {
+    justify-content: flex-end;
+    align-self: flex-end;
+    margin: 4px 0 8px auto;
+    width: auto;
+    max-width: 90%;
+    min-width: 0;
+}
+
+.chat-attached-files-container .attached-file-badge {
+    max-width: 100%;
 }
 
 /* Estilo individual de cada Badge */

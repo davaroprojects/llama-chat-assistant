@@ -12,8 +12,8 @@ const HTML_TEMPLATES = {
         <path d="M20 6 9 17l-5-5"/>
     </svg>`,
     typingIndicator: '<div class="typing-indicator"><span></span><span></span><span></span></div>',
-    deleteSessionIcon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/>
+    deleteSessionIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6 6 18M6 6l12 12"/>
     </svg>`
 };
 
@@ -64,12 +64,7 @@ elements.stopBtn.addEventListener('click', () => {
 elements.attachBtn.addEventListener('click', () => {
     elements.vscode.postMessage({ type: 'openFilePicker' });
 });
-elements.prompt.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
+elements.prompt.addEventListener('keydown', handlePromptKeyDown);
 window.addEventListener('message', handleWebsocketMessage);
 
 // ============================================================
@@ -108,6 +103,9 @@ function handleWebsocketMessage(event) {
             break;
         case 'errorStreaming':
             handleErrorStreaming(message);
+            break;
+        case 'stopStreaming':
+            handleStopStreaming();
             break;
     }
 }
@@ -275,6 +273,20 @@ function handleErrorStreaming(message) {
     elements.vscode.postMessage({ type: 'requestActiveEditorRefresh' });
 }
 
+function handleStopStreaming() {
+    elements.prompt.disabled = false;
+    elements.stopBtn.style.display = 'none';
+    elements.sendBtn.style.display = 'flex';
+    elements.prompt.focus();
+
+    const container = document.createElement('div');
+    container.className = 'message-container assistant';
+    container.innerHTML = `<div class="message" style="color:var(--vscode-errorForeground)">Generación cancelada</div>`;
+    elements.chat.appendChild(container);
+
+    elements.vscode.postMessage({ type: 'requestActiveEditorRefresh' });
+}
+
 // ============================================================
 // UI RENDERING FUNCTIONS
 // ============================================================
@@ -289,17 +301,15 @@ function renderAllBadges() {
         badge.className = 'attached-file-badge';
         badge.innerHTML = `<span>${HTML_TEMPLATES.attachedFileBadge(file.name)}</span>`;
 
-        if (file.isManual === true) {
-            const removeBtn = document.createElement('div');
-            removeBtn.className = 'remove-file-btn';
-            removeBtn.innerText = '×';
-            removeBtn.title = 'Quitar archivo';
-            removeBtn.onclick = () => {
-                currentAttachedFiles = currentAttachedFiles.filter(f => f.name !== file.name);
-                renderAllBadges();
-            };
-            badge.appendChild(removeBtn);
-        }
+        const removeBtn = document.createElement('div');
+        removeBtn.className = 'remove-file-btn';
+        removeBtn.innerText = '×';
+        removeBtn.title = 'Quitar archivo';
+        removeBtn.onclick = () => {
+            currentAttachedFiles = currentAttachedFiles.filter(f => f.name !== file.name);
+            renderAllBadges();
+        };
+        badge.appendChild(removeBtn);
         container.appendChild(badge);
     });
 }
@@ -313,9 +323,7 @@ function renderUserMessageLive(message) {
     }
 
     if (message.filesMetadata && Array.isArray(message.filesMetadata) && message.filesMetadata.length > 0) {
-        message.filesMetadata.forEach(fileObj => {
-            renderFileBadgeInChat(fileObj.name);
-        });
+        renderFileBadgesInChat(message.filesMetadata.map(fileObj => fileObj.name));
     }
     elements.chat.scrollTop = elements.chat.scrollHeight;
 }
@@ -331,9 +339,7 @@ function renderUserMessageFromHistory(msg) {
     }
 
     if (files.length > 0) {
-        files.forEach(fileObj => {
-            renderFileBadgeInChat(fileObj.name);
-        });
+        renderFileBadgesInChat(files.map(fileObj => fileObj.name));
     }
 }
 
@@ -430,12 +436,22 @@ function createCopyButton(content) {
     return copyBtn;
 }
 
-function renderFileBadgeInChat(filename) {
-    const badge = document.createElement('div');
-    badge.className = 'attached-file-badge';
-    badge.style.margin = "4px 0 8px auto";
-    badge.innerHTML = `<span>${HTML_TEMPLATES.attachedFileBadge(filename)}</span>`;
-    elements.chat.appendChild(badge);
+function renderFileBadgesInChat(fileNames) {
+    if (!fileNames || fileNames.length === 0) {
+        return;
+    }
+
+    const filesContainer = document.createElement('div');
+    filesContainer.className = 'attached-files-container chat-attached-files-container';
+
+    fileNames.forEach(filename => {
+        const badge = document.createElement('div');
+        badge.className = 'attached-file-badge';
+        badge.innerHTML = `<span>${HTML_TEMPLATES.attachedFileBadge(filename)}</span>`;
+        filesContainer.appendChild(badge);
+    });
+
+    elements.chat.appendChild(filesContainer);
 }
 
 function createSessionCard(session) {
@@ -545,6 +561,15 @@ function extractLastCode(content) {
         return matches[matches.length - 1][1].trim();
     }
     return content;
+}
+
+function handlePromptKeyDown(event) {
+    const isEnterKey = event.key === 'Enter' || event.code === 'Enter' || event.keyCode === 13;
+    if (isEnterKey && !event.shiftKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        sendMessage();
+    }
 }
 
 function sendMessage() {

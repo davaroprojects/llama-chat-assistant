@@ -1,0 +1,37 @@
+import * as vscode from 'vscode';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+export async function openFilePicker(webviewView: vscode.WebviewView): Promise<void> {
+    try {
+        const fileUri = await vscode.window.showOpenDialog({
+            canSelectMany: false,
+            openLabel: 'Agregar al contexto',
+            filters: {
+                'Código': ['ts', 'js', 'json', 'py', 'go', 'rs', 'txt', 'html', 'css', 'md', 'java', 'cpp']
+            }
+        });
+
+        if (fileUri?.[0]) {
+            processSelectedFile(fileUri[0], webviewView);
+        }
+    } catch (error: any) {
+        vscode.window.showErrorMessage(`Error al leer archivo: ${error.message}`);
+    }
+}
+
+function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewView): void {
+    try {
+        const filePath = fileUri.fsPath;
+        const fileName = path.basename(filePath);
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+
+        webviewView.webview.postMessage({
+            type: 'fileSelected',
+            name: fileName,
+            content: fileContent
+        });
+    } catch (error: any) {
+        vscode.window.showErrorMessage(`Error al leer archivo: ${error.message}`);
+    }
+}

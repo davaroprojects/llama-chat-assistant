@@ -13,32 +13,32 @@ export interface ChatSession {
 }
 
 export class SessionManager {
-    private sessions: ChatSession[] = [];
+    private sessions: Map<string, ChatSession> = new Map();
     private currentSessionId: string | null = null;
     private readonly STORAGE_KEY = 'llamaChatSessions';
 
     constructor(private readonly context: vscode.ExtensionContext) {
-        this.sessions = this.context.globalState.get<ChatSession[]>(this.STORAGE_KEY, []);
+        this.sessions = new Map(this.context.globalState.get<ChatSession[]>(this.STORAGE_KEY, []).map(s => [s.id, s]));
     }
 
     public getAllSessions(): { id: string; title: string; relativeTime: string }[] {
-        return this.sessions
+        return Array.from(this.sessions.values())
             .map(session => ({
                 id: session.id,
                 title: session.title,
                 relativeTime: this.getRelativeTime(session.createdAt)
             }))
-            .reverse(); 
+            .reverse();
     }
 
     public createSession(firstQuestion: string): ChatSession {
         const newSession: ChatSession = {
-            id: Date.now().toString(), 
+            id: Date.now().toString(),
             title: this.truncateTitle(firstQuestion),
             createdAt: Date.now(),
             messages: []
         };
-        this.sessions.push(newSession);
+        this.sessions.set(newSession.id, newSession);
         this.currentSessionId = newSession.id;
         this.saveToDisk();
         return newSession;
@@ -50,7 +50,7 @@ export class SessionManager {
 
     public getCurrentSession(): ChatSession | null {
         if (!this.currentSessionId) { return null; }
-        return this.sessions.find(s => s.id === this.currentSessionId) || null;
+        return this.sessions.get(this.currentSessionId) || null;
     }
 
     public addMessageToCurrentSession(role: string, content: string): void {
@@ -61,8 +61,16 @@ export class SessionManager {
         }
     }
 
+    public deleteSession(sessionId: string): void {
+        this.sessions.delete(sessionId);
+        if (this.currentSessionId === sessionId) {
+            this.currentSessionId = null;
+        }
+        this.saveToDisk();
+    }
+
     private saveToDisk(): void {
-        this.context.globalState.update(this.STORAGE_KEY, this.sessions);
+        this.context.globalState.update(this.STORAGE_KEY, Array.from(this.sessions.values()));
     }
 
     private truncateTitle(text: string): string {
@@ -83,13 +91,4 @@ export class SessionManager {
         if (diffDays === 1) { return 'Ayer'; }
         return `Hace ${diffDays} días`;
     }
-
-    public deleteSession(sessionId: string): void {
-        this.sessions = this.sessions.filter(s => s.id !== sessionId);
-        if (this.currentSessionId === sessionId) {
-            this.currentSessionId = null;
-        }
-        this.saveToDisk();
-    }
-
 }

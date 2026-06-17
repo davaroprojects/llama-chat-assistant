@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { SessionManager } from './sessionManager';
-import { SessionPayloadBuilder, FileMetadata } from './sessionPayloadBuilder';
-import { LlamaService, ChatMessage, LlamaConfig } from './llamaService';
+import { SessionManager } from './chat/sessionManager';
+import { SessionPayloadBuilder, FileMetadata } from './chat/sessionPayloadBuilder';
+import { LlamaService, ChatMessage, LlamaConfig } from './chat/llamaService';
+import { getActiveEditorContext, sendActiveEditorContext, EditorContext } from './webview/editorContext';
+import { openFilePicker } from './webview/filePicker';
+import { getHtmlForWebview } from './webview/webviewResources';
 
 export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private currentAbortController: AbortController | null = null;
@@ -28,7 +29,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
 
-        webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+        webviewView.webview.html = getHtmlForWebview(this._extensionUri, webviewView.webview);
         this.setupMessageHandlers(webviewView);
         this.setupEditorListeners();
     }
@@ -76,27 +77,17 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private handleWebviewReady(webviewView: vscode.WebviewView): void {
-        const activeSession = this.sessionManager.getCurrentSession();
-        
-        if (activeSession) {
+        const initialSessions = this.sessionManager.getAllSessions();
+
+        if (initialSessions.length > 0) {
+            this.sessionManager.setCurrentSession(null);
             webviewView.webview.postMessage({
-                type: 'restoreActiveChat',
-                title: activeSession.title,
-                messages: activeSession.messages
+                type: 'renderSessionsList',
+                sessions: initialSessions
             });
-        } else {
-            const initialSessions = this.sessionManager.getAllSessions();
-            if (initialSessions.length > 0) {
-                webviewView.webview.postMessage({
-                    type: 'renderSessionsList',
-                    sessions: initialSessions
-                });
-            }
         }
 
-        if (!activeSession) {
-            this.sendActiveEditorContext(webviewView, vscode.window.activeTextEditor);
-        }
+        this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
     }
 
     private handleStopGeneration(): void {
@@ -110,39 +101,11 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         this.isPickerOpen = true;
 
         try {
-            const fileUri = await vscode.window.showOpenDialog({
-                canSelectMany: false,
-                openLabel: 'Agregar al contexto',
-                filters: {
-                    'Código': ['ts', 'js', 'json', 'py', 'go', 'rs', 'txt', 'html', 'css', 'md', 'java', 'cpp']
-                }
-            });
-
-            if (fileUri?.[0]) {
-                this.processSelectedFile(fileUri[0], webviewView);
-            }
-        } catch (error: any) {
-            vscode.window.showErrorMessage(`Error al leer archivo: ${error.message}`);
+            await openFilePicker(webviewView);
         } finally {
             setTimeout(() => {
                 this.isPickerOpen = false;
             }, 400);
-        }
-    }
-
-    private processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewView): void {
-        try {
-            const filePath = fileUri.fsPath;
-            const fileName = path.basename(filePath);
-            const fileContent = fs.readFileSync(filePath, 'utf8');
-
-            webviewView.webview.postMessage({
-                type: 'fileSelected',
-                name: fileName,
-                content: fileContent
-            });
-        } catch (error: any) {
-            vscode.window.showErrorMessage(`Error al leer archivo: ${error.message}`);
         }
     }
 
@@ -161,10 +124,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
     private async handleAskLlama(data: any, webviewView: vscode.WebviewView): Promise<void> {
         this.isGenerationActive = true;
-
         try {
             const userPrompt = data.value;
-            const editorContext = this.getActiveEditorContext();
+            const editorContext = getActiveEditorContext();
             const filesMetadata = this.collectFilesMetadata(data.attachedFiles, editorContext);
 
             // Save user message to session
@@ -187,10 +149,16 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                 filesMetadata,
                 webviewView
             );
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error in askLlama:', error);
+            if (error.name === 'AbortError') {
+                webviewView.webview.postMessage({ type: 'stopStreaming' });
+            } else {
+                webviewView.webview.postMessage({ type: 'errorStreaming', text: `❌ Error: ${error.message}` });
+            }
         } finally {
             this.isGenerationActive = false;
+            this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
         }
     }
 
@@ -226,12 +194,12 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private handleRequestActiveEditorRefresh(webviewView: vscode.WebviewView): void {
-        this.sendActiveEditorContext(webviewView, vscode.window.activeTextEditor);
+        this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
     }
 
     private async generateLlamaResponse(
         userPrompt: string,
-        editorContext: { name: string; content: string },
+        editorContext: EditorContext,
         filesMetadata: FileMetadata[],
         webviewView: vscode.WebviewView
     ): Promise<void> {
@@ -264,7 +232,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                         type: 'appendToken',
                         text: token
                     });
-                }
+                },
+                this.currentAbortController.signal
             );
 
             // Save assistant response to session
@@ -287,12 +256,13 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         } finally {
             this.currentAbortController = null;
             this.isGenerationActive = false;
-            this.sendActiveEditorContext(webviewView, vscode.window.activeTextEditor);
+            this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
         }
     }
 
     private handleGenerationError(error: any, webviewView: vscode.WebviewView): void {
         if (error.name === 'AbortError') {
+            webviewView.webview.postMessage({ type: 'stopStreaming' });
             return;
         }
 
@@ -306,83 +276,32 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private setupEditorListeners(): void {
         const activeEditorListener = vscode.window.onDidChangeActiveTextEditor(editor => {
             if (this._view) {
-                this.sendActiveEditorContext(this._view, editor);
+                this.pushActiveEditorContext(this._view, editor);
             }
         });
         this.context.subscriptions.push(activeEditorListener);
 
         const selectionListener = vscode.window.onDidChangeTextEditorSelection(event => {
             if (this._view) {
-                this.sendActiveEditorContext(this._view, event.textEditor);
+                this.pushActiveEditorContext(this._view, event.textEditor);
             }
         });
         this.context.subscriptions.push(selectionListener);
     }
 
-    private sendActiveEditorContext(
+    private pushActiveEditorContext(
         webviewView: vscode.WebviewView,
         editor: vscode.TextEditor | undefined
     ): void {
-        if (this.isPickerOpen || this.isGenerationActive) {
-            return;
-        }
-
-        if (editor && editor.document.uri.scheme === 'file') {
-            const fileName = path.basename(editor.document.fileName);
-            const selection = editor.selection;
-
-            const message = this.buildEditorContextMessage(fileName, editor, selection);
-            webviewView.webview.postMessage(message);
-        } else {
-            webviewView.webview.postMessage({ type: 'clearActiveEditorContext' });
-        }
-    }
-
-    private buildEditorContextMessage(
-        fileName: string,
-        editor: vscode.TextEditor,
-        selection: vscode.Selection
-    ): any {
-        if (!selection.isEmpty) {
-            const selectedText = editor.document.getText(selection);
-            const startLine = selection.start.line + 1;
-            const endLine = selection.end.line + 1;
-            const lineSuffix = (startLine === endLine) 
-                ? `:${startLine}` 
-                : `:${startLine}-${endLine}`;
-
-            return {
-                type: 'codeSelectionCaptured',
-                name: `${fileName}${lineSuffix}`,
-                content: selectedText
-            };
-        } else {
-            const fullContent = editor.document.getText();
-            return {
-                type: 'codeSelectionCaptured',
-                name: fileName,
-                content: fullContent
-            };
-        }
-    }
-
-    private getActiveEditorContext(): { name: string; content: string } {
-        const editor = vscode.window.activeTextEditor;
-        let name = '';
-        let content = '';
-
-        if (editor && editor.document.uri.scheme === 'file') {
-            name = path.basename(editor.document.fileName);
-            const selection = editor.document.getText(editor.selection);
-            content = selection ? selection : editor.document.getText();
-        }
-
-        return { name, content };
+        sendActiveEditorContext(webviewView, editor, {
+            isPickerOpen: this.isPickerOpen,
+            isGenerationActive: this.isGenerationActive
+        });
     }
 
     private collectFilesMetadata(
         attachedFiles: FileMetadata[],
-        editorContext: { name: string; content: string }
+        editorContext: EditorContext
     ): FileMetadata[] {
         return SessionPayloadBuilder.collectFilesMetadata(
             editorContext.name,
@@ -404,27 +323,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         return {
             apiUrl: config.get<string>('apiUrl') || 'http://127.0.0.1:8033/v1/chat/completions',
             temperature: config.get<number>('temperature') ?? 0.2,
-            systemPrompt: config.get<string>('systemPrompt') || 'Eres un asistente de programación para VS Code.'
+            systemPrompt: config.get<string>('systemPrompt') || ''
         };
     }
 
-    private getHtmlForWebview(webview: vscode.Webview): string {
-        const htmlPath = path.join(this._extensionUri.fsPath, 'dist', 'media', 'webview.html');
-        const cssPath = path.join(this._extensionUri.fsPath, 'dist', 'media', 'webview.css');
-        const jsPath = path.join(this._extensionUri.fsPath, 'dist', 'media', 'webview.js');
-
-        if (!fs.existsSync(htmlPath) || !fs.existsSync(cssPath) || !fs.existsSync(jsPath)) {
-            return '<h3>Error: Resources not found in dist/media. Run npm run compile.</h3>';
-        }
-
-        let htmlContent = fs.readFileSync(htmlPath, 'utf8');
-        const cssUri = webview.asWebviewUri(vscode.Uri.file(cssPath));
-        const jsUri = webview.asWebviewUri(vscode.Uri.file(jsPath));
-
-        const styleLink = `<link rel="stylesheet" type="text/css" href="${cssUri}">`;
-        const scriptSrc = `<script src="${jsUri}"></script>`;
-
-        htmlContent = htmlContent.replace('{{stylePlaceholder}}', styleLink);
-        return htmlContent.replace('{{scriptPlaceholder}}', scriptSrc);
-    }
 }
