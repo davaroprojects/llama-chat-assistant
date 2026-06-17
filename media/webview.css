@@ -89,25 +89,117 @@ body {
     font-family: var(--vscode-editor-font-family, sans-serif);
     font-size: 1em;
     line-height: 1.5;
+    margin: 2px 0;
 }
 
+.assistant .message > div:first-child { margin-top: 0; }
+.assistant .message > div:last-child { margin-bottom: 0; }
+
 /* Bloques de código: ÚNICOS que llevarán la caja oscura */
+.code-block-wrapper {
+    position: relative;
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
 pre {
     background-color: var(--vscode-textCodeBlock-background, #1e1e1e);
     border: 1px solid var(--vscode-panel-border);
     border-radius: 6px;
     padding: 12px;
+    padding-top: 38px;
     overflow-x: auto;
-    margin: 10px 0;
+    margin: 0;
     width: 100%;
     box-sizing: border-box;
+    white-space: pre;
+}
+
+pre code {
+    white-space: pre;
 }
 
 code {
     font-family: var(--vscode-editor-font-family, monospace);
     font-size: calc(var(--vscode-editor-font-size, 12px) * 0.85);
     color: var(--vscode-textCodeBlock-foreground, var(--vscode-foreground));
+    background: none !important;
+    text-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    white-space: pre;
 }
+
+/* Header del bloque de código con lenguaje y botón copiar */
+.code-block-header {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    right: 8px;
+    height: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1;
+    gap: 8px;
+}
+
+.code-block-language {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.7);
+    color: var(--vscode-descriptionForeground, #888888);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Botón de copiar dentro de bloques de código */
+.code-block-copy-btn {
+    position: static;
+    top: auto;
+    right: auto;
+    background: transparent;
+    opacity: 0.4;
+    transition: opacity 0.15s ease, color 0.15s ease;
+    padding: 3px;
+    border-radius: 4px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.code-block-wrapper:hover .code-block-copy-btn {
+    opacity: 0.7;
+}
+
+.code-block-copy-btn:hover {
+    opacity: 1 !important;
+    color: var(--vscode-button-background);
+}
+
+.code-block-copy-btn.copied {
+    opacity: 1 !important;
+    color: var(--vscode-statusBarItem-remoteBackground, #28a745);
+}
+
+/* Prism theme overrides — use VS Code token colors */
+.token.comment, .token.prolog, .token.doctype, .token.cdata { color: #6a9955; }
+.token.punctuation { color: var(--vscode-foreground); opacity: 0.7; }
+.token.property, .token.tag, .token.boolean, .token.number, .token.constant, .token.symbol { color: #b5cea8; }
+.token.selector, .token.attr-name, .token.string, .token.char, .token.builtin { color: #ce9178; }
+.token.operator, .token.entity, .token.url, .language-css .token.string, .style .token.string { color: #d4d4d4; }
+.token.atrule, .token.attr-value, .token.keyword { color: #569cd6; }
+.token.function, .token.class-name { color: #dcdcaa; }
+.token.regex, .token.important, .token.variable { color: #9cdcfe; }
+.token.important, .token.bold { font-weight: bold; }
+.token.italic { font-style: italic; }
 
 /* Caja de entrada inferior estilo Chat Moderno */
 .input-container {

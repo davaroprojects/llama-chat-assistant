@@ -235,7 +235,7 @@ function handleAppendToken(message) {
     }
 
     currentAssistantText += tokenText;
-    currentAssistantBubble.innerText = currentAssistantText;
+    renderFormattedContent(currentAssistantBubble, currentAssistantText);
     elements.chat.scrollTop = elements.chat.scrollHeight;
 }
 
@@ -391,34 +391,56 @@ function renderAssistantMessageFromHistory(msg) {
 }
 
 function renderFormattedContent(bubbleNode, content) {
-    const parts = content.split(/(```[\s\S]*?```)/g);
+    const parsedParts = parseMarkdownParts(content);
     let rendered = false;
 
-    parts.forEach(part => {
-        if (part.startsWith('```') && part.endsWith('```')) {
+    bubbleNode.innerHTML = '';
+
+    parsedParts.forEach(part => {
+        if (part.type === 'code') {
             rendered = true;
-            const langMatch = part.match(/^```([a-zA-Z0-9+-]+)/);
-            const language = langMatch ? langMatch[1] : '';
-            const cleanCode = part.replace(/^```[a-zA-Z0-9+-]*\s*/, '').replace(/```$/, '').trim();
+            const wrapper = document.createElement('div');
+            wrapper.className = 'code-block-wrapper';
 
             const pre = document.createElement('pre');
             const code = document.createElement('code');
-            if (language) {
-                code.className = `language-${language}`;
+            if (part.language) {
+                code.className = `language-${part.language}`;
             }
-            code.innerText = cleanCode;
+            code.textContent = part.value;
             pre.appendChild(code);
-            bubbleNode.appendChild(pre);
-        } else {
-            const normalText = part.trim();
-            if (normalText) {
-                rendered = true;
-                const p = document.createElement('div');
-                p.style.margin = "10px 0";
-                p.style.lineHeight = "1.5";
-                p.innerText = normalText;
-                bubbleNode.appendChild(p);
+
+            const copyBtn = createCopyButton(part.value);
+            copyBtn.className = 'copy-icon-button code-block-copy-btn';
+            copyBtn.title = 'Copiar código';
+
+            const header = document.createElement('div');
+            header.className = 'code-block-header';
+
+            const languageName = document.createElement('span');
+            languageName.className = 'code-block-language';
+            languageName.textContent = part.language || 'code';
+
+            header.appendChild(languageName);
+            header.appendChild(copyBtn);
+
+            wrapper.appendChild(header);
+            wrapper.appendChild(pre);
+            bubbleNode.appendChild(wrapper);
+
+            if (typeof Prism !== 'undefined') {
+                Prism.highlightElement(code);
             }
+            return;
+        }
+
+        if (part.value) {
+            rendered = true;
+            const p = document.createElement('div');
+            p.style.margin = "10px 0";
+            p.style.lineHeight = "1.5";
+            p.innerText = part.value;
+            bubbleNode.appendChild(p);
         }
     });
 
@@ -428,6 +450,53 @@ function renderFormattedContent(bubbleNode, content) {
         fallbackDiv.innerText = content;
         bubbleNode.appendChild(fallbackDiv);
     }
+}
+
+function parseMarkdownParts(content) {
+    const parts = [];
+    let cursor = 0;
+
+    while (cursor < content.length) {
+        const fenceStart = content.indexOf('```', cursor);
+
+        if (fenceStart === -1) {
+            const textRemainder = content.slice(cursor);
+            if (textRemainder) {
+                parts.push({ type: 'text', value: textRemainder });
+            }
+            break;
+        }
+
+        if (fenceStart > cursor) {
+            parts.push({ type: 'text', value: content.slice(cursor, fenceStart) });
+        }
+
+        const afterFence = fenceStart + 3;
+        const languageEnd = content.indexOf('\n', afterFence);
+
+        if (languageEnd === -1) {
+            parts.push({ type: 'code', language: '', value: '' });
+            break;
+        }
+
+        const language = content.slice(afterFence, languageEnd).trim();
+        const closingFence = content.indexOf('```', languageEnd + 1);
+
+        if (closingFence === -1) {
+            parts.push({ type: 'code', language, value: content.slice(languageEnd + 1) });
+            break;
+        }
+
+        parts.push({
+            type: 'code',
+            language,
+            value: content.slice(languageEnd + 1, closingFence)
+        });
+
+        cursor = closingFence + 3;
+    }
+
+    return parts;
 }
 
 function addMessageFooter(bubbleNode, content, time, tokens) {

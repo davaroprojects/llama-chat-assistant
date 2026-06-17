@@ -6,6 +6,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     const htmlPath = path.join(extensionUri.fsPath, 'dist', 'media', 'webview.html');
     const cssPath = path.join(extensionUri.fsPath, 'dist', 'media', 'webview.css');
     const jsPath = path.join(extensionUri.fsPath, 'dist', 'media', 'webview.js');
+    const prismJsPath = path.join(extensionUri.fsPath, 'dist', 'media', 'prism.min.js');
 
     if (!fs.existsSync(htmlPath) || !fs.existsSync(cssPath) || !fs.existsSync(jsPath)) {
         return '<h3>Error: Resources not found in dist/media. Run npm run compile.</h3>';
@@ -14,9 +15,10 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     let htmlContent = fs.readFileSync(htmlPath, 'utf8');
     const cssUri = webview.asWebviewUri(vscode.Uri.file(cssPath));
     const jsUri = webview.asWebviewUri(vscode.Uri.file(jsPath));
+    const prismJsUri = webview.asWebviewUri(vscode.Uri.file(prismJsPath));
 
     const styleLink = `<link rel="stylesheet" type="text/css" href="${cssUri}">`;
-    const scriptSrc = `<script src="${jsUri}"></script>`;
+    const scriptSrc = `<script src="${prismJsUri}"></script><script src="${jsUri}"></script>`;
 
     htmlContent = htmlContent.replace('{{stylePlaceholder}}', styleLink);
     return htmlContent.replace('{{scriptPlaceholder}}', scriptSrc);
