@@ -79,13 +79,11 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private handleWebviewReady(webviewView: vscode.WebviewView): void {
         const initialSessions = this.sessionManager.getAllSessions();
 
-        if (initialSessions.length > 0) {
-            this.sessionManager.setCurrentSession(null);
-            webviewView.webview.postMessage({
-                type: 'renderSessionsList',
-                sessions: initialSessions
-            });
-        }
+        this.sessionManager.setCurrentSession(null);
+        webviewView.webview.postMessage({
+            type: 'renderSessionsList',
+            sessions: initialSessions
+        });
 
         this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
     }

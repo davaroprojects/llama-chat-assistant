@@ -76,6 +76,15 @@ body {
     width: 100%;
 }
 
+.assistant .message.loading-bubble {
+    background: var(--vscode-editor-background, #ffffff);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 2px 16px 16px 16px;
+    padding: 10px 12px;
+    width: fit-content;
+    max-width: 85%;
+}
+
 .assistant .message > div {
     font-family: var(--vscode-editor-font-family, sans-serif);
     font-size: 1em;
@@ -306,6 +315,21 @@ textarea {
     opacity: 0.35;
     letter-spacing: 0.2px;
     user-select: none;
+}
+
+.empty-session-card {
+    cursor: default;
+    padding-right: 6px;
+}
+
+.empty-session-card:hover {
+    background: transparent;
+}
+
+.empty-session-card .session-card-title {
+    opacity: 0.7;
+    white-space: normal;
+    text-overflow: unset;
 }
 
 /* El basurero ahora se ancla de forma absoluta en la esquina superior derecha de la tarjeta */

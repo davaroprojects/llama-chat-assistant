@@ -150,7 +150,12 @@ function handleRestoreActiveChat(message) {
 
 function handleRenderSessionsList(message) {
     elements.sessionsList.innerHTML = '';
-    message.sessions.forEach(session => createSessionCard(session));
+
+    if (message.sessions.length === 0) {
+        createEmptySessionsCard();
+    } else {
+        message.sessions.forEach(session => createSessionCard(session));
+    }
 
     if (elements.activeSessionHeader.style.display !== 'flex') {
         elements.sessionsMainTitle.style.display = 'block';
@@ -193,7 +198,7 @@ function handleStartStreaming() {
     const container = document.createElement('div');
     container.className = 'message-container assistant';
     const msgBubble = document.createElement('div');
-    msgBubble.className = 'message';
+    msgBubble.className = 'message loading-bubble';
 
     currentAssistantBubble = document.createElement('div');
     currentAssistantBubble.style.whiteSpace = "pre-wrap";
@@ -222,6 +227,7 @@ function handleAppendToken(message) {
 
     const bubbleNode = currentAssistantBubble.closest('.message');
     if (bubbleNode) {
+        bubbleNode.classList.remove('loading-bubble');
         const indicator = bubbleNode.querySelector('.typing-indicator');
         if (indicator) {
             indicator.remove();
@@ -265,10 +271,28 @@ function handleErrorStreaming(message) {
     elements.sendBtn.style.display = 'flex';
     elements.prompt.focus();
 
+    if (currentAssistantBubble) {
+        const bubbleNode = currentAssistantBubble.closest('.message');
+        if (bubbleNode) {
+            bubbleNode.remove();
+        }
+        currentAssistantBubble = null;
+        currentAssistantText = "";
+    }
+
     const container = document.createElement('div');
     container.className = 'message-container assistant';
     container.innerHTML = `<div class="message" style="color:var(--vscode-errorForeground)">${message.text}</div>`;
     elements.chat.appendChild(container);
+
+    if (currentAssistantBubble) {
+        const bubbleNode = currentAssistantBubble.closest('.message');
+        if (bubbleNode) {
+            bubbleNode.remove();
+        }
+        currentAssistantBubble = null;
+        currentAssistantText = "";
+    }
 
     elements.vscode.postMessage({ type: 'requestActiveEditorRefresh' });
 }
@@ -495,6 +519,17 @@ function createSessionCard(session) {
         }, 200);
     };
     elements.sessionsList.appendChild(card);
+}
+
+function createEmptySessionsCard() {
+    const emptyCard = document.createElement('div');
+    emptyCard.className = 'session-card empty-session-card';
+    emptyCard.innerHTML = `
+        <div class="session-card-body">
+            <div class="session-card-title">Inicie una nueva sesion desde el chat</div>
+        </div>
+    `;
+    elements.sessionsList.appendChild(emptyCard);
 }
 
 // ============================================================
