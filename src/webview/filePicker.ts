@@ -15,8 +15,9 @@ export async function openFilePicker(webviewView: vscode.WebviewView): Promise<v
         if (fileUri?.[0]) {
             processSelectedFile(fileUri[0], webviewView);
         }
-    } catch (error: any) {
-        vscode.window.showErrorMessage(`Error al leer archivo: ${error.message}`);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        vscode.window.showErrorMessage(`Error al leer archivo: ${message}`);
     }
 }
 
@@ -24,6 +25,17 @@ function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewVie
     try {
         const filePath = fileUri.fsPath;
         const fileName = path.basename(filePath);
+        const config = vscode.workspace.getConfiguration('llamaChat');
+        const maxFileSizeKb = config.get<number>('maxAttachedFileSizeKb') ?? 256;
+        const fileStats = fs.statSync(filePath);
+
+        if (fileStats.size > maxFileSizeKb * 1024) {
+            vscode.window.showWarningMessage(
+                `El archivo ${fileName} excede el límite de ${maxFileSizeKb}KB.`
+            );
+            return;
+        }
+
         const fileContent = fs.readFileSync(filePath, 'utf8');
 
         webviewView.webview.postMessage({
@@ -31,7 +43,8 @@ function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewVie
             name: fileName,
             content: fileContent
         });
-    } catch (error: any) {
-        vscode.window.showErrorMessage(`Error al leer archivo: ${error.message}`);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        vscode.window.showErrorMessage(`Error al leer archivo: ${message}`);
     }
 }

@@ -74,6 +74,8 @@ function setStreamingUiLocked(locked) {
 
     elements.attachBtn.setAttribute('aria-disabled', String(locked));
     elements.backToSessionsBtn.setAttribute('aria-disabled', String(locked));
+
+    renderAllBadges();
 }
 
 // ============================================================
@@ -381,10 +383,11 @@ function renderAllBadges() {
         badge.innerHTML = `<span>${HTML_TEMPLATES.attachedFileBadge(file.name)}</span>`;
 
         const removeBtn = document.createElement('div');
-        removeBtn.className = 'remove-file-btn';
+        removeBtn.className = 'remove-file-btn' + (isStreamingActive ? ' is-disabled' : '');
         removeBtn.innerText = '×';
-        removeBtn.title = 'Quitar archivo';
+        removeBtn.title = isStreamingActive ? 'No disponible durante la generación' : 'Quitar archivo';
         removeBtn.onclick = () => {
+            if (isStreamingActive) { return; }
             if (file.isAutomatic) {
                 removedAutoContextKeys.add(createAutoContextKey(file.name, file.content));
             }

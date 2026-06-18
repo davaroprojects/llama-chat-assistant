@@ -1,16 +1,68 @@
 import * as vscode from 'vscode';
 import { SessionManager } from './chat/sessionManager';
-import { SessionPayloadBuilder, FileMetadata } from './chat/sessionPayloadBuilder';
+import {
+    SessionPayloadBuilder,
+    FileMetadata,
+    UserMessagePayload,
+    AssistantMessagePayload
+} from './chat/sessionPayloadBuilder';
 import { LlamaService, ChatMessage, LlamaConfig } from './chat/llamaService';
 import { sendActiveEditorContext } from './webview/editorContext';
 import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
+
+interface BaseWebviewMessage {
+    type: string;
+}
+
+interface AskLlamaMessage extends BaseWebviewMessage {
+    type: 'askLlama';
+    value: string;
+    attachedFiles?: FileMetadata[];
+}
+
+interface SelectSessionMessage extends BaseWebviewMessage {
+    type: 'selectSession';
+    sessionId: string | null;
+}
+
+interface DeleteSessionMessage extends BaseWebviewMessage {
+    type: 'deleteSession';
+    sessionId: string;
+}
+
+interface ApplyCodeMessage extends BaseWebviewMessage {
+    type: 'applyCode';
+    value: string;
+}
+
+type IncomingWebviewMessage =
+    | AskLlamaMessage
+    | SelectSessionMessage
+    | DeleteSessionMessage
+    | ApplyCodeMessage
+    | { type: 'webviewReady' }
+    | { type: 'stopGeneration' }
+    | { type: 'openFilePicker' }
+    | { type: 'requestSessionsUpdate' }
+    | { type: 'requestActiveEditorRefresh' };
+
+interface RuntimeMetrics {
+    totalRequests: number;
+    totalErrors: number;
+    totalDurationMs: number;
+}
 
 export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private currentAbortController: AbortController | null = null;
     private _view?: vscode.WebviewView;
     private isPickerOpen = false;
     private isGenerationActive = false;
+    private readonly metrics: RuntimeMetrics = {
+        totalRequests: 0,
+        totalErrors: 0,
+        totalDurationMs: 0
+    };
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -37,14 +89,14 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private setupMessageHandlers(webviewView: vscode.WebviewView): void {
         webviewView.webview.onDidReceiveMessage(async (data) => {
             try {
-                await this.routeMessage(data, webviewView);
+                await this.routeMessage(data as IncomingWebviewMessage, webviewView);
             } catch (error) {
                 console.error('Error handling message:', error);
             }
         });
     }
 
-    private async routeMessage(data: any, webviewView: vscode.WebviewView): Promise<void> {
+    private async routeMessage(data: IncomingWebviewMessage, webviewView: vscode.WebviewView): Promise<void> {
         switch (data.type) {
             case 'webviewReady':
                 this.handleWebviewReady(webviewView);
@@ -107,7 +159,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private handleSelectSession(data: any, webviewView: vscode.WebviewView): void {
+    private handleSelectSession(data: SelectSessionMessage, webviewView: vscode.WebviewView): void {
         this.sessionManager.setCurrentSession(data.sessionId);
         const activeSession = this.sessionManager.getCurrentSession();
 
@@ -120,8 +172,11 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private async handleAskLlama(data: any, webviewView: vscode.WebviewView): Promise<void> {
+    private async handleAskLlama(data: AskLlamaMessage, webviewView: vscode.WebviewView): Promise<void> {
         this.isGenerationActive = true;
+        this.metrics.totalRequests += 1;
+
+        const generationStart = performance.now();
         try {
             const userPrompt = data.value;
             const filesMetadata = this.collectFilesMetadata(data.attachedFiles || []);
@@ -145,20 +200,24 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                 filesMetadata,
                 webviewView
             );
-        } catch (error: any) {
+        } catch (error: unknown) {
+            this.metrics.totalErrors += 1;
             console.error('Error in askLlama:', error);
-            if (error.name === 'AbortError') {
+            if (error instanceof Error && error.name === 'AbortError') {
                 webviewView.webview.postMessage({ type: 'stopStreaming' });
             } else {
-                webviewView.webview.postMessage({ type: 'errorStreaming', text: `❌ Error: ${error.message}` });
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                webviewView.webview.postMessage({ type: 'errorStreaming', text: `❌ Error: ${errorMessage}` });
             }
         } finally {
             this.isGenerationActive = false;
+            this.metrics.totalDurationMs += (performance.now() - generationStart);
+            this.maybeLogMetrics();
             this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
         }
     }
 
-    private handleApplyCode(data: any): void {
+    private handleApplyCode(data: ApplyCodeMessage): void {
         const editor = vscode.window.activeTextEditor;
         if (editor) {
             editor.edit(editBuilder => {
@@ -171,7 +230,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private handleDeleteSession(data: any, webviewView: vscode.WebviewView): void {
+    private handleDeleteSession(data: DeleteSessionMessage, webviewView: vscode.WebviewView): void {
         this.sessionManager.deleteSession(data.sessionId);
 
         const remainingSessions = this.sessionManager.getAllSessions();
@@ -236,7 +295,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                 duration,
                 result.tokenCount
             );
-            this.sessionManager.addMessageToCurrentSession('assistant', assistantPayload as any);
+            this.sessionManager.addMessageToCurrentSession('assistant', assistantPayload);
 
             // Notify frontend of completion
             webviewView.webview.postMessage({
@@ -244,7 +303,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                 time: duration,
                 tokens: result.tokenCount
             });
-        } catch (error: any) {
+        } catch (error: unknown) {
             this.handleGenerationError(error, webviewView);
         } finally {
             this.currentAbortController = null;
@@ -253,13 +312,15 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private handleGenerationError(error: any, webviewView: vscode.WebviewView): void {
-        if (error.name === 'AbortError') {
+    private handleGenerationError(error: unknown, webviewView: vscode.WebviewView): void {
+        if (error instanceof Error && error.name === 'AbortError') {
             webviewView.webview.postMessage({ type: 'stopStreaming' });
             return;
         }
 
-        const errorMessage = error.message || 'Unknown error during generation';
+        const errorMessage = error instanceof Error
+            ? error.message
+            : 'Unknown error during generation';
         webviewView.webview.postMessage({
             type: 'errorStreaming',
             text: `❌ Error: ${errorMessage}`
@@ -298,12 +359,12 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         return SessionPayloadBuilder.collectFilesMetadata(attachedFiles || []);
     }
 
-    private saveUserMessageToSession(payload: any): void {
+    private saveUserMessageToSession(payload: UserMessagePayload): void {
         let currentSession = this.sessionManager.getCurrentSession();
         if (!currentSession) {
             currentSession = this.sessionManager.createSession(payload.text);
         }
-        this.sessionManager.addMessageToCurrentSession('user', payload as any);
+        this.sessionManager.addMessageToCurrentSession('user', payload);
     }
 
     private getLlamaConfig(): LlamaConfig {
@@ -311,8 +372,27 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         return {
             apiUrl: config.get<string>('apiUrl') || 'http://127.0.0.1:8033/v1/chat/completions',
             temperature: config.get<number>('temperature') ?? 0.2,
-            systemPrompt: config.get<string>('systemPrompt') || ''
+            systemPrompt: config.get<string>('systemPrompt') || '',
+            debug: config.get<boolean>('debug') ?? false
         };
+    }
+
+    private maybeLogMetrics(): void {
+        const config = vscode.workspace.getConfiguration('llamaChat');
+        const debugEnabled = config.get<boolean>('debug') ?? false;
+
+        if (!debugEnabled || this.metrics.totalRequests === 0) {
+            return;
+        }
+
+        if (this.metrics.totalRequests % 10 !== 0) {
+            return;
+        }
+
+        const avgMs = this.metrics.totalDurationMs / this.metrics.totalRequests;
+        console.log(
+            `[llama-chat] metrics req=${this.metrics.totalRequests} err=${this.metrics.totalErrors} avgMs=${avgMs.toFixed(0)}`
+        );
     }
 
 }

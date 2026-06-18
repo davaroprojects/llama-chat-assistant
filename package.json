@@ -32,6 +32,18 @@
           "default": "Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
           "description": "The system prompt for the model.",
           "editPresentation": "multilineText" 
+        },
+        "llamaChat.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable verbose logs and basic runtime metrics in the extension output."
+        },
+        "llamaChat.maxAttachedFileSizeKb": {
+          "type": "number",
+          "default": 256,
+          "minimum": 1,
+          "maximum": 4096,
+          "description": "Maximum size in KB for manually attached files."
         }
       }
     },

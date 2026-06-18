@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 export interface ChatMessage {
     role: string;
-    content: string;
+    content: unknown;
 }
 
 export interface ChatSession {
@@ -53,7 +53,7 @@ export class SessionManager {
         return this.sessions.get(this.currentSessionId) || null;
     }
 
-    public addMessageToCurrentSession(role: string, content: string): void {
+    public addMessageToCurrentSession(role: string, content: unknown): void {
         const currentSession = this.getCurrentSession();
         if (currentSession) {
             currentSession.messages.push({ role, content });
@@ -82,7 +82,7 @@ export class SessionManager {
         const now = Date.now();
         const diffMs = now - timestamp;
         const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMins / 600);
+        const diffHours = Math.floor(diffMins / 60);
         const diffDays = Math.floor(diffHours / 24);
 
         if (diffMins < 1) { return 'Ahora mismo'; }

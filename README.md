@@ -1,71 +1,122 @@
-# llama-chat-assistant README
+# Llama Chat Assistant
 
-This is the README for your extension "llama-chat-assistant". After writing up a brief description, we recommend including the following sections.
+VS Code extension to chat with a local OpenAI-compatible server (e.g. `llama.cpp`) from the sidebar.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- Token streaming with incremental markdown rendering.
+- Manual file attachment to context.
+- Automatic editor context capture:
+  - If there is a selection, only the selection is used (`file.ts:8-10`).
+  - If there is no selection, the full file is used.
+  - Removing the automatic context badge suppresses it until the editor is interacted with again.
+- Persistent session history in VS Code `globalState`.
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- An endpoint compatible with `POST /v1/chat/completions` and `stream: true`.
+- VS Code `^1.120.0`.
 
-## Extension Settings
+## Configuration
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+| Setting | Default | Description |
+|---|---|---|
+| `llamaChat.apiUrl` | `http://127.0.0.1:8033/v1/chat/completions` | Backend URL |
+| `llamaChat.temperature` | `0.2` | Generation temperature |
+| `llamaChat.systemPrompt` | *(built-in)* | System prompt |
+| `llamaChat.debug` | `false` | Enable verbose logs and runtime metrics every 10 requests |
+| `llamaChat.maxAttachedFileSizeKb` | `256` | Max size in KB for manually attached files |
 
-For example:
+## File attachment rules
 
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+- All attachments live in a single array: `{ name, content, isAutomatic }`.
+- No distinction between manual and automatic in session storage or prompts.
+- Previous messages retain their file context in the llama request history.
 
 ---
 
-## Following extension guidelines
+## Data structures
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+### Session storage (VS Code `globalState` key: `llamaChatSessions`)
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+```json
+[
+  {
+    "id": "1718615000000",
+    "title": "How does streaming work?",
+    "createdAt": 1718615000000,
+    "messages": [
+      {
+        "role": "user",
+        "content": {
+          "text": "How does streaming work?",
+          "filesMetadata": [
+            {
+              "name": "stream.ts:8-10",
+              "content": "const reader = body.getReader();\nconst decoder = new TextDecoder();\nlet buffer = '';",
+              "isAutomatic": true
+            }
+          ]
+        }
+      },
+      {
+        "role": "assistant",
+        "content": {
+          "text": "Streaming works by reading chunks from the response body...",
+          "time": "1.42",
+          "tokens": 128
+        }
+      }
+    ]
+  }
+]
+```
 
-## Working with Markdown
+### Request sent to llama.cpp
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+History messages are reconstructed with their original file context. The current message receives the same treatment.
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+```json
+{
+  "model": "local",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Return answers directly. If you generate code, wrap it in markdown blocks."
+    },
+    {
+      "role": "user",
+      "content": "--- ARCHIVO ADJUNTO: stream.ts:8-10 ---\nconst reader = body.getReader();\nconst decoder = new TextDecoder();\nlet buffer = '';\n--- FIN ARCHIVO ---\n\nIndicación del usuario:\nHow does streaming work?"
+    },
+    {
+      "role": "assistant",
+      "content": "Streaming works by reading chunks from the response body..."
+    },
+    {
+      "role": "user",
+      "content": "--- ARCHIVO ADJUNTO: stream.ts ---\nfull file content here\n--- FIN ARCHIVO ---\n\nIndicación del usuario:\nCan you explain the buffer logic?"
+    }
+  ],
+  "temperature": 0.2,
+  "max_tokens": 2048,
+  "stream": true
+}
+```
 
-## For more information
+---
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+## Development
 
-**Enjoy!**
+```bash
+npm run compile   # typecheck + lint + build
+npm run watch     # watch mode
+npm run test      # run unit tests
+```
+
+## Tests
+
+Unit tests cover:
+
+- Session relative time calculation.
+- Editor context label generation (selection range vs full file).
+- Payload deduplication and neutral attachment labels.

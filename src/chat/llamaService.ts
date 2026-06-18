@@ -7,6 +7,7 @@ export interface LlamaConfig {
     apiUrl: string;
     temperature: number;
     systemPrompt: string;
+    debug: boolean;
 }
 
 export interface StreamingState {
@@ -56,11 +57,24 @@ export class LlamaService {
             return content;
         }
 
-        if (typeof content === 'object' && (content as any).text) {
-            return (content as any).text;
+        if (typeof content !== 'object' || content === null) {
+            return '';
         }
 
-        return '';
+        const payload = content as Record<string, unknown>;
+        const text = typeof payload.text === 'string' ? payload.text : '';
+        const files = Array.isArray(payload.filesMetadata) ? payload.filesMetadata as Array<{ name: string; content: string }> : [];
+
+        if (files.length === 0) {
+            return text;
+        }
+
+        let ctx = '';
+        files.forEach(file => {
+            ctx += `--- ARCHIVO ADJUNTO: ${file.name} ---\n${file.content}\n--- FIN ARCHIVO ---\n\n`;
+        });
+        ctx += `Indicación del usuario:\n${text}`;
+        return ctx;
     }
 
     static async streamLlamaResponse(
@@ -87,9 +101,11 @@ export class LlamaService {
                 stream: true
             };
 
-            console.log("=== LLAMA.CPP REQUEST PAYLOAD ===");
-            console.log(JSON.stringify(requestPayload, null, 2));
-            console.log("=================================");
+            if (config.debug) {
+                console.log("=== LLAMA.CPP REQUEST PAYLOAD ===");
+                console.log(JSON.stringify(requestPayload, null, 2));
+                console.log("=================================");
+            }
 
             const response = await globalThis.fetch(config.apiUrl, {
                 method: 'POST',
@@ -144,7 +160,7 @@ export class LlamaService {
                         if (parsed.usage?.completion_tokens) {
                             serverUsageTokens = parsed.usage.completion_tokens;
                         }
-                    } catch (e) {
+                    } catch {
                     }
                 }
             }
