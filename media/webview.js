@@ -27,6 +27,8 @@ const elements = {
     chatTabPanel: document.getElementById('chat-tab-panel'),
     serverTabPanel: document.getElementById('server-tab-panel'),
     serverStartBtn: document.getElementById('server-start-btn'),
+    serverStopBtn: document.getElementById('server-stop-btn'),
+    serverParametersBody: document.getElementById('server-parameters-body'),
     chat: document.getElementById('chat'),
     prompt: document.getElementById('prompt'),
     sessionsContainer: document.getElementById('sessions-container'),
@@ -70,6 +72,7 @@ const removedAutoContextKeys = new Set();
 let currentContextWindow = 0;
 let currentModelName = 'local';
 let activeTab = 'chat';
+let isServerRunning = false;
 
 function createAutoContextKey(name, content) {
     return `${name}::${content}`;
@@ -98,6 +101,11 @@ elements.chatTabBtn?.addEventListener('click', () => switchTab('chat'));
 elements.serverTabBtn?.addEventListener('click', () => switchTab('server'));
 elements.serverStartBtn?.addEventListener('click', () => {
     elements.serverStartBtn.blur();
+    elements.vscode.postMessage({ type: 'startServer' });
+});
+elements.serverStopBtn?.addEventListener('click', () => {
+    elements.serverStopBtn.blur();
+    elements.vscode.postMessage({ type: 'stopServer' });
 });
 elements.backToSessionsBtn.addEventListener('click', handleBackToSessions);
 elements.sendBtn.addEventListener('click', sendMessage);
@@ -167,6 +175,14 @@ function handleWebsocketMessage(event) {
                 currentModelName = message.modelName.trim();
             }
             updateTokenCounter(0, currentContextWindow, currentModelName);
+            break;
+        case 'restoreUiState':
+            if (message.activeTab) {
+                switchTab(message.activeTab, false);
+            }
+            break;
+        case 'updateServerState':
+            renderServerState(message);
             break;
     }
 }
@@ -740,6 +756,10 @@ function createEmptySessionsCard() {
 
 function showChatView() {
     switchTab('chat');
+    showActiveChatLayout();
+}
+
+function showActiveChatLayout() {
     elements.sessionsContainer.style.display = 'none';
     elements.sessionsList.style.display = 'none';
     elements.sessionsMainTitle.style.display = 'none';
@@ -747,7 +767,7 @@ function showChatView() {
     elements.chat.style.display = 'flex';
 }
 
-function switchTab(tabName) {
+function switchTab(tabName, shouldPersist = true) {
     activeTab = tabName;
     const isChatTab = tabName === 'chat';
 
@@ -764,6 +784,10 @@ function switchTab(tabName) {
     }
 
     closeModelMenu();
+
+    if (shouldPersist) {
+        elements.vscode.postMessage({ type: 'setActiveTab', tab: activeTab });
+    }
 }
 
 function handleBackToSessions() {
@@ -808,6 +832,35 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
     }
     if (elements.modelContextMenuItem) {
         elements.modelContextMenuItem.textContent = normalizedModelName;
+    }
+}
+
+function renderServerState(message) {
+    isServerRunning = !!message.isRunning;
+
+    if (elements.serverStartBtn) {
+        elements.serverStartBtn.style.display = isServerRunning ? 'none' : 'inline-flex';
+    }
+
+    if (elements.serverStopBtn) {
+        elements.serverStopBtn.style.display = isServerRunning ? 'inline-flex' : 'none';
+    }
+
+    if (elements.serverParametersBody) {
+        elements.serverParametersBody.innerHTML = '';
+        (message.parameterRows || []).forEach((row) => {
+            const tr = document.createElement('tr');
+
+            const propertyCell = document.createElement('td');
+            propertyCell.textContent = row.property;
+
+            const valueCell = document.createElement('td');
+            valueCell.textContent = row.value;
+
+            tr.appendChild(propertyCell);
+            tr.appendChild(valueCell);
+            elements.serverParametersBody.appendChild(tr);
+        });
     }
 }
 
@@ -907,5 +960,5 @@ function truncateTitle(text) {
 }
 // ============================================================// INITIALIZATION// ============================================================
 updateTokenCounter(0, 0, currentModelName);
-switchTab(activeTab);
+switchTab(activeTab, false);
 elements.vscode.postMessage({ type: 'webviewReady' });

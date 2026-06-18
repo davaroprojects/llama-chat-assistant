@@ -34,4 +34,17 @@ suite('SessionManager', () => {
 
         Date.now = originalNow;
     });
+
+    test('Persists active tab and current session id in stored state', () => {
+        const context = createMockContext();
+        const manager = new SessionManager(context);
+        const session = manager.createSession('Primera pregunta');
+
+        manager.setActiveTab('server');
+        manager.setCurrentSession(session.id);
+
+        const storedState = context.globalState.get<any>('llamaChatSessions');
+        assert.strictEqual(storedState.uiState.activeTab, 'server');
+        assert.strictEqual(storedState.uiState.currentSessionId, session.id);
+    });
 });

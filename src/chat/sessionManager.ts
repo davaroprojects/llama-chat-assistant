@@ -12,13 +12,36 @@ export interface ChatSession {
     messages: ChatMessage[];
 }
 
+export interface ChatUiState {
+    activeTab: 'chat' | 'server';
+    currentSessionId: string | null;
+}
+
+interface StoredChatState {
+    sessions: ChatSession[];
+    uiState: ChatUiState;
+}
+
 export class SessionManager {
     private sessions: Map<string, ChatSession> = new Map();
     private currentSessionId: string | null = null;
     private readonly STORAGE_KEY = 'llamaChatSessions';
+    private uiState: ChatUiState = {
+        activeTab: 'chat',
+        currentSessionId: null
+    };
 
     constructor(private readonly context: vscode.ExtensionContext) {
-        this.sessions = new Map(this.context.globalState.get<ChatSession[]>(this.STORAGE_KEY, []).map(s => [s.id, s]));
+        const storedState = this.context.globalState.get<StoredChatState | ChatSession[]>(this.STORAGE_KEY, []);
+
+        if (Array.isArray(storedState)) {
+            this.sessions = new Map(storedState.map(s => [s.id, s]));
+            return;
+        }
+
+        this.sessions = new Map((storedState.sessions || []).map(s => [s.id, s]));
+        this.uiState = storedState.uiState || this.uiState;
+        this.currentSessionId = this.uiState.currentSessionId;
     }
 
     public getAllSessions(): { id: string; title: string; relativeTime: string }[] {
@@ -46,6 +69,8 @@ export class SessionManager {
 
     public setCurrentSession(sessionId: string | null): void {
         this.currentSessionId = sessionId;
+        this.uiState.currentSessionId = sessionId;
+        this.saveToDisk();
     }
 
     public getCurrentSession(): ChatSession | null {
@@ -65,7 +90,17 @@ export class SessionManager {
         this.sessions.delete(sessionId);
         if (this.currentSessionId === sessionId) {
             this.currentSessionId = null;
+            this.uiState.currentSessionId = null;
         }
+        this.saveToDisk();
+    }
+
+    public getUiState(): ChatUiState {
+        return { ...this.uiState };
+    }
+
+    public setActiveTab(activeTab: 'chat' | 'server'): void {
+        this.uiState.activeTab = activeTab;
         this.saveToDisk();
     }
 
@@ -93,7 +128,14 @@ export class SessionManager {
     }
 
     private saveToDisk(): void {
-        this.context.globalState.update(this.STORAGE_KEY, Array.from(this.sessions.values()));
+        const storedState: StoredChatState = {
+            sessions: Array.from(this.sessions.values()),
+            uiState: {
+                ...this.uiState,
+                currentSessionId: this.currentSessionId
+            }
+        };
+        this.context.globalState.update(this.STORAGE_KEY, storedState);
     }
 
     private truncateTitle(text: string): string {

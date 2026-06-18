@@ -2,12 +2,21 @@
   "ext.displayName": "Asistente de Chat Llama",
   "ext.description": "Chatea con un servidor local compatible con OpenAI desde la barra lateral de VS Code.",
 
-  "config.title": "Asistente de Chat Llama",
-  "config.apiUrl.description": "URL de la API para Llama Chat.",
+  "config.chat.title": "Asistente de Chat Llama › Chat",
+  "config.server.title": "Asistente de Chat Llama › Servidor",
   "config.temperature.description": "Temperatura de generación del modelo.",
   "config.systemPrompt.description": "Prompt de sistema usado para el modelo.",
   "config.debug.description": "Habilita logs detallados y métricas básicas de ejecución en la salida de la extensión.",
   "config.maxAttachedFileSizeKb.description": "Tamaño máximo en KB para archivos adjuntos manualmente.",
+  "config.server.executablePath.description": "Ruta al ejecutable de llama-server.",
+  "config.server.modelPath.description": "Ruta al archivo GGUF del modelo usado por llama-server.",
+  "config.server.gpuLayers.description": "Número de capas que se descargan a la GPU (-ngl).",
+  "config.server.contextSize.description": "Tamaño de ventana de contexto enviado a llama-server (-c).",
+  "config.server.flashAttention.description": "Indica si se debe enviar --flash-attn on a llama-server.",
+  "config.server.host.description": "Host usado por llama-server.",
+  "config.server.port.description": "Puerto usado por llama-server.",
+  "config.server.jinja.description": "Indica si se debe habilitar la bandera --jinja.",
+  "config.server.tools.description": "Valor enviado a --tools.",
 
   "command.openSettings.title": "Llama Chat: Configurar",
 

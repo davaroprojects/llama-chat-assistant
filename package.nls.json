@@ -2,12 +2,21 @@
   "ext.displayName": "Llama Chat Assistant",
   "ext.description": "Chat with a local OpenAI-compatible server from the VS Code sidebar.",
 
-  "config.title": "Llama Chat Assistant",
-  "config.apiUrl.description": "The API URL for Llama Chat.",
+  "config.chat.title": "Llama Chat Assistant › Chat",
+  "config.server.title": "Llama Chat Assistant › Server",
   "config.temperature.description": "The generation temperature for the model.",
   "config.systemPrompt.description": "The system prompt used for the model.",
   "config.debug.description": "Enable verbose logs and basic runtime metrics in the extension output.",
   "config.maxAttachedFileSizeKb.description": "Maximum size in KB for manually attached files.",
+  "config.server.executablePath.description": "Path to the llama-server executable.",
+  "config.server.modelPath.description": "Path to the GGUF model file used by llama-server.",
+  "config.server.gpuLayers.description": "Number of layers to offload to the GPU (-ngl).",
+  "config.server.contextSize.description": "Context window size passed to llama-server (-c).",
+  "config.server.flashAttention.description": "Whether to pass --flash-attn on to llama-server.",
+  "config.server.host.description": "Host used by llama-server.",
+  "config.server.port.description": "Port used by llama-server.",
+  "config.server.jinja.description": "Whether to enable the --jinja flag.",
+  "config.server.tools.description": "Value passed to --tools.",
 
   "command.openSettings.title": "Llama Chat: Configure",
 

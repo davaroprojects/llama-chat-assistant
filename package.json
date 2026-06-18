@@ -13,14 +13,10 @@
   "main": "./dist/extension.js",
   "icon": "resources/marketplace-icon.png",
   "contributes": {
-    "configuration": {
-      "title": "%config.title%",
+    "configuration": [
+      {
+      "title": "%config.chat.title%",
       "properties": {
-        "llamaChat.apiUrl": {
-          "type": "string",
-          "default": "http://127.0.0.1:8033/v1/chat/completions",
-          "description": "%config.apiUrl.description%"
-        },
         "llamaChat.temperature": {
           "type": "number",
           "default": 0.2,
@@ -47,7 +43,61 @@
           "description": "%config.maxAttachedFileSizeKb.description%"
         }
       }
-    },
+      },
+      {
+      "title": "%config.server.title%",
+      "properties": {
+        "llamaChat.server.executablePath": {
+          "type": "string",
+          "default": "./build/bin/llama-server",
+          "description": "%config.server.executablePath.description%"
+        },
+        "llamaChat.server.modelPath": {
+          "type": "string",
+          "default": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+          "description": "%config.server.modelPath.description%"
+        },
+        "llamaChat.server.gpuLayers": {
+          "type": "number",
+          "default": 99,
+          "description": "%config.server.gpuLayers.description%"
+        },
+        "llamaChat.server.contextSize": {
+          "type": "number",
+          "default": 16384,
+          "minimum": 1,
+          "description": "%config.server.contextSize.description%"
+        },
+        "llamaChat.server.flashAttention": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.server.flashAttention.description%"
+        },
+        "llamaChat.server.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "%config.server.host.description%"
+        },
+        "llamaChat.server.port": {
+          "type": "number",
+          "default": 8033,
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "%config.server.port.description%"
+        },
+        "llamaChat.server.jinja": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.server.jinja.description%"
+        },
+        "llamaChat.server.tools": {
+          "type": "string",
+          "default": "all",
+          "description": "%config.server.tools.description%"
+        }
+      }
+      }
+    ],
     "commands": [
       {
         "command": "llama-chat-assistant.openSettings",

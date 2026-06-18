@@ -6,6 +6,10 @@ export interface WebviewLabels {
     chatTabLabel: string;
     serverTabLabel: string;
     serverStartLabel: string;
+    serverStopLabel: string;
+    serverParametersTitle: string;
+    propertyLabel: string;
+    valueLabel: string;
 }
 
 export function getWebviewLabels(language: string): WebviewLabels {
@@ -14,14 +18,22 @@ export function getWebviewLabels(language: string): WebviewLabels {
         return {
             chatTabLabel: 'Chat',
             serverTabLabel: 'Servidor',
-            serverStartLabel: 'Iniciar'
+            serverStartLabel: 'Iniciar',
+            serverStopLabel: 'Detener',
+            serverParametersTitle: 'Parámetros',
+            propertyLabel: 'Propiedad',
+            valueLabel: 'Valor'
         };
     }
 
     return {
         chatTabLabel: 'Chat',
         serverTabLabel: 'Server',
-        serverStartLabel: 'Start'
+        serverStartLabel: 'Start',
+        serverStopLabel: 'Stop',
+        serverParametersTitle: 'Parameters',
+        propertyLabel: 'Property',
+        valueLabel: 'Value'
     };
 }
 
@@ -50,5 +62,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     htmlContent = htmlContent.replace('{{chatTabLabel}}', labels.chatTabLabel);
     htmlContent = htmlContent.replace('{{serverTabLabel}}', labels.serverTabLabel);
     htmlContent = htmlContent.replaceAll('{{serverStartLabel}}', labels.serverStartLabel);
+    htmlContent = htmlContent.replaceAll('{{serverStopLabel}}', labels.serverStopLabel);
+    htmlContent = htmlContent.replace('{{serverParametersTitle}}', labels.serverParametersTitle);
+    htmlContent = htmlContent.replace('{{propertyLabel}}', labels.propertyLabel);
+    htmlContent = htmlContent.replace('{{valueLabel}}', labels.valueLabel);
     return htmlContent.replace('{{scriptPlaceholder}}', scriptSrc);
 }

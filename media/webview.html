@@ -86,6 +86,24 @@
                     <path d="m12 5 7 7-7 7" />
                 </svg>
             </button>
+            <button id="server-stop-btn" class="server-stop-button" type="button" title="{{serverStopLabel}}" style="display:none;">
+                <span>{{serverStopLabel}}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://w3.org">
+                    <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+            </button>
+        </div>
+        <div class="server-parameters-panel">
+            <div class="server-parameters-title">{{serverParametersTitle}}</div>
+            <table class="server-parameters-table">
+                <thead>
+                    <tr>
+                        <th>{{propertyLabel}}</th>
+                        <th>{{valueLabel}}</th>
+                    </tr>
+                </thead>
+                <tbody id="server-parameters-body"></tbody>
+            </table>
         </div>
     </div>
 

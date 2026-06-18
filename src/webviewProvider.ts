@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { spawn, ChildProcess } from 'node:child_process';
+import * as fs from 'node:fs';
 import { SessionManager } from './chat/sessionManager';
 import {
     SessionPayloadBuilder,
@@ -7,6 +9,12 @@ import {
     AssistantMessagePayload
 } from './chat/sessionPayloadBuilder';
 import { LlamaService, ChatMessage, LlamaConfig, LlamaServerProps } from './chat/llamaService';
+import {
+    buildChatApiUrl,
+    buildServerLaunchCommand,
+    buildServerParameterRows,
+    LlamaServerLaunchConfig
+} from './chat/serverConfig';
 import { sendActiveEditorContext } from './webview/editorContext';
 import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
@@ -36,13 +44,21 @@ interface ApplyCodeMessage extends BaseWebviewMessage {
     value: string;
 }
 
+interface SetActiveTabMessage extends BaseWebviewMessage {
+    type: 'setActiveTab';
+    tab: 'chat' | 'server';
+}
+
 type IncomingWebviewMessage =
     | AskLlamaMessage
     | SelectSessionMessage
     | DeleteSessionMessage
     | ApplyCodeMessage
+    | SetActiveTabMessage
     | { type: 'webviewReady' }
     | { type: 'stopGeneration' }
+    | { type: 'startServer' }
+    | { type: 'stopServer' }
     | { type: 'openFilePicker' }
     | { type: 'requestSessionsUpdate' }
     | { type: 'requestActiveEditorRefresh' };
@@ -58,6 +74,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private isPickerOpen = false;
     private isGenerationActive = false;
+    private serverProcess: ChildProcess | null = null;
     private serverProps: LlamaServerProps | null = null;
     private readonly metrics: RuntimeMetrics = {
         totalRequests: 0,
@@ -85,6 +102,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.html = getHtmlForWebview(this._extensionUri, webviewView.webview);
         this.setupMessageHandlers(webviewView);
         this.setupEditorListeners();
+        this.setupConfigurationListener();
     }
 
     private setupMessageHandlers(webviewView: vscode.WebviewView): void {
@@ -105,11 +123,20 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             case 'stopGeneration':
                 this.handleStopGeneration();
                 break;
+            case 'startServer':
+                await this.handleStartServer(webviewView);
+                break;
+            case 'stopServer':
+                this.handleStopServer();
+                break;
             case 'openFilePicker':
                 await this.handleOpenFilePicker(webviewView);
                 break;
             case 'selectSession':
                 this.handleSelectSession(data, webviewView);
+                break;
+            case 'setActiveTab':
+                this.sessionManager.setActiveTab(data.tab);
                 break;
             case 'askLlama':
                 await this.handleAskLlama(data, webviewView);
@@ -130,18 +157,37 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private async handleWebviewReady(webviewView: vscode.WebviewView): Promise<void> {
-        const config = this.getLlamaConfig();
-        this.serverProps = await LlamaService.fetchServerProps(config.apiUrl);
+        await this.refreshServerProps();
 
         const initialSessions = this.sessionManager.getAllSessions();
+        const uiState = this.sessionManager.getUiState();
+        const activeSession = this.sessionManager.getCurrentSession();
 
-        this.sessionManager.setCurrentSession(null);
         webviewView.webview.postMessage({
             type: 'renderSessionsList',
             sessions: initialSessions,
             contextWindow: this.getContextWindow(),
             modelName: this.getModelName()
         });
+
+        webviewView.webview.postMessage({
+            type: 'restoreUiState',
+            activeTab: uiState.activeTab,
+            hasActiveSession: !!uiState.currentSessionId
+        });
+
+        this.postServerState(webviewView);
+
+        if (activeSession) {
+            webviewView.webview.postMessage({
+                type: 'restoreActiveChat',
+                title: activeSession.title,
+                messages: activeSession.messages,
+                sessionTokens: this.sessionManager.getSessionTokenEstimate(),
+                contextWindow: this.getContextWindow(),
+                modelName: this.getModelName()
+            });
+        }
 
         this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
     }
@@ -151,6 +197,64 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             this.currentAbortController.abort();
             this.currentAbortController = null;
         }
+    }
+
+    private async handleStartServer(webviewView: vscode.WebviewView): Promise<void> {
+        if (this.serverProcess) {
+            return;
+        }
+
+        const serverConfig = this.getServerLaunchConfig();
+        const workspaceRoot = this.getWorkspaceRoot();
+        const { command, args } = buildServerLaunchCommand(serverConfig, workspaceRoot);
+
+        if (!fs.existsSync(command)) {
+            vscode.window.showErrorMessage(`llama-server not found: ${command}`);
+            return;
+        }
+
+        if (!fs.existsSync(args[1])) {
+            vscode.window.showErrorMessage(`Model not found: ${args[1]}`);
+            return;
+        }
+
+        try {
+            const serverProcess = spawn(command, args, {
+                cwd: workspaceRoot,
+                stdio: 'ignore'
+            });
+            this.serverProcess = serverProcess;
+            serverProcess.on('exit', () => {
+                this.serverProcess = null;
+                this.serverProps = null;
+                this.postRuntimeState();
+            });
+            serverProcess.on('error', (error) => {
+                this.serverProcess = null;
+                this.serverProps = null;
+                vscode.window.showErrorMessage(`Failed to start llama-server: ${error.message}`);
+                this.postRuntimeState();
+            });
+            await this.refreshServerProps();
+            this.postRuntimeState();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to start llama-server: ${errorMessage}`);
+            this.serverProcess = null;
+            this.serverProps = null;
+            this.postRuntimeState(webviewView);
+        }
+    }
+
+    private handleStopServer(): void {
+        if (!this.serverProcess) {
+            return;
+        }
+
+        this.serverProcess.kill();
+        this.serverProcess = null;
+        this.serverProps = null;
+        this.postRuntimeState();
     }
 
     private async handleOpenFilePicker(webviewView: vscode.WebviewView): Promise<void> {
@@ -359,6 +463,18 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         this.context.subscriptions.push(selectionListener);
     }
 
+    private setupConfigurationListener(): void {
+        const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
+            if (!event.affectsConfiguration('llamaChat')) {
+                return;
+            }
+
+            await this.refreshServerProps();
+            this.postRuntimeState();
+        });
+        this.context.subscriptions.push(configurationListener);
+    }
+
     private pushActiveEditorContext(
         webviewView: vscode.WebviewView,
         editor: vscode.TextEditor | undefined
@@ -393,12 +509,59 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
     private getLlamaConfig(): LlamaConfig {
         const config = vscode.workspace.getConfiguration('llamaChat');
+        const serverConfig = this.getServerLaunchConfig();
         return {
-            apiUrl: config.get<string>('apiUrl') || 'http://127.0.0.1:8033/v1/chat/completions',
+            apiUrl: buildChatApiUrl(serverConfig),
             temperature: config.get<number>('temperature') ?? 0.2,
             systemPrompt: config.get<string>('systemPrompt') || '',
             debug: config.get<boolean>('debug') ?? false
         };
+    }
+
+    private getServerLaunchConfig(): LlamaServerLaunchConfig {
+        const config = vscode.workspace.getConfiguration('llamaChat');
+        return {
+            executablePath: config.get<string>('server.executablePath') || './build/bin/llama-server',
+            modelPath: config.get<string>('server.modelPath') || './models/qwen2.5-coder-7b-instruct-q4_k_m.gguf',
+            gpuLayers: config.get<number>('server.gpuLayers') ?? 99,
+            contextSize: config.get<number>('server.contextSize') ?? 16384,
+            flashAttention: config.get<boolean>('server.flashAttention') ?? true,
+            host: config.get<string>('server.host') || '127.0.0.1',
+            port: config.get<number>('server.port') ?? 8033,
+            jinja: config.get<boolean>('server.jinja') ?? true,
+            tools: config.get<string>('server.tools') || 'all'
+        };
+    }
+
+    private getWorkspaceRoot(): string | undefined {
+        return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || this._extensionUri.fsPath;
+    }
+
+    private async refreshServerProps(): Promise<void> {
+        const config = this.getLlamaConfig();
+        this.serverProps = await LlamaService.fetchServerProps(config.apiUrl);
+    }
+
+    private postRuntimeState(webviewView?: vscode.WebviewView): void {
+        const targetView = webviewView || this._view;
+        if (!targetView) {
+            return;
+        }
+
+        targetView.webview.postMessage({
+            type: 'updateContextWindow',
+            contextWindow: this.getContextWindow(),
+            modelName: this.getModelName()
+        });
+        this.postServerState(targetView);
+    }
+
+    private postServerState(webviewView: vscode.WebviewView): void {
+        webviewView.webview.postMessage({
+            type: 'updateServerState',
+            isRunning: !!this.serverProcess,
+            parameterRows: buildServerParameterRows(this.getServerLaunchConfig())
+        });
     }
 
     private maybeLogMetrics(): void {
