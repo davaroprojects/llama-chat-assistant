@@ -63,21 +63,19 @@
         <div id="token-counter" class="token-counter">
             <div class="token-counter-left">
                 <button id="model-menu-trigger" class="model-menu-trigger" type="button" title="{{modelMenuTitle}}">{{modelLabel}}</button>
-                <div id="model-context-menu" class="model-context-menu" style="display:none;">
-                    <div id="model-context-menu-item" class="model-context-menu-item">local</div>
-                </div>
             </div>
             <div class="token-counter-right">
                 <div id="token-usage-container" class="token-usage-container" role="button" aria-label="Token usage" tabindex="0">
                     <div id="token-usage-chart" class="token-usage-chart" title="Click for details">
                     </div>
                     <div id="token-usage-percentage" class="token-usage-percentage">0%</div>
-                    <div id="token-usage-menu" class="model-context-menu" style="display:none;">
-                        <div id="token-usage-menu-item" class="model-context-menu-item">0 / ? tokens</div>
-                    </div>
                 </div>
             </div>
         </div>
+    </div>
+
+    <div id="context-window" class="quick-context-window" style="display:none;">
+        <div id="context-window-content" class="quick-context-window-content"></div>
     </div>
 
     <div id="server-tab-panel" class="tab-panel server-tab-panel" style="display:none;">

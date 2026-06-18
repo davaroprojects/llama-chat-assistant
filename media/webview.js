@@ -98,15 +98,12 @@ const elements = {
     stopBtn: document.getElementById('stop'),
     sendBtn: document.getElementById('send'),
     tokenCounter: document.getElementById('token-counter'),
-    tokenCounterValue: document.getElementById('token-counter-value'),
     tokenUsageChart: document.getElementById('token-usage-chart'),
     tokenUsagePercentage: document.getElementById('token-usage-percentage'),
     tokenUsageContainer: document.getElementById('token-usage-container'),
-    tokenUsageMenu: document.getElementById('token-usage-menu'),
-    tokenUsageMenuItem: document.getElementById('token-usage-menu-item'),
     modelMenuTrigger: document.getElementById('model-menu-trigger'),
-    modelContextMenu: document.getElementById('model-context-menu'),
-    modelContextMenuItem: document.getElementById('model-context-menu-item'),
+    contextWindow: document.getElementById('context-window'),
+    contextWindowContent: document.getElementById('context-window-content'),
     attachedFilesContainer: null
 };
 
@@ -182,7 +179,9 @@ function getAttachedFilesContainer() {
 // STATE MANAGEMENT
 // ============================================================
 let currentAttachedFiles = [];
-let activeContextMenu = null; // Tracks which context menu is currently open: 'model' | 'token' | null
+let activeContextMenu = null;
+let activeContextAnchor = null;
+let tokenUsageState = { used: 0, total: 0, pct: 0 };
 let currentAssistantBubble = null;
 let currentAssistantText = "";
 let streamingBlocksContainer = null;
@@ -243,16 +242,12 @@ function applyControlState() {
     }
 
     if (!allowMainActions) {
-        closeModelMenu();
-        closeTokenUsageMenu();
+        hideContextWindow();
     }
 
     if (elements.tokenUsageContainer) {
         elements.tokenUsageContainer.classList.toggle('is-disabled', !allowMainActions);
         elements.tokenUsageContainer.setAttribute('aria-disabled', String(!allowMainActions));
-        if (elements.tokenUsageContainer instanceof HTMLButtonElement || elements.tokenUsageContainer.hasAttribute('role')) {
-            elements.tokenUsageContainer.disabled = !allowMainActions;
-        }
     }
 
     renderAllBadges();
@@ -299,20 +294,23 @@ elements.modelMenuTrigger?.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleModelMenu();
 });
-elements.modelContextMenu?.addEventListener('click', (event) => {
-    event.stopPropagation();
-});
 elements.tokenUsageContainer?.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleTokenUsageMenu();
 });
-elements.tokenUsageMenu?.addEventListener('click', (event) => {
+elements.contextWindow?.addEventListener('click', (event) => {
     event.stopPropagation();
 });
 document.addEventListener('click', () => {
-    closeModelMenu();
-    closeTokenUsageMenu();
-    activeContextMenu = null;
+    hideContextWindow();
+});
+window.addEventListener('resize', () => {
+    if (activeContextMenu && activeContextAnchor) {
+        placeContextWindow(activeContextAnchor);
+    }
+});
+window.addEventListener('blur', () => {
+    hideContextWindow();
 });
 
 // ============================================================
@@ -1168,7 +1166,6 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
     elements.tokenCounter.className = 'token-counter' + warnClass;
 
     const totalLabel = hasTotal ? contextWindow.toLocaleString() : '?';
-    const normalizedModelName = (modelName || 'local').trim();
 
     if (elements.tokenUsagePercentage) {
         elements.tokenUsagePercentage.textContent = `${pct}%`;
@@ -1179,14 +1176,12 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
         elements.tokenUsageChart.title = `${pct}% - Click for details`;
     }
 
-    if (elements.tokenUsageMenuItem) {
-        const usageLabel = hasTotal ? `${sessionTokens.toLocaleString()} / ${totalLabel} tokens` : 'No data';
-        elements.tokenUsageMenuItem.textContent = usageLabel;
-    }
+    tokenUsageState = {
+        used: sessionTokens,
+        total: hasTotal ? contextWindow : 0,
+        pct
+    };
 
-    if (elements.modelContextMenuItem) {
-        elements.modelContextMenuItem.textContent = normalizedModelName;
-    }
 }
 
 function renderServerState(message) {
@@ -1231,63 +1226,144 @@ function renderServerState(message) {
     }
 }
 
-function toggleModelMenu() {
-    if (!elements.modelContextMenu || !isServerRunning || elements.modelMenuTrigger?.disabled) {
+function placeContextWindow(anchorElement) {
+    if (!elements.contextWindow || !anchorElement) {
         return;
     }
 
-    const isVisible = elements.modelContextMenu.style.display === 'block';
-    
-    if (isVisible) {
-        elements.modelContextMenu.style.display = 'none';
-        activeContextMenu = null;
-    } else {
-        // Close the other menu first
-        if (activeContextMenu === 'token' && elements.tokenUsageMenu) {
-            elements.tokenUsageMenu.style.display = 'none';
-        }
-        elements.modelContextMenu.style.display = 'block';
-        activeContextMenu = 'model';
+    elements.contextWindow.style.visibility = 'hidden';
+    elements.contextWindow.style.display = 'block';
+
+    const rect = anchorElement.getBoundingClientRect();
+    const panelRect = elements.contextWindow.getBoundingClientRect();
+    const margin = 8;
+
+    let left = rect.left;
+    let top = rect.top - panelRect.height - 6;
+
+    if (top < margin) {
+        top = rect.bottom + 6;
     }
+
+    if (left + panelRect.width > window.innerWidth - margin) {
+        left = window.innerWidth - panelRect.width - margin;
+    }
+
+    if (left < margin) {
+        left = margin;
+    }
+
+    if (top + panelRect.height > window.innerHeight - margin) {
+        top = window.innerHeight - panelRect.height - margin;
+    }
+
+    if (top < margin) {
+        top = margin;
+    }
+
+    elements.contextWindow.style.left = `${left}px`;
+    elements.contextWindow.style.top = `${top}px`;
+    elements.contextWindow.style.visibility = 'visible';
+}
+
+function getTokenFillColor(percent) {
+    const clamped = Math.max(0, Math.min(100, Number(percent) || 0));
+    const blend = clamped / 100;
+
+    const start = { r: 255, g: 255, b: 255 };
+    const end = { r: 77, g: 163, b: 255 };
+
+    const r = Math.round(start.r + (end.r - start.r) * blend);
+    const g = Math.round(start.g + (end.g - start.g) * blend);
+    const b = Math.round(start.b + (end.b - start.b) * blend);
+
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+function renderContextWindowContent(menuType) {
+    if (!elements.contextWindowContent) {
+        return;
+    }
+
+    if (menuType === 'model') {
+        const modelName = (currentModelName || 'local').trim();
+        elements.contextWindowContent.innerHTML = `<div class="quick-context-item">${modelName}</div>`;
+        return;
+    }
+
+    const totalLabel = tokenUsageState.total > 0 ? tokenUsageState.total.toLocaleString() : '?';
+    const usedLabel = tokenUsageState.used.toLocaleString();
+    const pct = tokenUsageState.pct;
+    const fillColor = getTokenFillColor(pct);
+
+    elements.contextWindowContent.innerHTML = `
+        <div class="token-usage-window-values">${usedLabel} / ${totalLabel} tokens</div>
+        <div class="token-usage-window-bar" aria-hidden="true">
+            <div class="token-usage-window-bar-fill" style="width: ${pct}%; background: ${fillColor};"></div>
+        </div>
+    `;
+}
+
+function showContextWindow(menuType, anchorElement) {
+    if (!elements.contextWindow || !elements.contextWindowContent || !anchorElement) {
+        return;
+    }
+
+    activeContextMenu = menuType;
+    activeContextAnchor = anchorElement;
+    renderContextWindowContent(menuType);
+    placeContextWindow(anchorElement);
+}
+
+function hideContextWindow() {
+    if (!elements.contextWindow) {
+        return;
+    }
+
+    elements.contextWindow.style.display = 'none';
+    elements.contextWindow.style.left = '0px';
+    elements.contextWindow.style.top = '0px';
+    activeContextMenu = null;
+    activeContextAnchor = null;
+}
+
+function toggleModelMenu() {
+    if (!isServerRunning || elements.modelMenuTrigger?.disabled) {
+        return;
+    }
+
+    const shouldClose = activeContextMenu === 'model' && elements.contextWindow?.style.display === 'block';
+    if (shouldClose) {
+        hideContextWindow();
+        return;
+    }
+
+    showContextWindow('model', elements.modelMenuTrigger);
 }
 
 function closeModelMenu() {
-    if (!elements.modelContextMenu) {
-        return;
-    }
-    elements.modelContextMenu.style.display = 'none';
     if (activeContextMenu === 'model') {
-        activeContextMenu = null;
+        hideContextWindow();
     }
 }
 
 function toggleTokenUsageMenu() {
-    if (!elements.tokenUsageMenu || !isServerRunning || elements.tokenUsageContainer?.classList.contains('is-disabled')) {
+    if (!isServerRunning || !elements.tokenUsageContainer || elements.tokenUsageContainer.classList.contains('is-disabled')) {
         return;
     }
 
-    const isVisible = elements.tokenUsageMenu.style.display === 'block';
-    
-    if (isVisible) {
-        elements.tokenUsageMenu.style.display = 'none';
-        activeContextMenu = null;
-    } else {
-        // Close the other menu first
-        if (activeContextMenu === 'model' && elements.modelContextMenu) {
-            elements.modelContextMenu.style.display = 'none';
-        }
-        elements.tokenUsageMenu.style.display = 'block';
-        activeContextMenu = 'token';
+    const shouldClose = activeContextMenu === 'token' && elements.contextWindow?.style.display === 'block';
+    if (shouldClose) {
+        hideContextWindow();
+        return;
     }
+
+    showContextWindow('token', elements.tokenUsageContainer);
 }
 
 function closeTokenUsageMenu() {
-    if (!elements.tokenUsageMenu) {
-        return;
-    }
-    elements.tokenUsageMenu.style.display = 'none';
     if (activeContextMenu === 'token') {
-        activeContextMenu = null;
+        hideContextWindow();
     }
 }
 

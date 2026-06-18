@@ -763,30 +763,53 @@ textarea {
     pointer-events: none;
 }
 
-.model-context-menu {
-    position: absolute;
+.quick-context-window {
+    position: fixed;
     left: 0;
-    bottom: calc(100% + 6px);
+    top: 0;
     min-width: 180px;
-    max-width: 240px;
-    max-height: 300px;
-    background: var(--vscode-sideBar-background);
-    border: 1px solid var(--vscode-panel-border);
-    border-radius: 8px;
-    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
-    z-index: 20;
-    overflow: auto;
-    opacity: 1 !important;
+    max-width: 280px;
+    background: var(--vscode-quickInput-background, var(--vscode-sideBar-background));
+    border: 1px solid var(--vscode-quickInput-border, var(--vscode-panel-border));
+    border-radius: 6px;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.42);
+    z-index: 2147483647;
+    overflow: hidden;
 }
 
-.model-context-menu-item {
+.quick-context-window-content {
     padding: 8px 10px;
-    color: var(--vscode-foreground);
+}
+
+.quick-context-item {
+    color: var(--vscode-quickInput-foreground, var(--vscode-foreground));
     font-size: calc(var(--vscode-editor-font-size, 11px) * 0.84);
     line-height: 1.35;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.token-usage-window-values {
+    color: var(--vscode-quickInput-foreground, var(--vscode-foreground));
+    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.84);
+    line-height: 1.35;
     white-space: nowrap;
+}
+
+.token-usage-window-bar {
+    margin-top: 8px;
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.token-usage-window-bar-fill {
+    height: 100%;
+    background: #ffffff;
+    border-radius: inherit;
 }
 
 .token-counter-value {
