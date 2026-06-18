@@ -402,6 +402,12 @@ textarea {
     color: var(--vscode-button-background);
 }
 
+.add-icon-button.is-disabled,
+.back-icon-button.is-disabled {
+    opacity: 0.2 !important;
+    pointer-events: none;
+}
+
 /* Botón de enviar completamente circular */
 #send { 
     background: var(--vscode-button-background); 

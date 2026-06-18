@@ -34,7 +34,7 @@ export function buildEditorContextMessage(
     fileName: string,
     editor: vscode.TextEditor,
     selection: vscode.Selection
-): { type: 'codeSelectionCaptured'; name: string; content: string } {
+): { type: 'codeSelectionCaptured'; name: string; baseName: string; content: string } {
     if (!selection.isEmpty) {
         const selectedText = editor.document.getText(selection);
         const startLine = selection.start.line + 1;
@@ -46,6 +46,7 @@ export function buildEditorContextMessage(
         return {
             type: 'codeSelectionCaptured',
             name: `${fileName}${lineSuffix}`,
+            baseName: fileName,
             content: selectedText
         };
     }
@@ -53,6 +54,7 @@ export function buildEditorContextMessage(
     return {
         type: 'codeSelectionCaptured',
         name: fileName,
+        baseName: fileName,
         content: editor.document.getText()
     };
 }

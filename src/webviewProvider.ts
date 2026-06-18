@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { SessionManager } from './chat/sessionManager';
 import { SessionPayloadBuilder, FileMetadata } from './chat/sessionPayloadBuilder';
 import { LlamaService, ChatMessage, LlamaConfig } from './chat/llamaService';
-import { getActiveEditorContext, sendActiveEditorContext, EditorContext } from './webview/editorContext';
+import { sendActiveEditorContext } from './webview/editorContext';
 import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
 
@@ -124,8 +124,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         this.isGenerationActive = true;
         try {
             const userPrompt = data.value;
-            const editorContext = getActiveEditorContext();
-            const filesMetadata = this.collectFilesMetadata(data.attachedFiles, editorContext);
+            const filesMetadata = this.collectFilesMetadata(data.attachedFiles || []);
 
             // Save user message to session
             const userPayload = SessionPayloadBuilder.createUserMessagePayload(userPrompt, filesMetadata);
@@ -143,7 +142,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             // Generate response from Llama.cpp
             await this.generateLlamaResponse(
                 userPrompt,
-                editorContext,
                 filesMetadata,
                 webviewView
             );
@@ -197,7 +195,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
     private async generateLlamaResponse(
         userPrompt: string,
-        editorContext: EditorContext,
         filesMetadata: FileMetadata[],
         webviewView: vscode.WebviewView
     ): Promise<void> {
@@ -207,8 +204,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             const config = this.getLlamaConfig();
             const contextPrompt = SessionPayloadBuilder.buildLlamaContextPrompt(
                 userPrompt,
-                editorContext.name,
-                editorContext.content,
                 filesMetadata
             );
 
@@ -298,14 +293,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private collectFilesMetadata(
-        attachedFiles: FileMetadata[],
-        editorContext: EditorContext
+        attachedFiles: FileMetadata[]
     ): FileMetadata[] {
-        return SessionPayloadBuilder.collectFilesMetadata(
-            editorContext.name,
-            editorContext.content,
-            attachedFiles || []
-        );
+        return SessionPayloadBuilder.collectFilesMetadata(attachedFiles || []);
     }
 
     private saveUserMessageToSession(payload: any): void {

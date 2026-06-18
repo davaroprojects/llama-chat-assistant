@@ -55,10 +55,25 @@ let currentAssistantText = "";
 let streamingBlocksContainer = null;
 let lastBlockRenderTime = 0;
 const BLOCK_RENDER_INTERVAL = 0;
+let isStreamingActive = false;
 const removedAutoContextKeys = new Set();
 
 function createAutoContextKey(name, content) {
     return `${name}::${content}`;
+}
+
+function getBaseFileName(fileName) {
+    return (fileName || '').replace(/:\d+(?:-\d+)?$/, '');
+}
+
+function setStreamingUiLocked(locked) {
+    isStreamingActive = locked;
+
+    elements.attachBtn.classList.toggle('is-disabled', locked);
+    elements.backToSessionsBtn.classList.toggle('is-disabled', locked);
+
+    elements.attachBtn.setAttribute('aria-disabled', String(locked));
+    elements.backToSessionsBtn.setAttribute('aria-disabled', String(locked));
 }
 
 // ============================================================
@@ -70,6 +85,9 @@ elements.stopBtn.addEventListener('click', () => {
     elements.vscode.postMessage({ type: 'stopGeneration' });
 });
 elements.attachBtn.addEventListener('click', () => {
+    if (isStreamingActive) {
+        return;
+    }
     elements.vscode.postMessage({ type: 'openFilePicker' });
 });
 elements.prompt.addEventListener('keydown', handlePromptKeyDown);
@@ -123,25 +141,33 @@ function handleWebsocketMessage(event) {
 // ============================================================
 
 function handleCodeSelectionCaptured(message) {
-    currentAttachedFiles = currentAttachedFiles.filter(file => file.isManual === true);
+    const baseName = message.baseName || getBaseFileName(message.name);
+    const existingAutoFile = currentAttachedFiles.find(
+        f => f.isAutomatic && getBaseFileName(f.name) === baseName
+    );
 
     const autoContextKey = createAutoContextKey(message.name, message.content);
-    if (removedAutoContextKeys.has(autoContextKey)) {
+    if (!existingAutoFile && removedAutoContextKeys.has(autoContextKey)) {
         renderAllBadges();
         return;
     }
 
-    currentAttachedFiles.unshift({
-        name: message.name,
-        content: message.content,
-        isManual: false
-    });
+    if (existingAutoFile) {
+        existingAutoFile.name = message.name;
+        existingAutoFile.content = message.content;
+    } else {
+        currentAttachedFiles.unshift({
+            name: message.name,
+            content: message.content,
+            isAutomatic: true
+        });
+    }
     renderAllBadges();
 }
 
 function handleClearActiveEditorContext() {
     removedAutoContextKeys.clear();
-    currentAttachedFiles = currentAttachedFiles.filter(file => file.isManual);
+    currentAttachedFiles = currentAttachedFiles.filter(file => !file.isAutomatic);
     renderAllBadges();
 }
 
@@ -182,12 +208,12 @@ function handleRenderSessionsList(message) {
 }
 
 function handleFileSelected(message) {
-    const yaExiste = currentAttachedFiles.some(f => f.name === message.name && f.isManual === true);
+    const yaExiste = currentAttachedFiles.some(f => f.name === message.name);
     if (!yaExiste) {
         currentAttachedFiles.push({
             name: message.name,
             content: message.content,
-            isManual: true
+            isAutomatic: false
         });
         renderAllBadges();
     }
@@ -206,6 +232,7 @@ function handleAddMessage(message) {
 }
 
 function handleStartStreaming() {
+    setStreamingUiLocked(true);
     elements.prompt.disabled = true;
     elements.sendBtn.style.display = 'none';
     elements.stopBtn.style.display = 'flex';
@@ -265,6 +292,7 @@ function handleAppendToken(message) {
 }
 
 function handleEndStreaming(message) {
+    setStreamingUiLocked(false);
     elements.prompt.disabled = false;
     elements.stopBtn.style.display = 'none';
     elements.sendBtn.style.display = 'flex';
@@ -291,6 +319,7 @@ function handleEndStreaming(message) {
 }
 
 function handleErrorStreaming(message) {
+    setStreamingUiLocked(false);
     elements.prompt.disabled = false;
     elements.stopBtn.style.display = 'none';
     elements.sendBtn.style.display = 'flex';
@@ -323,6 +352,7 @@ function handleErrorStreaming(message) {
 }
 
 function handleStopStreaming() {
+    setStreamingUiLocked(false);
     elements.prompt.disabled = false;
     elements.stopBtn.style.display = 'none';
     elements.sendBtn.style.display = 'flex';
@@ -355,10 +385,10 @@ function renderAllBadges() {
         removeBtn.innerText = '×';
         removeBtn.title = 'Quitar archivo';
         removeBtn.onclick = () => {
-            if (!file.isManual) {
+            if (file.isAutomatic) {
                 removedAutoContextKeys.add(createAutoContextKey(file.name, file.content));
             }
-            currentAttachedFiles = currentAttachedFiles.filter(f => f.name !== file.name);
+            currentAttachedFiles = currentAttachedFiles.filter(f => f !== file);
             renderAllBadges();
         };
         badge.appendChild(removeBtn);
@@ -657,6 +687,10 @@ function showChatView() {
 }
 
 function handleBackToSessions() {
+    if (isStreamingActive) {
+        return;
+    }
+
     elements.chat.innerHTML = '';
     elements.chat.style.display = 'none';
     elements.activeSessionHeader.style.display = 'none';
@@ -728,12 +762,14 @@ function handlePromptKeyDown(event) {
 
 function sendMessage() {
     const text = elements.prompt.value.trim();
-    if (text || currentAttachedFiles.length > 0) {
+    const hasManualFiles = currentAttachedFiles.some(f => !f.isAutomatic);
+    
+    if (text || hasManualFiles) {
         elements.vscode.postMessage({ type: 'askLlama', value: text, attachedFiles: currentAttachedFiles });
         elements.prompt.value = '';
         elements.prompt.rows = 2;
         setTimeout(() => {
-            currentAttachedFiles = currentAttachedFiles.filter(file => !file.isManual);
+            currentAttachedFiles = currentAttachedFiles.filter(file => file.isAutomatic);
             renderAllBadges();
         }, 50);
     }
