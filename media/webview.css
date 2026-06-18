@@ -95,6 +95,75 @@ body {
 .assistant .message > div:first-child { margin-top: 0; }
 .assistant .message > div:last-child { margin-bottom: 0; }
 
+.assistant .message.markdown-content > div {
+    margin: 0;
+}
+
+.assistant .message .markdown-stream-tail {
+    margin: 0;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+.streaming-stable-block p {
+    margin: 0;
+    line-height: 1.5;
+    white-space: normal;
+}
+
+.streaming-stable-block h1,
+.streaming-stable-block h2,
+.streaming-stable-block h3,
+.streaming-stable-block h4,
+.streaming-stable-block h5,
+.streaming-stable-block h6 {
+    margin: 0;
+    line-height: 1.3;
+}
+
+.streaming-stable-block ul,
+.streaming-stable-block ol {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.streaming-stable-block li {
+    margin: 0;
+    line-height: 1.5;
+    white-space: normal;
+}
+
+.streaming-stable-block blockquote {
+    margin: 0;
+    padding-left: 10px;
+    border-left: 3px solid var(--vscode-panel-border);
+    opacity: 0.9;
+}
+
+.streaming-stable-block pre {
+    margin: 0;
+}
+
+.assistant .message.markdown-content p,
+.assistant .message.markdown-content ul,
+.assistant .message.markdown-content ol,
+.assistant .message.markdown-content blockquote,
+.assistant .message.markdown-content hr,
+.assistant .message.markdown-content table,
+.assistant .message.markdown-content h1,
+.assistant .message.markdown-content h2,
+.assistant .message.markdown-content h3,
+.assistant .message.markdown-content h4,
+.assistant .message.markdown-content h5,
+.assistant .message.markdown-content h6 {
+    margin: 0;
+}
+
+.assistant .message.markdown-content p,
+.assistant .message.markdown-content li {
+    white-space: normal;
+}
+
 .assistant .message p {
     margin: 6px 0;
     line-height: 1.5;

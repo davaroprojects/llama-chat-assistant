@@ -52,6 +52,9 @@ function getAttachedFilesContainer() {
 let currentAttachedFiles = [];
 let currentAssistantBubble = null;
 let currentAssistantText = "";
+let streamingBlocksContainer = null;
+let lastBlockRenderTime = 0;
+const BLOCK_RENDER_INTERVAL = 0;
 const removedAutoContextKeys = new Set();
 
 function createAutoContextKey(name, content) {
@@ -207,6 +210,7 @@ function handleStartStreaming() {
     elements.sendBtn.style.display = 'none';
     elements.stopBtn.style.display = 'flex';
     currentAssistantText = "";
+    lastBlockRenderTime = 0;
 
     const container = document.createElement('div');
     container.className = 'message-container assistant';
@@ -214,8 +218,10 @@ function handleStartStreaming() {
     msgBubble.className = 'message loading-bubble';
 
     currentAssistantBubble = document.createElement('div');
-    currentAssistantBubble.style.whiteSpace = "pre-wrap";
+    currentAssistantBubble.className = 'markdown-content';
     msgBubble.appendChild(currentAssistantBubble);
+
+    streamingBlocksContainer = currentAssistantBubble;
 
     const indicatorContainer = document.createElement('div');
     indicatorContainer.innerHTML = HTML_TEMPLATES.typingIndicator;
@@ -248,7 +254,13 @@ function handleAppendToken(message) {
     }
 
     currentAssistantText += tokenText;
-    renderFormattedContent(currentAssistantBubble, currentAssistantText);
+    
+    const now = performance.now();
+    if (now - lastBlockRenderTime >= BLOCK_RENDER_INTERVAL) {
+        renderIncrementalStreaming(currentAssistantBubble, currentAssistantText);
+        lastBlockRenderTime = now;
+    }
+    
     elements.chat.scrollTop = elements.chat.scrollHeight;
 }
 
@@ -407,17 +419,7 @@ function renderAssistantMessageFromHistory(msg) {
 }
 
 function renderFormattedContent(bubbleNode, content) {
-    bubbleNode.innerHTML = '';
-    if (typeof marked === 'undefined') {
-        const fallbackDiv = document.createElement('div');
-        fallbackDiv.style.whiteSpace = 'pre-wrap';
-        fallbackDiv.innerText = content;
-        bubbleNode.appendChild(fallbackDiv);
-        return;
-    }
-
-    const parsedHtml = marked.parse(content, { breaks: true, gfm: true });
-    bubbleNode.innerHTML = parsedHtml;
+    renderMarkdownContent(bubbleNode, content);
 
     bubbleNode.querySelectorAll('p, li').forEach(node => {
         node.style.lineHeight = '1.5';
@@ -459,6 +461,85 @@ function renderFormattedContent(bubbleNode, content) {
             Prism.highlightElement(wrappedCodeNode);
         }
     });
+}
+
+function renderMarkdownContent(bubbleNode, content) {
+    bubbleNode.innerHTML = '';
+    bubbleNode.classList.add('markdown-content');
+
+    if (typeof marked === 'undefined') {
+        const fallbackDiv = document.createElement('div');
+        fallbackDiv.innerText = content;
+        bubbleNode.appendChild(fallbackDiv);
+        return;
+    }
+
+    const parsedHtml = marked.parse(content, { breaks: true, gfm: true });
+    bubbleNode.innerHTML = parsedHtml;
+}
+
+function renderIncrementalStreaming(bubbleNode, fullContent) {
+    const normalizedContent = normalizeStreamingContent(fullContent);
+    const { stableContent, trailingContent } = splitStreamingMarkdownContent(normalizedContent);
+
+    bubbleNode.innerHTML = '';
+
+    if (stableContent) {
+        const stableContainer = document.createElement('div');
+        stableContainer.className = 'streaming-stable-block';
+        if (typeof marked !== 'undefined') {
+            const parsedHtml = marked.parse(stableContent, { breaks: true, gfm: true });
+            stableContainer.innerHTML = parsedHtml;
+        } else {
+            stableContainer.textContent = stableContent;
+        }
+        bubbleNode.appendChild(stableContainer);
+    }
+
+    if (trailingContent) {
+        const tailContainer = document.createElement('div');
+        tailContainer.className = 'markdown-stream-tail';
+        tailContainer.textContent = trailingContent;
+        bubbleNode.appendChild(tailContainer);
+    }
+}
+
+function normalizeStreamingContent(content) {
+    return content
+        .replace(/\r\n/g, '\n')
+        .replace(/[ \t]+$/gm, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/\n+$/g, '');
+}
+
+function splitStreamingMarkdownContent(content) {
+    const lines = content.split('\n');
+    let inCodeFence = false;
+    let stableEndIndex = 0;
+    let cursor = 0;
+
+    for (let index = 0; index < lines.length; index++) {
+        const line = lines[index];
+        const isFenceLine = /^\s*```/.test(line);
+
+        if (isFenceLine) {
+            inCodeFence = !inCodeFence;
+        }
+
+        const lineEnd = cursor + line.length;
+        const hasLineBreak = index < lines.length - 1;
+
+        if (hasLineBreak && !inCodeFence) {
+            stableEndIndex = lineEnd + 1;
+        }
+
+        cursor = lineEnd + 1;
+    }
+
+    return {
+        stableContent: content.slice(0, stableEndIndex).trimEnd(),
+        trailingContent: content.slice(stableEndIndex)
+    };
 }
 
 function addMessageFooter(bubbleNode, content, time, tokens) {
