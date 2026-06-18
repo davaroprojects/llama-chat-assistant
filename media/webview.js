@@ -493,6 +493,15 @@ function handleStopStreaming() {
     elements.sendBtn.style.display = 'flex';
     elements.prompt.focus();
 
+    if (currentAssistantBubble) {
+        const bubbleNode = currentAssistantBubble.closest('.message');
+        if (bubbleNode) {
+            bubbleNode.remove();
+        }
+        currentAssistantBubble = null;
+        currentAssistantText = "";
+    }
+
     const container = document.createElement('div');
     container.className = 'message-container assistant';
     container.innerHTML = `<div class="message" style="color:var(--vscode-errorForeground)">${labels.generationCanceledLabel}</div>`;

@@ -874,8 +874,7 @@ textarea {
 
 .delete-session-button:hover {
     opacity: 0.9;
-    color: var(--vscode-button-background);
-    background-color: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.05));
+    color: var(--vscode-errorForeground);
 }
 
 .delete-session-button.is-disabled {
