@@ -27,6 +27,7 @@ VS Code extension to chat with a local OpenAI-compatible server (e.g. `llama.cpp
 | `llamaChat.debug` | `false` | Enable verbose logs and runtime metrics every 10 requests |
 | `llamaChat.maxAttachedFileSizeKb` | `256` | Max size in KB for manually attached files |
 
+Token counter total is not configurable: it is always read from llama.cpp `GET /props` (`n_ctx`).
 ## File attachment rules
 
 - All attachments live in a single array: `{ name, content, isAutomatic }`.
@@ -100,6 +101,25 @@ History messages are reconstructed with their original file context. The current
   "temperature": 0.2,
   "max_tokens": 2048,
   "stream": true
+}
+```
+
+### llama.cpp server props (`GET /props`)
+
+The extension stores the full response payload for future use and currently reads `n_ctx` for the token counter.
+
+```json
+{
+  "model_path": "/models/qwen2.5-coder-7b-instruct-q8_0.gguf",
+  "chat_template": "<|im_start|>{{ role }}\n{{ content }}<|im_end|>",
+  "n_ctx": 32768,
+  "n_ctx_train": 131072,
+  "n_embd": 4096,
+  "n_layer": 32,
+  "n_head": 32,
+  "rope_freq_base": 10000,
+  "rope_freq_scale": 1,
+  "quantization": "Q8_0"
 }
 ```
 

@@ -6,7 +6,7 @@ import {
     UserMessagePayload,
     AssistantMessagePayload
 } from './chat/sessionPayloadBuilder';
-import { LlamaService, ChatMessage, LlamaConfig } from './chat/llamaService';
+import { LlamaService, ChatMessage, LlamaConfig, LlamaServerProps } from './chat/llamaService';
 import { sendActiveEditorContext } from './webview/editorContext';
 import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
@@ -58,6 +58,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private isPickerOpen = false;
     private isGenerationActive = false;
+    private serverProps: LlamaServerProps | null = null;
     private readonly metrics: RuntimeMetrics = {
         totalRequests: 0,
         totalErrors: 0,
@@ -99,7 +100,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private async routeMessage(data: IncomingWebviewMessage, webviewView: vscode.WebviewView): Promise<void> {
         switch (data.type) {
             case 'webviewReady':
-                this.handleWebviewReady(webviewView);
+                await this.handleWebviewReady(webviewView);
                 break;
             case 'stopGeneration':
                 this.handleStopGeneration();
@@ -128,13 +129,17 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private handleWebviewReady(webviewView: vscode.WebviewView): void {
+    private async handleWebviewReady(webviewView: vscode.WebviewView): Promise<void> {
+        const config = this.getLlamaConfig();
+        this.serverProps = await LlamaService.fetchServerProps(config.apiUrl);
+
         const initialSessions = this.sessionManager.getAllSessions();
 
         this.sessionManager.setCurrentSession(null);
         webviewView.webview.postMessage({
             type: 'renderSessionsList',
-            sessions: initialSessions
+            sessions: initialSessions,
+            contextWindow: this.getContextWindow()
         });
 
         this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
@@ -167,7 +172,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             webviewView.webview.postMessage({
                 type: 'restoreActiveChat',
                 title: activeSession.title,
-                messages: activeSession.messages
+                messages: activeSession.messages,
+                sessionTokens: this.sessionManager.getSessionTokenEstimate(),
+                contextWindow: this.getContextWindow()
             });
         }
     }
@@ -301,7 +308,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             webviewView.webview.postMessage({
                 type: 'endStreaming',
                 time: duration,
-                tokens: result.tokenCount
+                tokens: result.tokenCount,
+                sessionTokens: this.sessionManager.getSessionTokenEstimate(),
+                contextWindow: this.getContextWindow()
             });
         } catch (error: unknown) {
             this.handleGenerationError(error, webviewView);
@@ -357,6 +366,10 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         attachedFiles: FileMetadata[]
     ): FileMetadata[] {
         return SessionPayloadBuilder.collectFilesMetadata(attachedFiles || []);
+    }
+
+    private getContextWindow(): number {
+        return LlamaService.extractContextWindow(this.serverProps);
     }
 
     private saveUserMessageToSession(payload: UserMessagePayload): void {

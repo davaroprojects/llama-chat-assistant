@@ -481,6 +481,27 @@ textarea {
     user-select: none;
 }
 
+.token-counter {
+    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.75);
+    font-family: var(--vscode-editor-font-family, sans-serif);
+    color: var(--vscode-foreground);
+    opacity: 0.4;
+    text-align: right;
+    padding: 2px 4px 0;
+    user-select: none;
+    transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.token-counter--warn {
+    color: var(--vscode-editorWarning-foreground, #e9b84a);
+    opacity: 0.7;
+}
+
+.token-counter--danger {
+    color: var(--vscode-editorError-foreground, #f14c4c);
+    opacity: 0.9;
+}
+
 /* Contenedor general: Ya no se estira a la fuerza */
 #sessions-container {
     margin-bottom: 12px;

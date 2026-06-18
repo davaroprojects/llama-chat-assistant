@@ -35,6 +35,7 @@ const elements = {
     fileNameText: document.getElementById('file-name-text'),
     stopBtn: document.getElementById('stop'),
     sendBtn: document.getElementById('send'),
+    tokenCounter: document.getElementById('token-counter'),
     attachedFilesContainer: null
 };
 
@@ -57,6 +58,7 @@ let lastBlockRenderTime = 0;
 const BLOCK_RENDER_INTERVAL = 0;
 let isStreamingActive = false;
 const removedAutoContextKeys = new Set();
+let currentContextWindow = 8192;
 
 function createAutoContextKey(name, content) {
     return `${name}::${content}`;
@@ -135,6 +137,10 @@ function handleWebsocketMessage(event) {
         case 'stopStreaming':
             handleStopStreaming();
             break;
+        case 'updateContextWindow':
+            currentContextWindow = message.contextWindow;
+            updateTokenCounter(0, currentContextWindow);
+            break;
     }
 }
 
@@ -189,6 +195,10 @@ function handleRestoreActiveChat(message) {
         }
     });
 
+    if (message.sessionTokens !== undefined && message.contextWindow !== undefined) {
+        updateTokenCounter(message.sessionTokens, message.contextWindow);
+    }
+
     elements.chat.scrollTop = elements.chat.scrollHeight;
 }
 
@@ -206,6 +216,11 @@ function handleRenderSessionsList(message) {
         elements.sessionsList.style.display = 'flex';
         elements.sessionsContainer.style.display = 'flex';
         elements.chat.style.display = 'none';
+    }
+
+    if (message.contextWindow !== undefined) {
+        currentContextWindow = message.contextWindow;
+        updateTokenCounter(0, currentContextWindow);
     }
 }
 
@@ -314,6 +329,10 @@ function handleEndStreaming(message) {
         bubbleNode.innerHTML = '';
         renderFormattedContent(bubbleNode, finalContent);
         addMessageFooter(bubbleNode, finalContent, message.time, message.tokens);
+    }
+
+    if (message.sessionTokens !== undefined && message.contextWindow !== undefined) {
+        updateTokenCounter(message.sessionTokens, message.contextWindow);
     }
 
     currentAssistantBubble = null;
@@ -704,6 +723,27 @@ function handleBackToSessions() {
     elements.sessionsList.style.display = 'flex';
     elements.sessionsContainer.style.display = 'flex';
     elements.vscode.postMessage({ type: 'webviewReady' });
+
+    if (elements.tokenCounter) {
+        elements.tokenCounter.style.display = 'none';
+    }
+}
+
+// ============================================================
+// TOKEN COUNTER
+// ============================================================
+
+function updateTokenCounter(sessionTokens, contextWindow) {
+    if (!elements.tokenCounter) { return; }
+    elements.tokenCounter.style.display = 'block';
+    const hasTotal = contextWindow > 0;
+    const pct = hasTotal ? Math.min(100, Math.round((sessionTokens / contextWindow) * 100)) : 0;
+    const warnClass = hasTotal
+        ? (pct >= 90 ? ' token-counter--danger' : pct >= 70 ? ' token-counter--warn' : '')
+        : '';
+    elements.tokenCounter.className = 'token-counter' + warnClass;
+    const totalLabel = hasTotal ? contextWindow.toLocaleString() : '?';
+    elements.tokenCounter.textContent = `${sessionTokens.toLocaleString()} / ${totalLabel} tokens`;
 }
 
 // ============================================================

@@ -69,6 +69,29 @@ export class SessionManager {
         this.saveToDisk();
     }
 
+    public getSessionTokenEstimate(): number {
+        const session = this.getCurrentSession();
+        if (!session) { return 0; }
+
+        const totalChars = session.messages.reduce((sum, msg) => {
+            let text = '';
+            if (typeof msg.content === 'string') {
+                text = msg.content;
+            } else if (typeof msg.content === 'object' && msg.content !== null) {
+                const c = msg.content as Record<string, unknown>;
+                text = typeof c.text === 'string' ? c.text : '';
+                if (Array.isArray(c.filesMetadata)) {
+                    for (const f of c.filesMetadata as Array<Record<string, unknown>>) {
+                        if (typeof f.content === 'string') { text += f.content; }
+                    }
+                }
+            }
+            return sum + text.length;
+        }, 0);
+
+        return Math.round(totalChars / 4);
+    }
+
     private saveToDisk(): void {
         this.context.globalState.update(this.STORAGE_KEY, Array.from(this.sessions.values()));
     }

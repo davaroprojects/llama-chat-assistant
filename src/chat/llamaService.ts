@@ -10,6 +10,21 @@ export interface LlamaConfig {
     debug: boolean;
 }
 
+export interface LlamaServerProps {
+    default_generation_settings?: {
+        n_ctx?: number;
+        params?: Record<string, unknown>;
+        [key: string]: unknown;
+    };
+    model_path?: string;
+    model_description?: string;
+    n_ctx?: number;
+    n_ctx_train?: number;
+    n_embd?: number;
+    n_layer?: number;
+    [key: string]: unknown;
+}
+
 export interface StreamingState {
     isActive: boolean;
     abortController: AbortController | null;
@@ -229,5 +244,44 @@ export class LlamaService {
         const endTime = performance.now();
         const durationSeconds = ((endTime - startTime) / 1000).toFixed(2);
         return durationSeconds;
+    }
+
+    static async fetchServerProps(apiUrl: string): Promise<LlamaServerProps | null> {
+        try {
+            const propsUrl = this.buildPropsUrl(apiUrl);
+            const response = await globalThis.fetch(propsUrl, {
+                signal: AbortSignal.timeout(2000)
+            });
+            if (response.ok) {
+                return await response.json() as LlamaServerProps;
+            }
+        } catch { /* /props not available */ }
+        return null;
+    }
+
+    static extractContextWindow(props: LlamaServerProps | null): number {
+        if (!props) {
+            return 0;
+        }
+
+        if (typeof props.n_ctx === 'number') {
+            return props.n_ctx;
+        }
+
+        const nestedNctx = props.default_generation_settings?.n_ctx;
+        return typeof nestedNctx === 'number' ? nestedNctx : 0;
+    }
+
+    static buildPropsUrl(apiUrl: string): string {
+        try {
+            const parsed = new URL(apiUrl);
+            parsed.pathname = '/props';
+            parsed.search = '';
+            parsed.hash = '';
+            return parsed.toString();
+        } catch {
+            const baseUrl = apiUrl.replace(/\/v1\/.*$/, '');
+            return `${baseUrl}/props`;
+        }
     }
 }

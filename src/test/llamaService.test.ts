@@ -76,3 +76,37 @@ suite('LlamaService - prepareMessagesForLlama', () => {
             'utils.ts should remain in first message since it is not superseded');
     });
 });
+
+suite('LlamaService - server props', () => {
+    test('Extracts n_ctx from full /props payload', () => {
+        const nCtx = LlamaService.extractContextWindow({
+            model_path: '/models/qwen.gguf',
+            n_ctx: 32768,
+            n_ctx_train: 131072,
+            n_embd: 4096
+        });
+        assert.strictEqual(nCtx, 32768);
+    });
+
+    test('Returns 0 when n_ctx is unavailable', () => {
+        assert.strictEqual(LlamaService.extractContextWindow(null), 0);
+        assert.strictEqual(LlamaService.extractContextWindow({ model_path: '/m.gguf' }), 0);
+    });
+
+    test('Extracts n_ctx from default_generation_settings payload', () => {
+        const nCtx = LlamaService.extractContextWindow({
+            default_generation_settings: {
+                params: { temperature: 0.8 },
+                n_ctx: 16384
+            },
+            total_slots: 4,
+            model_path: './models/qwen.gguf'
+        });
+        assert.strictEqual(nCtx, 16384);
+    });
+
+    test('Builds /props URL from OpenAI-compatible chat endpoint', () => {
+        const propsUrl = LlamaService.buildPropsUrl('http://127.0.0.1:8033/v1/chat/completions');
+        assert.strictEqual(propsUrl, 'http://127.0.0.1:8033/props');
+    });
+});
