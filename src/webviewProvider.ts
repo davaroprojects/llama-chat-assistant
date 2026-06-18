@@ -139,7 +139,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({
             type: 'renderSessionsList',
             sessions: initialSessions,
-            contextWindow: this.getContextWindow()
+            contextWindow: this.getContextWindow(),
+            modelName: this.getModelName()
         });
 
         this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
@@ -174,7 +175,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                 title: activeSession.title,
                 messages: activeSession.messages,
                 sessionTokens: this.sessionManager.getSessionTokenEstimate(),
-                contextWindow: this.getContextWindow()
+                contextWindow: this.getContextWindow(),
+                modelName: this.getModelName()
             });
         }
     }
@@ -243,7 +245,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         const remainingSessions = this.sessionManager.getAllSessions();
         webviewView.webview.postMessage({
             type: 'renderSessionsList',
-            sessions: remainingSessions
+            sessions: remainingSessions,
+            contextWindow: this.getContextWindow(),
+            modelName: this.getModelName()
         });
     }
 
@@ -251,7 +255,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         const freshSessions = this.sessionManager.getAllSessions();
         webviewView.webview.postMessage({
             type: 'renderSessionsList',
-            sessions: freshSessions
+            sessions: freshSessions,
+            contextWindow: this.getContextWindow(),
+            modelName: this.getModelName()
         });
     }
 
@@ -310,7 +316,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                 time: duration,
                 tokens: result.tokenCount,
                 sessionTokens: this.sessionManager.getSessionTokenEstimate(),
-                contextWindow: this.getContextWindow()
+                contextWindow: this.getContextWindow(),
+                modelName: this.getModelName()
             });
         } catch (error: unknown) {
             this.handleGenerationError(error, webviewView);
@@ -370,6 +377,10 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
     private getContextWindow(): number {
         return LlamaService.extractContextWindow(this.serverProps);
+    }
+
+    private getModelName(): string {
+        return LlamaService.extractModelName(this.serverProps);
     }
 
     private saveUserMessageToSession(payload: UserMessagePayload): void {

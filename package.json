@@ -1,7 +1,7 @@
 {
   "name": "llama-chat-assistant",
-  "displayName": "llama-chat-assistant",
-  "description": "",
+  "displayName": "%ext.displayName%",
+  "description": "%ext.description%",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.120.0"
@@ -14,44 +14,44 @@
   "icon": "resources/marketplace-icon.png",
   "contributes": {
     "configuration": {
-      "title": "Llama Chat Assistant",
+      "title": "%config.title%",
       "properties": {
         "llamaChat.apiUrl": {
           "type": "string",
           "default": "http://127.0.0.1:8033/v1/chat/completions",
-          "description": "The API URL for LlamaChat."
+          "description": "%config.apiUrl.description%"
         },
         "llamaChat.temperature": {
           "type": "number",
           "default": 0.2,
           "minimum": 0,
           "maximum": 2,
-          "description": "The temperature for the model."
+          "description": "%config.temperature.description%"
         },
         "llamaChat.systemPrompt": {
           "type": "string",
           "default": "Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
-          "description": "The system prompt for the model.",
+          "description": "%config.systemPrompt.description%",
           "editPresentation": "multilineText" 
         },
         "llamaChat.debug": {
           "type": "boolean",
           "default": false,
-          "description": "Enable verbose logs and basic runtime metrics in the extension output."
+          "description": "%config.debug.description%"
         },
         "llamaChat.maxAttachedFileSizeKb": {
           "type": "number",
           "default": 256,
           "minimum": 1,
           "maximum": 4096,
-          "description": "Maximum size in KB for manually attached files."
+          "description": "%config.maxAttachedFileSizeKb.description%"
         }
       }
     },
     "commands": [
       {
         "command": "llama-chat-assistant.openSettings",
-        "title": "Llama Chat: Configurar",
+        "title": "%command.openSettings.title%",
         "icon": "settings-gear"
       }
     ],
@@ -59,7 +59,7 @@
       "activitybar": [
         {
           "id": "llama-chat-sidebar",
-          "title": "Llama Chat",
+          "title": "%views.container.title%",
           "icon": "resources/icon.svg"
         }
       ]
@@ -69,7 +69,7 @@
         {
           "type": "webview",
           "id": "llama-chat-view",
-          "name": "Chat con Llama.cpp"
+          "name": "%views.chat.name%"
         }
       ]
     },

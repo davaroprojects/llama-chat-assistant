@@ -1,0 +1,16 @@
+{
+  "ext.displayName": "Asistente de Chat Llama",
+  "ext.description": "Chatea con un servidor local compatible con OpenAI desde la barra lateral de VS Code.",
+
+  "config.title": "Asistente de Chat Llama",
+  "config.apiUrl.description": "URL de la API para Llama Chat.",
+  "config.temperature.description": "Temperatura de generación del modelo.",
+  "config.systemPrompt.description": "Prompt de sistema usado para el modelo.",
+  "config.debug.description": "Habilita logs detallados y métricas básicas de ejecución en la salida de la extensión.",
+  "config.maxAttachedFileSizeKb.description": "Tamaño máximo en KB para archivos adjuntos manualmente.",
+
+  "command.openSettings.title": "Llama Chat: Configurar",
+
+  "views.container.title": "Llama Chat",
+  "views.chat.name": "Chat con Llama.cpp"
+}

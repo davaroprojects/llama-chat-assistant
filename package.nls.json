@@ -1,0 +1,16 @@
+{
+  "ext.displayName": "Llama Chat Assistant",
+  "ext.description": "Chat with a local OpenAI-compatible server from the VS Code sidebar.",
+
+  "config.title": "Llama Chat Assistant",
+  "config.apiUrl.description": "The API URL for Llama Chat.",
+  "config.temperature.description": "The generation temperature for the model.",
+  "config.systemPrompt.description": "The system prompt used for the model.",
+  "config.debug.description": "Enable verbose logs and basic runtime metrics in the extension output.",
+  "config.maxAttachedFileSizeKb.description": "Maximum size in KB for manually attached files.",
+
+  "command.openSettings.title": "Llama Chat: Configure",
+
+  "views.container.title": "Llama Chat",
+  "views.chat.name": "Chat with Llama.cpp"
+}

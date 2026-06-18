@@ -485,19 +485,91 @@ textarea {
     font-size: calc(var(--vscode-editor-font-size, 11px) * 0.75);
     font-family: var(--vscode-editor-font-family, sans-serif);
     color: var(--vscode-foreground);
-    opacity: 0.4;
-    text-align: right;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
     padding: 2px 4px 0;
     user-select: none;
     transition: color 0.2s ease, opacity 0.2s ease;
 }
 
+.token-counter-left {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    position: relative;
+    min-width: 0;
+}
+
+.model-menu-trigger {
+    border: none;
+    background: transparent;
+    color: inherit;
+    opacity: 0.4;
+    font: inherit;
+    padding: 2px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.model-menu-trigger:hover {
+    opacity: 1;
+    background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+}
+
+.model-context-menu {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 6px);
+    min-width: 180px;
+    max-width: 240px;
+    background: var(--vscode-sideBar-background);
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 8px;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+    z-index: 20;
+    overflow: hidden;
+    opacity: 1 !important;
+}
+
+.model-context-menu-item {
+    padding: 8px 10px;
+    color: var(--vscode-foreground);
+    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.84);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.token-counter-value {
+    text-align: right;
+    flex: 0 0 auto;
+    opacity: 0.4;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
 .token-counter--warn {
+    opacity: 1;
+}
+
+.token-counter--warn .token-counter-value {
     color: var(--vscode-editorWarning-foreground, #e9b84a);
     opacity: 0.7;
 }
 
 .token-counter--danger {
+    opacity: 1;
+}
+
+.token-counter--danger .token-counter-value {
     color: var(--vscode-editorError-foreground, #f14c4c);
     opacity: 0.9;
 }

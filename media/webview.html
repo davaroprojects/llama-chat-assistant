@@ -59,7 +59,15 @@
         </div>
     </div>
 
-    <div id="token-counter" class="token-counter" style="display:none;"></div>
+    <div id="token-counter" class="token-counter">
+        <div class="token-counter-left">
+            <button id="model-menu-trigger" class="model-menu-trigger" type="button" title="Ver modelo actual">Modelo</button>
+            <div id="model-context-menu" class="model-context-menu" style="display:none;">
+                <div id="model-context-menu-item" class="model-context-menu-item">local</div>
+            </div>
+        </div>
+        <div id="token-counter-value" class="token-counter-value">0 / ? tokens</div>
+    </div>
 
     {{scriptPlaceholder}}
 </body>

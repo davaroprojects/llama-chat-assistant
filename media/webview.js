@@ -36,6 +36,10 @@ const elements = {
     stopBtn: document.getElementById('stop'),
     sendBtn: document.getElementById('send'),
     tokenCounter: document.getElementById('token-counter'),
+    tokenCounterValue: document.getElementById('token-counter-value'),
+    modelMenuTrigger: document.getElementById('model-menu-trigger'),
+    modelContextMenu: document.getElementById('model-context-menu'),
+    modelContextMenuItem: document.getElementById('model-context-menu-item'),
     attachedFilesContainer: null
 };
 
@@ -58,7 +62,8 @@ let lastBlockRenderTime = 0;
 const BLOCK_RENDER_INTERVAL = 0;
 let isStreamingActive = false;
 const removedAutoContextKeys = new Set();
-let currentContextWindow = 8192;
+let currentContextWindow = 0;
+let currentModelName = 'local';
 
 function createAutoContextKey(name, content) {
     return `${name}::${content}`;
@@ -96,6 +101,14 @@ elements.attachBtn.addEventListener('click', () => {
 });
 elements.prompt.addEventListener('keydown', handlePromptKeyDown);
 window.addEventListener('message', handleWebsocketMessage);
+elements.modelMenuTrigger?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleModelMenu();
+});
+elements.modelContextMenu?.addEventListener('click', (event) => {
+    event.stopPropagation();
+});
+document.addEventListener('click', closeModelMenu);
 
 // ============================================================
 // MESSAGE HANDLERS - MAIN DISPATCHER
@@ -139,7 +152,10 @@ function handleWebsocketMessage(event) {
             break;
         case 'updateContextWindow':
             currentContextWindow = message.contextWindow;
-            updateTokenCounter(0, currentContextWindow);
+            if (typeof message.modelName === 'string' && message.modelName.trim()) {
+                currentModelName = message.modelName.trim();
+            }
+            updateTokenCounter(0, currentContextWindow, currentModelName);
             break;
     }
 }
@@ -196,7 +212,10 @@ function handleRestoreActiveChat(message) {
     });
 
     if (message.sessionTokens !== undefined && message.contextWindow !== undefined) {
-        updateTokenCounter(message.sessionTokens, message.contextWindow);
+        if (typeof message.modelName === 'string' && message.modelName.trim()) {
+            currentModelName = message.modelName.trim();
+        }
+        updateTokenCounter(message.sessionTokens, message.contextWindow, currentModelName);
     }
 
     elements.chat.scrollTop = elements.chat.scrollHeight;
@@ -220,8 +239,13 @@ function handleRenderSessionsList(message) {
 
     if (message.contextWindow !== undefined) {
         currentContextWindow = message.contextWindow;
-        updateTokenCounter(0, currentContextWindow);
     }
+
+    if (typeof message.modelName === 'string' && message.modelName.trim()) {
+        currentModelName = message.modelName.trim();
+    }
+
+    updateTokenCounter(0, currentContextWindow, currentModelName);
 }
 
 function handleFileSelected(message) {
@@ -332,7 +356,10 @@ function handleEndStreaming(message) {
     }
 
     if (message.sessionTokens !== undefined && message.contextWindow !== undefined) {
-        updateTokenCounter(message.sessionTokens, message.contextWindow);
+        if (typeof message.modelName === 'string' && message.modelName.trim()) {
+            currentModelName = message.modelName.trim();
+        }
+        updateTokenCounter(message.sessionTokens, message.contextWindow, currentModelName);
     }
 
     currentAssistantBubble = null;
@@ -725,7 +752,8 @@ function handleBackToSessions() {
     elements.vscode.postMessage({ type: 'webviewReady' });
 
     if (elements.tokenCounter) {
-        elements.tokenCounter.style.display = 'none';
+        elements.tokenCounter.style.display = 'block';
+        updateTokenCounter(0, currentContextWindow, currentModelName);
     }
 }
 
@@ -733,7 +761,7 @@ function handleBackToSessions() {
 // TOKEN COUNTER
 // ============================================================
 
-function updateTokenCounter(sessionTokens, contextWindow) {
+function updateTokenCounter(sessionTokens, contextWindow, modelName = currentModelName) {
     if (!elements.tokenCounter) { return; }
     elements.tokenCounter.style.display = 'block';
     const hasTotal = contextWindow > 0;
@@ -743,7 +771,29 @@ function updateTokenCounter(sessionTokens, contextWindow) {
         : '';
     elements.tokenCounter.className = 'token-counter' + warnClass;
     const totalLabel = hasTotal ? contextWindow.toLocaleString() : '?';
-    elements.tokenCounter.textContent = `${sessionTokens.toLocaleString()} / ${totalLabel} tokens`;
+    const normalizedModelName = (modelName || 'local').trim();
+    if (elements.tokenCounterValue) {
+        elements.tokenCounterValue.textContent = `${sessionTokens.toLocaleString()} / ${totalLabel} tokens`;
+    }
+    if (elements.modelContextMenuItem) {
+        elements.modelContextMenuItem.textContent = normalizedModelName;
+    }
+}
+
+function toggleModelMenu() {
+    if (!elements.modelContextMenu) {
+        return;
+    }
+
+    const isVisible = elements.modelContextMenu.style.display === 'block';
+    elements.modelContextMenu.style.display = isVisible ? 'none' : 'block';
+}
+
+function closeModelMenu() {
+    if (!elements.modelContextMenu) {
+        return;
+    }
+    elements.modelContextMenu.style.display = 'none';
 }
 
 // ============================================================
@@ -825,4 +875,5 @@ function truncateTitle(text) {
     return cleanText.length > 30 ? cleanText.substring(0, 27) + '...' : cleanText;
 }
 // ============================================================// INITIALIZATION// ============================================================
+updateTokenCounter(0, 0, currentModelName);
 elements.vscode.postMessage({ type: 'webviewReady' });

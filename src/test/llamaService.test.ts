@@ -109,4 +109,18 @@ suite('LlamaService - server props', () => {
         const propsUrl = LlamaService.buildPropsUrl('http://127.0.0.1:8033/v1/chat/completions');
         assert.strictEqual(propsUrl, 'http://127.0.0.1:8033/props');
     });
+
+    test('Extracts model name from explicit model fields', () => {
+        const modelName = LlamaService.extractModelName({
+            model_name: 'qwen2.5-coder-7b-instruct'
+        });
+        assert.strictEqual(modelName, 'qwen2.5-coder-7b-instruct');
+    });
+
+    test('Extracts model name from model_path fallback', () => {
+        const modelName = LlamaService.extractModelName({
+            model_path: '/models/qwen2.5-coder-7b-instruct-q8_0.gguf'
+        });
+        assert.strictEqual(modelName, 'qwen2.5-coder-7b-instruct-q8_0');
+    });
 });

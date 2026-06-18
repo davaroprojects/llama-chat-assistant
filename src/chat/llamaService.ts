@@ -16,6 +16,9 @@ export interface LlamaServerProps {
         params?: Record<string, unknown>;
         [key: string]: unknown;
     };
+    model?: string;
+    model_name?: string;
+    model_alias?: string;
     model_path?: string;
     model_description?: string;
     n_ctx?: number;
@@ -270,6 +273,25 @@ export class LlamaService {
 
         const nestedNctx = props.default_generation_settings?.n_ctx;
         return typeof nestedNctx === 'number' ? nestedNctx : 0;
+    }
+
+    static extractModelName(props: LlamaServerProps | null): string {
+        if (!props) {
+            return 'local';
+        }
+
+        const directName = [props.model_name, props.model, props.model_alias]
+            .find(value => typeof value === 'string' && value.trim().length > 0);
+        if (typeof directName === 'string') {
+            return directName.trim();
+        }
+
+        if (typeof props.model_path === 'string' && props.model_path.trim().length > 0) {
+            const fileName = props.model_path.split(/[\\/]/).pop() || props.model_path;
+            return fileName.replace(/\.[^.]+$/, '');
+        }
+
+        return 'local';
     }
 
     static buildPropsUrl(apiUrl: string): string {
