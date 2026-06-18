@@ -26,6 +26,16 @@ export class LlamaService {
         userContextPrompt: string,
         systemPrompt: string
     ): ChatMessage[] {
+        // Find the last message index that owns each base file name
+        const lastIndexByBase = new Map<string, number>();
+        baseMessages.forEach((msg, idx) => {
+            if (msg.role === 'user') {
+                this.getFilesFromPayload(msg.content).forEach(f => {
+                    lastIndexByBase.set(this.getBaseName(f.name), idx);
+                });
+            }
+        });
+
         const messagesForLlama = baseMessages.map((msg, index) => {
             const isLastMessage = index === baseMessages.length - 1;
 
@@ -34,13 +44,11 @@ export class LlamaService {
             }
 
             if (msg.role === 'user') {
-                const content = this.extractTextContent(msg.content);
-                return { role: 'user', content };
+                return { role: 'user', content: this.buildHistoryUserContent(msg.content, index, lastIndexByBase) };
             }
 
             if (msg.role === 'assistant') {
-                const content = this.extractTextContent(msg.content);
-                return { role: 'assistant', content };
+                return { role: 'assistant', content: this.extractTextOnly(msg.content) };
             }
 
             return msg;
@@ -52,29 +60,54 @@ export class LlamaService {
             : [{ role: 'system', content: systemPrompt }, ...messagesForLlama];
     }
 
-    private static extractTextContent(content: string | object): string {
-        if (typeof content === 'string') {
-            return content;
-        }
+    private static getBaseName(name: string): string {
+        return name.replace(/:\d+(?:-\d+)?$/, '');
+    }
 
-        if (typeof content !== 'object' || content === null) {
-            return '';
-        }
-
+    private static getFilesFromPayload(content: unknown): Array<{ name: string; content: string }> {
+        if (typeof content !== 'object' || content === null) { return []; }
         const payload = content as Record<string, unknown>;
-        const text = typeof payload.text === 'string' ? payload.text : '';
-        const files = Array.isArray(payload.filesMetadata) ? payload.filesMetadata as Array<{ name: string; content: string }> : [];
+        return Array.isArray(payload.filesMetadata)
+            ? (payload.filesMetadata as Array<{ name: string; content: string }>)
+            : [];
+    }
 
-        if (files.length === 0) {
-            return text;
+    private static buildHistoryUserContent(
+        content: unknown,
+        msgIndex: number,
+        lastIndexByBase: Map<string, number>
+    ): string {
+        let text = '';
+        if (typeof content === 'string') {
+            text = content;
+        } else if (typeof content === 'object' && content !== null) {
+            const payload = content as Record<string, unknown>;
+            text = typeof payload.text === 'string' ? payload.text : '';
+        }
+
+        // Only include files for which this message is the LATEST
+        const activeFiles = this.getFilesFromPayload(content)
+            .filter(f => lastIndexByBase.get(this.getBaseName(f.name)) === msgIndex);
+
+        if (activeFiles.length === 0) {
+            return `Indicación del usuario:\n${text}`;
         }
 
         let ctx = '';
-        files.forEach(file => {
+        activeFiles.forEach(file => {
             ctx += `--- ARCHIVO ADJUNTO: ${file.name} ---\n${file.content}\n--- FIN ARCHIVO ---\n\n`;
         });
         ctx += `Indicación del usuario:\n${text}`;
         return ctx;
+    }
+
+    private static extractTextOnly(content: unknown): string {
+        if (typeof content === 'string') { return content; }
+        if (typeof content === 'object' && content !== null) {
+            const payload = content as Record<string, unknown>;
+            return typeof payload.text === 'string' ? payload.text : '';
+        }
+        return '';
     }
 
     static async streamLlamaResponse(

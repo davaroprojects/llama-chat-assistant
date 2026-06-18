@@ -17,9 +17,6 @@ export interface AssistantMessagePayload {
 
 export class SessionPayloadBuilder {
 
-    private static buildFileSignature(file: FileMetadata): string {
-        return `${file.name}::${file.content}`;
-    }
 
     static createUserMessagePayload(
         userPrompt: string,
@@ -61,25 +58,11 @@ export class SessionPayloadBuilder {
     }
 
     static collectFilesMetadata(attachedFiles: FileMetadata[]): FileMetadata[] {
-        const deduped: FileMetadata[] = [];
-        const seen = new Set<string>();
-
-        (attachedFiles || []).forEach((file) => {
-            const normalized: FileMetadata = {
-                name: file.name,
-                content: file.content,
-                isAutomatic: file.isAutomatic ?? false
-            };
-
-            const signature = this.buildFileSignature(normalized);
-            if (seen.has(signature)) {
-                return;
-            }
-
-            seen.add(signature);
-            deduped.push(normalized);
+        // Deduplicate by name, last occurrence wins
+        const byName = new Map<string, FileMetadata>();
+        (attachedFiles || []).forEach(file => {
+            byName.set(file.name, { name: file.name, content: file.content, isAutomatic: file.isAutomatic ?? false });
         });
-
-        return deduped;
+        return Array.from(byName.values());
     }
 }
