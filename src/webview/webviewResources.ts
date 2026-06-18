@@ -14,6 +14,7 @@ export interface WebviewLabels {
     emptyServerStoppedLabel: string;
     deleteSessionLabel: string;
     sessionUnavailableLabel: string;
+    generationCanceledLabel: string;
 }
 
 export function getWebviewLabels(language: string): WebviewLabels {
@@ -30,7 +31,8 @@ export function getWebviewLabels(language: string): WebviewLabels {
             emptyChatReadyLabel: 'Inicie una nueva sesion desde el chat',
             emptyServerStoppedLabel: 'Inicie el servidor para iniciar',
             deleteSessionLabel: 'Eliminar sesión permanentemente',
-            sessionUnavailableLabel: 'No disponible mientras el servidor está detenido'
+            sessionUnavailableLabel: 'No disponible mientras el servidor está detenido',
+            generationCanceledLabel: 'Generación cancelada'
         };
     }
 
@@ -45,7 +47,8 @@ export function getWebviewLabels(language: string): WebviewLabels {
         emptyChatReadyLabel: 'Start a new session from chat',
         emptyServerStoppedLabel: 'Start the server to begin',
         deleteSessionLabel: 'Delete session permanently',
-        sessionUnavailableLabel: 'Unavailable while the server is stopped'
+        sessionUnavailableLabel: 'Unavailable while the server is stopped',
+        generationCanceledLabel: 'Generation canceled'
     };
 }
 
@@ -82,5 +85,6 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     htmlContent = htmlContent.replace('{{emptyServerStoppedLabel}}', labels.emptyServerStoppedLabel);
     htmlContent = htmlContent.replace('{{deleteSessionLabel}}', labels.deleteSessionLabel);
     htmlContent = htmlContent.replace('{{sessionUnavailableLabel}}', labels.sessionUnavailableLabel);
+    htmlContent = htmlContent.replace('{{generationCanceledLabel}}', labels.generationCanceledLabel);
     return htmlContent.replace('{{scriptPlaceholder}}', scriptSrc);
 }

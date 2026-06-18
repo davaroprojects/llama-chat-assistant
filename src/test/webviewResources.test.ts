@@ -16,6 +16,7 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.emptyServerStoppedLabel, 'Inicie el servidor para iniciar');
         assert.strictEqual(labels.deleteSessionLabel, 'Eliminar sesión permanentemente');
         assert.strictEqual(labels.sessionUnavailableLabel, 'No disponible mientras el servidor está detenido');
+        assert.strictEqual(labels.generationCanceledLabel, 'Generación cancelada');
     });
 
     test('Returns English labels for non-es locales', () => {
@@ -32,5 +33,6 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.emptyServerStoppedLabel, 'Start the server to begin');
         assert.strictEqual(labels.deleteSessionLabel, 'Delete session permanently');
         assert.strictEqual(labels.sessionUnavailableLabel, 'Unavailable while the server is stopped');
+        assert.strictEqual(labels.generationCanceledLabel, 'Generation canceled');
     });
 });

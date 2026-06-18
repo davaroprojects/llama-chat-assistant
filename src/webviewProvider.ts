@@ -327,8 +327,13 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             if (error instanceof Error && error.name === 'AbortError') {
                 webviewView.webview.postMessage({ type: 'stopStreaming' });
             } else {
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                webviewView.webview.postMessage({ type: 'errorStreaming', text: `❌ Error: ${errorMessage}` });
+                const errorMessage = error instanceof Error
+                    ? error.message
+                    : this.getLocalizedUnknownErrorLabel();
+                webviewView.webview.postMessage({
+                    type: 'errorStreaming',
+                    text: `${this.getLocalizedErrorPrefix()}: ${errorMessage}`
+                });
             }
         } finally {
             this.isGenerationActive = false;
@@ -452,11 +457,29 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
         const errorMessage = error instanceof Error
             ? error.message
-            : 'Unknown error during generation';
+            : this.getLocalizedUnknownGenerationErrorLabel();
         webviewView.webview.postMessage({
             type: 'errorStreaming',
-            text: `❌ Error: ${errorMessage}`
+            text: `${this.getLocalizedErrorPrefix()}: ${errorMessage}`
         });
+    }
+
+    private getLocalizedErrorPrefix(): string {
+        return 'Error';
+    }
+
+    private getLocalizedUnknownErrorLabel(): string {
+        return this.isSpanishLocale() ? 'Error desconocido' : 'Unknown error';
+    }
+
+    private getLocalizedUnknownGenerationErrorLabel(): string {
+        return this.isSpanishLocale()
+            ? 'Error desconocido durante la generación'
+            : 'Unknown error during generation';
+    }
+
+    private isSpanishLocale(): boolean {
+        return vscode.env.language.toLowerCase().startsWith('es');
     }
 
     private setupEditorListeners(): void {

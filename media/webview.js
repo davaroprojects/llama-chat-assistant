@@ -54,7 +54,8 @@ const labels = {
     emptyChatReadyLabel: document.body.dataset.emptyChatReadyLabel || 'Inicie una nueva sesion desde el chat',
     emptyServerStoppedLabel: document.body.dataset.emptyServerStoppedLabel || 'Inicie el servidor para iniciar',
     deleteSessionLabel: document.body.dataset.deleteSessionLabel || 'Eliminar sesión permanentemente',
-    sessionUnavailableLabel: document.body.dataset.sessionUnavailableLabel || 'No disponible mientras el servidor está detenido'
+    sessionUnavailableLabel: document.body.dataset.sessionUnavailableLabel || 'No disponible mientras el servidor está detenido',
+    generationCanceledLabel: document.body.dataset.generationCanceledLabel || 'Generación cancelada'
 };
 
 // Lazy load attachedFilesContainer
@@ -494,7 +495,7 @@ function handleStopStreaming() {
 
     const container = document.createElement('div');
     container.className = 'message-container assistant';
-    container.innerHTML = `<div class="message" style="color:var(--vscode-errorForeground)">Generación cancelada</div>`;
+    container.innerHTML = `<div class="message" style="color:var(--vscode-errorForeground)">${labels.generationCanceledLabel}</div>`;
     elements.chat.appendChild(container);
 
     elements.vscode.postMessage({ type: 'requestActiveEditorRefresh' });
