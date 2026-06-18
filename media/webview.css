@@ -674,6 +674,71 @@ textarea {
     min-width: 0;
 }
 
+.token-counter-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.token-usage-container {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    position: relative;
+    opacity: 0.4;
+    transition: opacity 0.15s ease;
+}
+
+.token-usage-container:hover:not(.is-disabled) {
+    opacity: 1;
+}
+
+.token-usage-container.is-disabled,
+.token-usage-container[disabled] {
+    opacity: 0.2 !important;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.token-usage-chart {
+    --token-usage-pct: 0;
+    --token-usage-color: var(--vscode-charts-blue, #4da3ff);
+    --token-usage-track: var(--vscode-panel-border, rgba(255, 255, 255, 0.2));
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background: conic-gradient(
+        var(--token-usage-color) calc(var(--token-usage-pct) * 1%),
+        var(--token-usage-track) 0
+    );
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.token-usage-chart::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--vscode-sideBar-background);
+}
+
+.token-usage-percentage {
+    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.75);
+    font-weight: 500;
+    color: var(--vscode-foreground);
+    white-space: nowrap;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
 .model-menu-trigger {
     border: none;
     background: transparent;
@@ -704,12 +769,13 @@ textarea {
     bottom: calc(100% + 6px);
     min-width: 180px;
     max-width: 240px;
+    max-height: 300px;
     background: var(--vscode-sideBar-background);
     border: 1px solid var(--vscode-panel-border);
     border-radius: 8px;
     box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
     z-index: 20;
-    overflow: hidden;
+    overflow: auto;
     opacity: 1 !important;
 }
 
@@ -724,29 +790,33 @@ textarea {
 }
 
 .token-counter-value {
-    text-align: right;
-    flex: 0 0 auto;
-    opacity: 0.4;
-    margin-left: auto;
-    white-space: nowrap;
+    display: none;
 }
 
 .token-counter--warn {
     opacity: 1;
 }
 
-.token-counter--warn .token-counter-value {
+.token-counter--warn .token-usage-percentage {
     color: var(--vscode-editorWarning-foreground, #e9b84a);
-    opacity: 0.7;
+    opacity: 0.9;
+}
+
+.token-counter--warn .token-usage-chart {
+    --token-usage-color: var(--vscode-editorWarning-foreground, #e9b84a);
 }
 
 .token-counter--danger {
     opacity: 1;
 }
 
-.token-counter--danger .token-counter-value {
+.token-counter--danger .token-usage-percentage {
     color: var(--vscode-editorError-foreground, #f14c4c);
-    opacity: 0.9;
+    opacity: 1;
+}
+
+.token-counter--danger .token-usage-chart {
+    --token-usage-color: var(--vscode-editorError-foreground, #f14c4c);
 }
 
 /* Contenedor general: Ya no se estira a la fuerza */

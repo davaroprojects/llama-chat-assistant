@@ -99,6 +99,11 @@ const elements = {
     sendBtn: document.getElementById('send'),
     tokenCounter: document.getElementById('token-counter'),
     tokenCounterValue: document.getElementById('token-counter-value'),
+    tokenUsageChart: document.getElementById('token-usage-chart'),
+    tokenUsagePercentage: document.getElementById('token-usage-percentage'),
+    tokenUsageContainer: document.getElementById('token-usage-container'),
+    tokenUsageMenu: document.getElementById('token-usage-menu'),
+    tokenUsageMenuItem: document.getElementById('token-usage-menu-item'),
     modelMenuTrigger: document.getElementById('model-menu-trigger'),
     modelContextMenu: document.getElementById('model-context-menu'),
     modelContextMenuItem: document.getElementById('model-context-menu-item'),
@@ -177,6 +182,7 @@ function getAttachedFilesContainer() {
 // STATE MANAGEMENT
 // ============================================================
 let currentAttachedFiles = [];
+let activeContextMenu = null; // Tracks which context menu is currently open: 'model' | 'token' | null
 let currentAssistantBubble = null;
 let currentAssistantText = "";
 let streamingBlocksContainer = null;
@@ -238,6 +244,15 @@ function applyControlState() {
 
     if (!allowMainActions) {
         closeModelMenu();
+        closeTokenUsageMenu();
+    }
+
+    if (elements.tokenUsageContainer) {
+        elements.tokenUsageContainer.classList.toggle('is-disabled', !allowMainActions);
+        elements.tokenUsageContainer.setAttribute('aria-disabled', String(!allowMainActions));
+        if (elements.tokenUsageContainer instanceof HTMLButtonElement || elements.tokenUsageContainer.hasAttribute('role')) {
+            elements.tokenUsageContainer.disabled = !allowMainActions;
+        }
     }
 
     renderAllBadges();
@@ -287,7 +302,18 @@ elements.modelMenuTrigger?.addEventListener('click', (event) => {
 elements.modelContextMenu?.addEventListener('click', (event) => {
     event.stopPropagation();
 });
-document.addEventListener('click', closeModelMenu);
+elements.tokenUsageContainer?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleTokenUsageMenu();
+});
+elements.tokenUsageMenu?.addEventListener('click', (event) => {
+    event.stopPropagation();
+});
+document.addEventListener('click', () => {
+    closeModelMenu();
+    closeTokenUsageMenu();
+    activeContextMenu = null;
+});
 
 // ============================================================
 // MESSAGE HANDLERS - MAIN DISPATCHER
@@ -1133,17 +1159,31 @@ function handleBackToSessions() {
 function updateTokenCounter(sessionTokens, contextWindow, modelName = currentModelName) {
     if (!elements.tokenCounter) { return; }
     elements.tokenCounter.style.display = 'block';
+
     const hasTotal = contextWindow > 0;
     const pct = hasTotal ? Math.min(100, Math.round((sessionTokens / contextWindow) * 100)) : 0;
     const warnClass = hasTotal
         ? (pct >= 90 ? ' token-counter--danger' : pct >= 70 ? ' token-counter--warn' : '')
         : '';
     elements.tokenCounter.className = 'token-counter' + warnClass;
+
     const totalLabel = hasTotal ? contextWindow.toLocaleString() : '?';
     const normalizedModelName = (modelName || 'local').trim();
-    if (elements.tokenCounterValue) {
-        elements.tokenCounterValue.textContent = `${sessionTokens.toLocaleString()} / ${totalLabel} tokens`;
+
+    if (elements.tokenUsagePercentage) {
+        elements.tokenUsagePercentage.textContent = `${pct}%`;
     }
+
+    if (elements.tokenUsageChart) {
+        elements.tokenUsageChart.style.setProperty('--token-usage-pct', String(pct));
+        elements.tokenUsageChart.title = `${pct}% - Click for details`;
+    }
+
+    if (elements.tokenUsageMenuItem) {
+        const usageLabel = hasTotal ? `${sessionTokens.toLocaleString()} / ${totalLabel} tokens` : 'No data';
+        elements.tokenUsageMenuItem.textContent = usageLabel;
+    }
+
     if (elements.modelContextMenuItem) {
         elements.modelContextMenuItem.textContent = normalizedModelName;
     }
@@ -1197,7 +1237,18 @@ function toggleModelMenu() {
     }
 
     const isVisible = elements.modelContextMenu.style.display === 'block';
-    elements.modelContextMenu.style.display = isVisible ? 'none' : 'block';
+    
+    if (isVisible) {
+        elements.modelContextMenu.style.display = 'none';
+        activeContextMenu = null;
+    } else {
+        // Close the other menu first
+        if (activeContextMenu === 'token' && elements.tokenUsageMenu) {
+            elements.tokenUsageMenu.style.display = 'none';
+        }
+        elements.modelContextMenu.style.display = 'block';
+        activeContextMenu = 'model';
+    }
 }
 
 function closeModelMenu() {
@@ -1205,6 +1256,39 @@ function closeModelMenu() {
         return;
     }
     elements.modelContextMenu.style.display = 'none';
+    if (activeContextMenu === 'model') {
+        activeContextMenu = null;
+    }
+}
+
+function toggleTokenUsageMenu() {
+    if (!elements.tokenUsageMenu || !isServerRunning || elements.tokenUsageContainer?.classList.contains('is-disabled')) {
+        return;
+    }
+
+    const isVisible = elements.tokenUsageMenu.style.display === 'block';
+    
+    if (isVisible) {
+        elements.tokenUsageMenu.style.display = 'none';
+        activeContextMenu = null;
+    } else {
+        // Close the other menu first
+        if (activeContextMenu === 'model' && elements.modelContextMenu) {
+            elements.modelContextMenu.style.display = 'none';
+        }
+        elements.tokenUsageMenu.style.display = 'block';
+        activeContextMenu = 'token';
+    }
+}
+
+function closeTokenUsageMenu() {
+    if (!elements.tokenUsageMenu) {
+        return;
+    }
+    elements.tokenUsageMenu.style.display = 'none';
+    if (activeContextMenu === 'token') {
+        activeContextMenu = null;
+    }
 }
 
 // ============================================================
