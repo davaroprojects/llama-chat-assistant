@@ -13,6 +13,76 @@ body {
     overflow: hidden; /* Evita que toda la pantalla se desplace */
 }
 
+.tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.tab-button {
+    border: none;
+    background: transparent;
+    color: var(--vscode-foreground);
+    opacity: 0.55;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.tab-button:hover {
+    opacity: 0.9;
+    background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.05));
+}
+
+.tab-button.is-active {
+    opacity: 1;
+    background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+}
+
+.tab-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.server-tab-panel {
+    justify-content: center;
+}
+
+.server-panel-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+}
+
+.server-start-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    border-radius: 999px;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    padding: 10px 18px;
+    cursor: pointer;
+    font: inherit;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.server-start-button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.server-start-button:active {
+    transform: scale(0.98);
+}
+
 #chat { 
     flex: 1; 
     overflow-y: auto; 

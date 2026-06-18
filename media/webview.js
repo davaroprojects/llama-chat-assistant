@@ -22,6 +22,11 @@ const HTML_TEMPLATES = {
 // ============================================================
 const elements = {
     vscode: acquireVsCodeApi(),
+    chatTabBtn: document.getElementById('chat-tab-btn'),
+    serverTabBtn: document.getElementById('server-tab-btn'),
+    chatTabPanel: document.getElementById('chat-tab-panel'),
+    serverTabPanel: document.getElementById('server-tab-panel'),
+    serverStartBtn: document.getElementById('server-start-btn'),
     chat: document.getElementById('chat'),
     prompt: document.getElementById('prompt'),
     sessionsContainer: document.getElementById('sessions-container'),
@@ -64,6 +69,7 @@ let isStreamingActive = false;
 const removedAutoContextKeys = new Set();
 let currentContextWindow = 0;
 let currentModelName = 'local';
+let activeTab = 'chat';
 
 function createAutoContextKey(name, content) {
     return `${name}::${content}`;
@@ -88,6 +94,11 @@ function setStreamingUiLocked(locked) {
 // ============================================================
 // EVENT LISTENERS
 // ============================================================
+elements.chatTabBtn?.addEventListener('click', () => switchTab('chat'));
+elements.serverTabBtn?.addEventListener('click', () => switchTab('server'));
+elements.serverStartBtn?.addEventListener('click', () => {
+    elements.serverStartBtn.blur();
+});
 elements.backToSessionsBtn.addEventListener('click', handleBackToSessions);
 elements.sendBtn.addEventListener('click', sendMessage);
 elements.stopBtn.addEventListener('click', () => {
@@ -728,11 +739,31 @@ function createEmptySessionsCard() {
 // ============================================================
 
 function showChatView() {
+    switchTab('chat');
     elements.sessionsContainer.style.display = 'none';
     elements.sessionsList.style.display = 'none';
     elements.sessionsMainTitle.style.display = 'none';
     elements.activeSessionHeader.style.display = 'flex';
     elements.chat.style.display = 'flex';
+}
+
+function switchTab(tabName) {
+    activeTab = tabName;
+    const isChatTab = tabName === 'chat';
+
+    elements.chatTabBtn?.classList.toggle('is-active', isChatTab);
+    elements.serverTabBtn?.classList.toggle('is-active', !isChatTab);
+    elements.chatTabBtn?.setAttribute('aria-selected', String(isChatTab));
+    elements.serverTabBtn?.setAttribute('aria-selected', String(!isChatTab));
+
+    if (elements.chatTabPanel) {
+        elements.chatTabPanel.style.display = isChatTab ? 'flex' : 'none';
+    }
+    if (elements.serverTabPanel) {
+        elements.serverTabPanel.style.display = isChatTab ? 'none' : 'flex';
+    }
+
+    closeModelMenu();
 }
 
 function handleBackToSessions() {
@@ -876,4 +907,5 @@ function truncateTitle(text) {
 }
 // ============================================================// INITIALIZATION// ============================================================
 updateTokenCounter(0, 0, currentModelName);
+switchTab(activeTab);
 elements.vscode.postMessage({ type: 'webviewReady' });

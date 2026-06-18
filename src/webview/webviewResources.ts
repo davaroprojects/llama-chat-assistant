@@ -2,6 +2,29 @@ import * as vscode from 'vscode';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+export interface WebviewLabels {
+    chatTabLabel: string;
+    serverTabLabel: string;
+    serverStartLabel: string;
+}
+
+export function getWebviewLabels(language: string): WebviewLabels {
+    const normalizedLanguage = language.toLowerCase();
+    if (normalizedLanguage.startsWith('es')) {
+        return {
+            chatTabLabel: 'Chat',
+            serverTabLabel: 'Servidor',
+            serverStartLabel: 'Iniciar'
+        };
+    }
+
+    return {
+        chatTabLabel: 'Chat',
+        serverTabLabel: 'Server',
+        serverStartLabel: 'Start'
+    };
+}
+
 export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webview): string {
     const htmlPath = path.join(extensionUri.fsPath, 'dist', 'media', 'webview.html');
     const cssPath = path.join(extensionUri.fsPath, 'dist', 'media', 'webview.css');
@@ -14,6 +37,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     }
 
     let htmlContent = fs.readFileSync(htmlPath, 'utf8');
+    const labels = getWebviewLabels(vscode.env.language);
     const cssUri = webview.asWebviewUri(vscode.Uri.file(cssPath));
     const jsUri = webview.asWebviewUri(vscode.Uri.file(jsPath));
     const prismJsUri = webview.asWebviewUri(vscode.Uri.file(prismJsPath));
@@ -23,5 +47,8 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     const scriptSrc = `<script src="${prismJsUri}"></script><script src="${markedJsUri}"></script><script src="${jsUri}"></script>`;
 
     htmlContent = htmlContent.replace('{{stylePlaceholder}}', styleLink);
+    htmlContent = htmlContent.replace('{{chatTabLabel}}', labels.chatTabLabel);
+    htmlContent = htmlContent.replace('{{serverTabLabel}}', labels.serverTabLabel);
+    htmlContent = htmlContent.replaceAll('{{serverStartLabel}}', labels.serverStartLabel);
     return htmlContent.replace('{{scriptPlaceholder}}', scriptSrc);
 }
