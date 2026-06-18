@@ -52,6 +52,11 @@ function getAttachedFilesContainer() {
 let currentAttachedFiles = [];
 let currentAssistantBubble = null;
 let currentAssistantText = "";
+const removedAutoContextKeys = new Set();
+
+function createAutoContextKey(name, content) {
+    return `${name}::${content}`;
+}
 
 // ============================================================
 // EVENT LISTENERS
@@ -116,6 +121,13 @@ function handleWebsocketMessage(event) {
 
 function handleCodeSelectionCaptured(message) {
     currentAttachedFiles = currentAttachedFiles.filter(file => file.isManual === true);
+
+    const autoContextKey = createAutoContextKey(message.name, message.content);
+    if (removedAutoContextKeys.has(autoContextKey)) {
+        renderAllBadges();
+        return;
+    }
+
     currentAttachedFiles.unshift({
         name: message.name,
         content: message.content,
@@ -125,6 +137,7 @@ function handleCodeSelectionCaptured(message) {
 }
 
 function handleClearActiveEditorContext() {
+    removedAutoContextKeys.clear();
     currentAttachedFiles = currentAttachedFiles.filter(file => file.isManual);
     renderAllBadges();
 }
@@ -330,6 +343,9 @@ function renderAllBadges() {
         removeBtn.innerText = '×';
         removeBtn.title = 'Quitar archivo';
         removeBtn.onclick = () => {
+            if (!file.isManual) {
+                removedAutoContextKeys.add(createAutoContextKey(file.name, file.content));
+            }
             currentAttachedFiles = currentAttachedFiles.filter(f => f.name !== file.name);
             renderAllBadges();
         };
@@ -391,112 +407,58 @@ function renderAssistantMessageFromHistory(msg) {
 }
 
 function renderFormattedContent(bubbleNode, content) {
-    const parsedParts = parseMarkdownParts(content);
-    let rendered = false;
-
     bubbleNode.innerHTML = '';
-
-    parsedParts.forEach(part => {
-        if (part.type === 'code') {
-            rendered = true;
-            const wrapper = document.createElement('div');
-            wrapper.className = 'code-block-wrapper';
-
-            const pre = document.createElement('pre');
-            const code = document.createElement('code');
-            if (part.language) {
-                code.className = `language-${part.language}`;
-            }
-            code.textContent = part.value;
-            pre.appendChild(code);
-
-            const copyBtn = createCopyButton(part.value);
-            copyBtn.className = 'copy-icon-button code-block-copy-btn';
-            copyBtn.title = 'Copiar código';
-
-            const header = document.createElement('div');
-            header.className = 'code-block-header';
-
-            const languageName = document.createElement('span');
-            languageName.className = 'code-block-language';
-            languageName.textContent = part.language || 'code';
-
-            header.appendChild(languageName);
-            header.appendChild(copyBtn);
-
-            wrapper.appendChild(header);
-            wrapper.appendChild(pre);
-            bubbleNode.appendChild(wrapper);
-
-            if (typeof Prism !== 'undefined') {
-                Prism.highlightElement(code);
-            }
-            return;
-        }
-
-        if (part.value) {
-            rendered = true;
-            const p = document.createElement('div');
-            p.style.margin = "10px 0";
-            p.style.lineHeight = "1.5";
-            p.innerText = part.value;
-            bubbleNode.appendChild(p);
-        }
-    });
-
-    if (!rendered) {
+    if (typeof marked === 'undefined') {
         const fallbackDiv = document.createElement('div');
-        fallbackDiv.style.whiteSpace = "pre-wrap";
+        fallbackDiv.style.whiteSpace = 'pre-wrap';
         fallbackDiv.innerText = content;
         bubbleNode.appendChild(fallbackDiv);
-    }
-}
-
-function parseMarkdownParts(content) {
-    const parts = [];
-    let cursor = 0;
-
-    while (cursor < content.length) {
-        const fenceStart = content.indexOf('```', cursor);
-
-        if (fenceStart === -1) {
-            const textRemainder = content.slice(cursor);
-            if (textRemainder) {
-                parts.push({ type: 'text', value: textRemainder });
-            }
-            break;
-        }
-
-        if (fenceStart > cursor) {
-            parts.push({ type: 'text', value: content.slice(cursor, fenceStart) });
-        }
-
-        const afterFence = fenceStart + 3;
-        const languageEnd = content.indexOf('\n', afterFence);
-
-        if (languageEnd === -1) {
-            parts.push({ type: 'code', language: '', value: '' });
-            break;
-        }
-
-        const language = content.slice(afterFence, languageEnd).trim();
-        const closingFence = content.indexOf('```', languageEnd + 1);
-
-        if (closingFence === -1) {
-            parts.push({ type: 'code', language, value: content.slice(languageEnd + 1) });
-            break;
-        }
-
-        parts.push({
-            type: 'code',
-            language,
-            value: content.slice(languageEnd + 1, closingFence)
-        });
-
-        cursor = closingFence + 3;
+        return;
     }
 
-    return parts;
+    const parsedHtml = marked.parse(content, { breaks: true, gfm: true });
+    bubbleNode.innerHTML = parsedHtml;
+
+    bubbleNode.querySelectorAll('p, li').forEach(node => {
+        node.style.lineHeight = '1.5';
+    });
+
+    bubbleNode.querySelectorAll('pre > code').forEach(codeNode => {
+        const pre = codeNode.parentElement;
+        if (!pre) return;
+
+        const languageClass = [...codeNode.classList].find(c => c.startsWith('language-')) || '';
+        const language = languageClass.replace('language-', '').trim();
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'code-block-wrapper';
+
+        const header = document.createElement('div');
+        header.className = 'code-block-header';
+
+        const languageName = document.createElement('span');
+        languageName.className = 'code-block-language';
+        languageName.textContent = language || 'code';
+
+        const codeText = codeNode.textContent || '';
+        const copyBtn = createCopyButton(codeText);
+        copyBtn.className = 'copy-icon-button code-block-copy-btn';
+        copyBtn.title = 'Copiar código';
+
+        header.appendChild(languageName);
+        header.appendChild(copyBtn);
+
+        const wrappedPre = pre.cloneNode(true);
+        wrapper.appendChild(header);
+        wrapper.appendChild(wrappedPre);
+
+        pre.replaceWith(wrapper);
+
+        const wrappedCodeNode = wrappedPre.querySelector('code');
+        if (wrappedCodeNode && typeof Prism !== 'undefined') {
+            Prism.highlightElement(wrappedCodeNode);
+        }
+    });
 }
 
 function addMessageFooter(bubbleNode, content, time, tokens) {
