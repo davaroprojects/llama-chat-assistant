@@ -6,7 +6,7 @@
     {{stylePlaceholder}}
 </head>
 
-<body>
+<body data-empty-chat-ready-label="{{emptyChatReadyLabel}}" data-empty-server-stopped-label="{{emptyServerStoppedLabel}}" data-delete-session-label="{{deleteSessionLabel}}" data-session-unavailable-label="{{sessionUnavailableLabel}}">
     <div class="tab-bar" role="tablist" aria-label="Sections">
         <button id="chat-tab-btn" class="tab-button is-active" type="button" role="tab" aria-selected="true">{{chatTabLabel}}</button>
         <button id="server-tab-btn" class="tab-button" type="button" role="tab" aria-selected="false">{{serverTabLabel}}</button>
@@ -78,16 +78,16 @@
 
     <div id="server-tab-panel" class="tab-panel server-tab-panel" style="display:none;">
         <div class="server-panel-card">
-            <button id="server-start-btn" class="server-start-button" type="button" title="{{serverStartLabel}}">
-                <span>{{serverStartLabel}}</span>
+            <button id="server-start-btn" class="server-start-button" type="button" title="{{serverStartLabel}}" data-label="{{serverStartLabel}}" data-loading-label="{{serverStartLabel}}">
+                <span class="server-action-button-label">{{serverStartLabel}}</span>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
                     stroke-linecap="round" stroke-linejoin="round">
                     <path d="M5 12h14" />
                     <path d="m12 5 7 7-7 7" />
                 </svg>
             </button>
-            <button id="server-stop-btn" class="server-stop-button" type="button" title="{{serverStopLabel}}" style="display:none;">
-                <span>{{serverStopLabel}}</span>
+            <button id="server-stop-btn" class="server-stop-button" type="button" title="{{serverStopLabel}}" style="display:none;" data-label="{{serverStopLabel}}" data-loading-label="{{serverStopLabel}}">
+                <span class="server-action-button-label">{{serverStopLabel}}</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://w3.org">
                     <rect x="4" y="4" width="16" height="16" rx="2" />
                 </svg>

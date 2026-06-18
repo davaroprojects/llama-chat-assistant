@@ -210,11 +210,13 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
         if (!fs.existsSync(command)) {
             vscode.window.showErrorMessage(`llama-server not found: ${command}`);
+            this.postRuntimeState(webviewView);
             return;
         }
 
         if (!fs.existsSync(args[1])) {
             vscode.window.showErrorMessage(`Model not found: ${args[1]}`);
+            this.postRuntimeState(webviewView);
             return;
         }
 
@@ -235,7 +237,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
                 vscode.window.showErrorMessage(`Failed to start llama-server: ${error.message}`);
                 this.postRuntimeState();
             });
-            await this.refreshServerProps();
+            await this.refreshServerProps(8, 500);
             this.postRuntimeState();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -248,6 +250,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
 
     private handleStopServer(): void {
         if (!this.serverProcess) {
+            this.serverProps = null;
+            this.postRuntimeState();
             return;
         }
 
@@ -270,6 +274,10 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private handleSelectSession(data: SelectSessionMessage, webviewView: vscode.WebviewView): void {
+        if (!this.serverProps) {
+            return;
+        }
+
         this.sessionManager.setCurrentSession(data.sessionId);
         const activeSession = this.sessionManager.getCurrentSession();
 
@@ -344,6 +352,10 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private handleDeleteSession(data: DeleteSessionMessage, webviewView: vscode.WebviewView): void {
+        if (!this.serverProps) {
+            return;
+        }
+
         this.sessionManager.deleteSession(data.sessionId);
 
         const remainingSessions = this.sessionManager.getAllSessions();
@@ -537,9 +549,19 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || this._extensionUri.fsPath;
     }
 
-    private async refreshServerProps(): Promise<void> {
+    private async refreshServerProps(retries = 1, delayMs = 0): Promise<void> {
         const config = this.getLlamaConfig();
-        this.serverProps = await LlamaService.fetchServerProps(config.apiUrl);
+
+        for (let attempt = 0; attempt < retries; attempt++) {
+            this.serverProps = await LlamaService.fetchServerProps(config.apiUrl);
+            if (this.serverProps) {
+                return;
+            }
+
+            if (attempt < retries - 1 && delayMs > 0) {
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
     }
 
     private postRuntimeState(webviewView?: vscode.WebviewView): void {
@@ -559,7 +581,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private postServerState(webviewView: vscode.WebviewView): void {
         webviewView.webview.postMessage({
             type: 'updateServerState',
-            isRunning: !!this.serverProcess,
+            isRunning: this.serverProps !== null,
             parameterRows: buildServerParameterRows(this.getServerLaunchConfig())
         });
     }

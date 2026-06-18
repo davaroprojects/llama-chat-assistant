@@ -84,6 +84,19 @@ body {
     transform: scale(0.98);
 }
 
+.server-start-button:disabled,
+.server-stop-button:disabled,
+.server-start-button.is-pending,
+.server-stop-button.is-pending {
+    cursor: wait;
+    pointer-events: none;
+}
+
+.server-start-button:disabled,
+.server-stop-button:disabled {
+    opacity: 0.9;
+}
+
 .server-stop-button {
     display: inline-flex;
     align-items: center;
@@ -105,6 +118,11 @@ body {
 
 .server-stop-button:active {
     transform: scale(0.98);
+}
+
+.server-action-button-label {
+    display: inline-flex;
+    align-items: center;
 }
 
 .server-parameters-panel {
@@ -568,6 +586,16 @@ textarea {
     color: var(--vscode-button-foreground);
 }
 
+#send:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+#send:disabled svg {
+    opacity: 0.8;
+}
+
 /* Fila contenedora inferior al final del mensaje */
 .chat-footer-row {
     display: flex;
@@ -653,6 +681,13 @@ textarea {
 .model-menu-trigger:hover {
     opacity: 1;
     background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+}
+
+.model-menu-trigger.is-disabled,
+.model-menu-trigger:disabled {
+    opacity: 0.2 !important;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .model-context-menu {
@@ -761,6 +796,15 @@ textarea {
     background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.04));
 }
 
+.session-card.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.session-card.is-disabled:hover {
+    background: transparent;
+}
+
 .session-card-title {
     font-family: var(--vscode-editor-font-family, sans-serif);
     font-size: calc(var(--vscode-editor-font-size, 13px) * 0.88);
@@ -793,6 +837,22 @@ textarea {
     text-overflow: unset;
 }
 
+.server-stopped-notice {
+    margin-top: -4px;
+}
+
+.server-stopped-notice-message {
+    font-family: var(--vscode-editor-font-family, sans-serif);
+    font-size: calc(var(--vscode-editor-font-size, 13px) * 0.88);
+    color: var(--vscode-foreground);
+    opacity: 0.7;
+    white-space: normal;
+}
+
+.server-stopped-sessions-notice {
+    margin-top: -2px;
+}
+
 /* El basurero ahora se ancla de forma absoluta en la esquina superior derecha de la tarjeta */
 .delete-session-button {
     position: absolute;
@@ -816,6 +876,12 @@ textarea {
     opacity: 0.9;
     color: var(--vscode-button-background);
     background-color: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.05));
+}
+
+.delete-session-button.is-disabled {
+    opacity: 0.18;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 /* Contenedor de navegación superior estilo Copilot */
@@ -1003,6 +1069,17 @@ textarea:disabled {
 
 .typing-indicator span:nth-child(2) {
     animation-delay: -0.16s;
+}
+
+.typing-indicator--button {
+    padding: 0;
+    gap: 3px;
+}
+
+.typing-indicator--button span {
+    width: 5px;
+    height: 5px;
+    background-color: #ffffff;
 }
 
 /* 🌟 LA ANIMACIÓN DE SALTO */

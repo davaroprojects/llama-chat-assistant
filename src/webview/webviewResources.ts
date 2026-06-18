@@ -10,6 +10,10 @@ export interface WebviewLabels {
     serverParametersTitle: string;
     propertyLabel: string;
     valueLabel: string;
+    emptyChatReadyLabel: string;
+    emptyServerStoppedLabel: string;
+    deleteSessionLabel: string;
+    sessionUnavailableLabel: string;
 }
 
 export function getWebviewLabels(language: string): WebviewLabels {
@@ -22,7 +26,11 @@ export function getWebviewLabels(language: string): WebviewLabels {
             serverStopLabel: 'Detener',
             serverParametersTitle: 'Parámetros',
             propertyLabel: 'Propiedad',
-            valueLabel: 'Valor'
+            valueLabel: 'Valor',
+            emptyChatReadyLabel: 'Inicie una nueva sesion desde el chat',
+            emptyServerStoppedLabel: 'Inicie el servidor para iniciar',
+            deleteSessionLabel: 'Eliminar sesión permanentemente',
+            sessionUnavailableLabel: 'No disponible mientras el servidor está detenido'
         };
     }
 
@@ -33,7 +41,11 @@ export function getWebviewLabels(language: string): WebviewLabels {
         serverStopLabel: 'Stop',
         serverParametersTitle: 'Parameters',
         propertyLabel: 'Property',
-        valueLabel: 'Value'
+        valueLabel: 'Value',
+        emptyChatReadyLabel: 'Start a new session from chat',
+        emptyServerStoppedLabel: 'Start the server to begin',
+        deleteSessionLabel: 'Delete session permanently',
+        sessionUnavailableLabel: 'Unavailable while the server is stopped'
     };
 }
 
@@ -66,5 +78,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     htmlContent = htmlContent.replace('{{serverParametersTitle}}', labels.serverParametersTitle);
     htmlContent = htmlContent.replace('{{propertyLabel}}', labels.propertyLabel);
     htmlContent = htmlContent.replace('{{valueLabel}}', labels.valueLabel);
+    htmlContent = htmlContent.replace('{{emptyChatReadyLabel}}', labels.emptyChatReadyLabel);
+    htmlContent = htmlContent.replace('{{emptyServerStoppedLabel}}', labels.emptyServerStoppedLabel);
+    htmlContent = htmlContent.replace('{{deleteSessionLabel}}', labels.deleteSessionLabel);
+    htmlContent = htmlContent.replace('{{sessionUnavailableLabel}}', labels.sessionUnavailableLabel);
     return htmlContent.replace('{{scriptPlaceholder}}', scriptSrc);
 }

@@ -50,6 +50,13 @@ const elements = {
     attachedFilesContainer: null
 };
 
+const labels = {
+    emptyChatReadyLabel: document.body.dataset.emptyChatReadyLabel || 'Inicie una nueva sesion desde el chat',
+    emptyServerStoppedLabel: document.body.dataset.emptyServerStoppedLabel || 'Inicie el servidor para iniciar',
+    deleteSessionLabel: document.body.dataset.deleteSessionLabel || 'Eliminar sesión permanentemente',
+    sessionUnavailableLabel: document.body.dataset.sessionUnavailableLabel || 'No disponible mientras el servidor está detenido'
+};
+
 // Lazy load attachedFilesContainer
 function getAttachedFilesContainer() {
     if (!elements.attachedFilesContainer) {
@@ -73,6 +80,8 @@ let currentContextWindow = 0;
 let currentModelName = 'local';
 let activeTab = 'chat';
 let isServerRunning = false;
+let currentSessions = [];
+let pendingServerAction = null;
 
 function createAutoContextKey(name, content) {
     return `${name}::${content}`;
@@ -87,9 +96,47 @@ function setStreamingUiLocked(locked) {
 
     elements.attachBtn.classList.toggle('is-disabled', locked);
     elements.backToSessionsBtn.classList.toggle('is-disabled', locked);
+    elements.modelMenuTrigger?.classList.toggle('is-disabled', locked || !isServerRunning);
 
     elements.attachBtn.setAttribute('aria-disabled', String(locked));
     elements.backToSessionsBtn.setAttribute('aria-disabled', String(locked));
+    elements.modelMenuTrigger?.setAttribute('aria-disabled', String(locked || !isServerRunning));
+
+    if (elements.modelMenuTrigger) {
+        elements.modelMenuTrigger.disabled = locked || !isServerRunning;
+    }
+
+    if (locked) {
+        closeModelMenu();
+    }
+
+    renderAllBadges();
+}
+
+function setChatUiAvailability(available) {
+    elements.prompt.disabled = !available || isStreamingActive;
+
+    elements.attachBtn.classList.toggle('is-disabled', !available || isStreamingActive);
+    elements.backToSessionsBtn.classList.toggle('is-disabled', !available || isStreamingActive);
+    elements.modelMenuTrigger?.classList.toggle('is-disabled', !available || isStreamingActive);
+
+    elements.attachBtn.setAttribute('aria-disabled', String(!available || isStreamingActive));
+    elements.backToSessionsBtn.setAttribute('aria-disabled', String(!available || isStreamingActive));
+    elements.modelMenuTrigger?.setAttribute('aria-disabled', String(!available || isStreamingActive));
+
+    if (elements.sendBtn) {
+        elements.sendBtn.disabled = !available;
+    }
+    if (elements.stopBtn) {
+        elements.stopBtn.disabled = !available;
+    }
+    if (elements.modelMenuTrigger) {
+        elements.modelMenuTrigger.disabled = !available || isStreamingActive;
+    }
+
+    if (!available) {
+        closeModelMenu();
+    }
 
     renderAllBadges();
 }
@@ -100,10 +147,18 @@ function setStreamingUiLocked(locked) {
 elements.chatTabBtn?.addEventListener('click', () => switchTab('chat'));
 elements.serverTabBtn?.addEventListener('click', () => switchTab('server'));
 elements.serverStartBtn?.addEventListener('click', () => {
+    if (pendingServerAction || isServerRunning) {
+        return;
+    }
+    setPendingServerAction('starting');
     elements.serverStartBtn.blur();
     elements.vscode.postMessage({ type: 'startServer' });
 });
 elements.serverStopBtn?.addEventListener('click', () => {
+    if (pendingServerAction || !isServerRunning) {
+        return;
+    }
+    setPendingServerAction('stopping');
     elements.serverStopBtn.blur();
     elements.vscode.postMessage({ type: 'stopServer' });
 });
@@ -113,7 +168,7 @@ elements.stopBtn.addEventListener('click', () => {
     elements.vscode.postMessage({ type: 'stopGeneration' });
 });
 elements.attachBtn.addEventListener('click', () => {
-    if (isStreamingActive) {
+    if (isStreamingActive || !isServerRunning) {
         return;
     }
     elements.vscode.postMessage({ type: 'openFilePicker' });
@@ -245,16 +300,20 @@ function handleRestoreActiveChat(message) {
         updateTokenCounter(message.sessionTokens, message.contextWindow, currentModelName);
     }
 
+    syncServerStoppedNotice();
+
     elements.chat.scrollTop = elements.chat.scrollHeight;
 }
 
 function handleRenderSessionsList(message) {
+    currentSessions = message.sessions || [];
     elements.sessionsList.innerHTML = '';
 
-    if (message.sessions.length === 0) {
+    if (currentSessions.length === 0) {
         createEmptySessionsCard();
     } else {
-        message.sessions.forEach(session => createSessionCard(session));
+        currentSessions.forEach(session => createSessionCard(session));
+        syncSessionsServerStoppedNotice();
     }
 
     if (elements.activeSessionHeader.style.display !== 'flex') {
@@ -456,11 +515,12 @@ function renderAllBadges() {
         badge.innerHTML = `<span>${HTML_TEMPLATES.attachedFileBadge(file.name)}</span>`;
 
         const removeBtn = document.createElement('div');
-        removeBtn.className = 'remove-file-btn' + (isStreamingActive ? ' is-disabled' : '');
+        const isDisabled = isStreamingActive || !isServerRunning;
+        removeBtn.className = 'remove-file-btn' + (isDisabled ? ' is-disabled' : '');
         removeBtn.innerText = '×';
-        removeBtn.title = isStreamingActive ? 'No disponible durante la generación' : 'Quitar archivo';
+        removeBtn.title = isDisabled ? 'No disponible' : 'Quitar archivo';
         removeBtn.onclick = () => {
-            if (isStreamingActive) { return; }
+            if (isDisabled) { return; }
             if (file.isAutomatic) {
                 removedAutoContextKeys.add(createAutoContextKey(file.name, file.content));
             }
@@ -705,21 +765,26 @@ function renderFileBadgesInChat(fileNames, targetContainer = elements.chat) {
 
 function createSessionCard(session) {
     const card = document.createElement('div');
-    card.className = 'session-card';
+    const isDisabled = !isServerRunning;
+    card.className = 'session-card' + (isDisabled ? ' is-disabled' : '');
     card.innerHTML = `
         <div class="session-card-body">
             <div class="session-card-title"></div>
             <div class="session-card-time"></div>
         </div>
-        <div class="delete-session-button" title="Eliminar sesión permanentemente">
+        <div class="delete-session-button${isDisabled ? ' is-disabled' : ''}" title="${isDisabled ? labels.sessionUnavailableLabel : labels.deleteSessionLabel}">
             ${HTML_TEMPLATES.deleteSessionIcon}
         </div>
     `;
 
     card.querySelector('.session-card-title').innerText = session.title || "Nueva Sesión";
     card.querySelector('.session-card-time').innerText = session.relativeTime || "";
+    card.setAttribute('aria-disabled', String(isDisabled));
 
     card.onclick = () => {
+        if (!isServerRunning) {
+            return;
+        }
         showChatView();
         elements.activeSessionTitle.innerText = session.title;
         elements.chat.innerHTML = '';
@@ -729,6 +794,9 @@ function createSessionCard(session) {
     const deleteBtn = card.querySelector('.delete-session-button');
     deleteBtn.onclick = (e) => {
         e.stopPropagation();
+        if (!isServerRunning) {
+            return;
+        }
         card.style.opacity = '0';
         card.style.transform = 'translateX(-10px)';
         card.style.transition = 'all 0.2s ease';
@@ -744,10 +812,21 @@ function createEmptySessionsCard() {
     emptyCard.className = 'session-card empty-session-card';
     emptyCard.innerHTML = `
         <div class="session-card-body">
-            <div class="session-card-title">Inicie una nueva sesion desde el chat</div>
+            <div class="session-card-title">${isServerRunning ? labels.emptyChatReadyLabel : labels.emptyServerStoppedLabel}</div>
         </div>
     `;
     elements.sessionsList.appendChild(emptyCard);
+}
+
+function createServerStoppedSessionsNotice() {
+    const noticeCard = document.createElement('div');
+    noticeCard.className = 'session-card empty-session-card server-stopped-sessions-notice';
+    noticeCard.innerHTML = `
+        <div class="session-card-body">
+            <div class="session-card-title">${labels.emptyServerStoppedLabel}</div>
+        </div>
+    `;
+    elements.sessionsList.appendChild(noticeCard);
 }
 
 // ============================================================
@@ -765,6 +844,114 @@ function showActiveChatLayout() {
     elements.sessionsMainTitle.style.display = 'none';
     elements.activeSessionHeader.style.display = 'flex';
     elements.chat.style.display = 'flex';
+}
+
+function isActiveChatVisible() {
+    return elements.activeSessionHeader.style.display === 'flex' && elements.chat.style.display !== 'none';
+}
+
+function removeServerStoppedNotice() {
+    elements.chat.querySelector('.server-stopped-notice')?.remove();
+}
+
+function syncSessionsServerStoppedNotice() {
+    if (!elements.sessionsList) {
+        return;
+    }
+
+    elements.sessionsList.querySelector('.server-stopped-sessions-notice')?.remove();
+
+    if (isServerRunning || currentSessions.length === 0) {
+        return;
+    }
+
+    createServerStoppedSessionsNotice();
+}
+
+function syncSessionCardsAvailability() {
+    if (!elements.sessionsList) {
+        return;
+    }
+
+    const sessionCards = elements.sessionsList.querySelectorAll('.session-card:not(.empty-session-card)');
+    sessionCards.forEach((card) => {
+        card.classList.toggle('is-disabled', !isServerRunning);
+        card.setAttribute('aria-disabled', String(!isServerRunning));
+    });
+
+    const deleteButtons = elements.sessionsList.querySelectorAll('.delete-session-button');
+    deleteButtons.forEach((button) => {
+        button.classList.toggle('is-disabled', !isServerRunning);
+        button.setAttribute('title', !isServerRunning ? labels.sessionUnavailableLabel : labels.deleteSessionLabel);
+    });
+}
+
+function setPendingServerAction(action) {
+    pendingServerAction = action;
+    updateServerActionButtons();
+}
+
+function clearPendingServerAction() {
+    pendingServerAction = null;
+    updateServerActionButtons();
+}
+
+function buildServerActionButtonContent(label) {
+    return `
+        <span class="server-action-button-label">${label}</span>
+        <div class="typing-indicator typing-indicator--button" aria-hidden="true"><span></span><span></span><span></span></div>
+    `;
+}
+
+function updateServerActionButtons() {
+    if (elements.serverStartBtn) {
+        const isPendingStart = pendingServerAction === 'starting';
+        elements.serverStartBtn.disabled = !!pendingServerAction;
+        elements.serverStartBtn.classList.toggle('is-pending', isPendingStart);
+        elements.serverStartBtn.innerHTML = isPendingStart
+            ? buildServerActionButtonContent(elements.serverStartBtn.dataset.loadingLabel || 'Iniciar')
+            : `
+                <span class="server-action-button-label">${elements.serverStartBtn.dataset.label || 'Iniciar'}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                </svg>
+            `;
+    }
+
+    if (elements.serverStopBtn) {
+        const isPendingStop = pendingServerAction === 'stopping';
+        elements.serverStopBtn.disabled = !!pendingServerAction;
+        elements.serverStopBtn.classList.toggle('is-pending', isPendingStop);
+        elements.serverStopBtn.innerHTML = isPendingStop
+            ? buildServerActionButtonContent(elements.serverStopBtn.dataset.loadingLabel || 'Detener')
+            : `
+                <span class="server-action-button-label">${elements.serverStopBtn.dataset.label || 'Detener'}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://w3.org">
+                    <rect x="4" y="4" width="16" height="16" rx="2" />
+                </svg>
+            `;
+    }
+}
+
+function syncServerStoppedNotice() {
+    removeServerStoppedNotice();
+
+    if (isServerRunning || !isActiveChatVisible()) {
+        return;
+    }
+
+    const noticeContainer = document.createElement('div');
+    noticeContainer.className = 'message-container assistant server-stopped-notice';
+
+    const noticeMessage = document.createElement('div');
+    noticeMessage.className = 'message server-stopped-notice-message';
+    noticeMessage.textContent = labels.emptyServerStoppedLabel;
+
+    noticeContainer.appendChild(noticeMessage);
+    elements.chat.appendChild(noticeContainer);
+    elements.chat.scrollTop = elements.chat.scrollHeight;
 }
 
 function switchTab(tabName, shouldPersist = true) {
@@ -837,6 +1024,7 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
 
 function renderServerState(message) {
     isServerRunning = !!message.isRunning;
+    clearPendingServerAction();
 
     if (elements.serverStartBtn) {
         elements.serverStartBtn.style.display = isServerRunning ? 'none' : 'inline-flex';
@@ -862,10 +1050,20 @@ function renderServerState(message) {
             elements.serverParametersBody.appendChild(tr);
         });
     }
+
+    setChatUiAvailability(isServerRunning);
+    syncServerStoppedNotice();
+    syncSessionCardsAvailability();
+    syncSessionsServerStoppedNotice();
+
+    if (currentSessions.length === 0 && elements.sessionsList) {
+        elements.sessionsList.innerHTML = '';
+        createEmptySessionsCard();
+    }
 }
 
 function toggleModelMenu() {
-    if (!elements.modelContextMenu) {
+    if (!elements.modelContextMenu || !isServerRunning || elements.modelMenuTrigger?.disabled) {
         return;
     }
 
@@ -938,6 +1136,10 @@ function handlePromptKeyDown(event) {
 }
 
 function sendMessage() {
+    if (!isServerRunning) {
+        return;
+    }
+
     const text = elements.prompt.value.trim();
     const hasManualFiles = currentAttachedFiles.some(f => !f.isAutomatic);
     
@@ -960,5 +1162,7 @@ function truncateTitle(text) {
 }
 // ============================================================// INITIALIZATION// ============================================================
 updateTokenCounter(0, 0, currentModelName);
+updateServerActionButtons();
 switchTab(activeTab, false);
+setChatUiAvailability(false);
 elements.vscode.postMessage({ type: 'webviewReady' });
