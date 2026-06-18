@@ -139,7 +139,7 @@ export class SessionManager {
     }
 
     private truncateTitle(text: string): string {
-        const cleanText = text.split('Instrucción:').pop()?.trim() || text;
+        const cleanText = text.split(/Indicación del usuario:|User instruction:/)[1]?.trim() || text;
         return cleanText.length > 40 ? cleanText.substring(0, 37) + '...' : cleanText;
     }
 
@@ -150,10 +150,20 @@ export class SessionManager {
         const diffHours = Math.floor(diffMins / 60);
         const diffDays = Math.floor(diffHours / 24);
 
-        if (diffMins < 1) { return 'Ahora mismo'; }
-        if (diffMins < 60) { return `Hace ${diffMins} min`; }
-        if (diffHours < 24) { return `Hace ${diffHours} h`; }
-        if (diffDays === 1) { return 'Ayer'; }
-        return `Hace ${diffDays} días`;
+        const isEs = vscode.env.language.toLowerCase().startsWith('es');
+
+        if (isEs) {
+            if (diffMins < 1) { return 'Ahora mismo'; }
+            if (diffMins < 60) { return `Hace ${diffMins} min`; }
+            if (diffHours < 24) { return `Hace ${diffHours} h`; }
+            if (diffDays === 1) { return 'Ayer'; }
+            return `Hace ${diffDays} días`;
+        }
+
+        if (diffMins < 1) { return 'Just now'; }
+        if (diffMins < 60) { return `${diffMins} min ago`; }
+        if (diffHours < 24) { return `${diffHours} h ago`; }
+        if (diffDays === 1) { return 'Yesterday'; }
+        return `${diffDays} days ago`;
     }
 }

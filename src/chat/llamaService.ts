@@ -37,6 +37,14 @@ export interface StreamingState {
     startTime: number;
 }
 
+export interface StreamChunk {
+    choices?: Array<{
+        delta?: { content?: string };
+        text?: string;
+    }>;
+    usage?: { completion_tokens?: number };
+}
+
 export class LlamaService {
 
     static prepareMessagesForLlama(
@@ -108,14 +116,14 @@ export class LlamaService {
             .filter(f => lastIndexByBase.get(this.getBaseName(f.name)) === msgIndex);
 
         if (activeFiles.length === 0) {
-            return `Indicación del usuario:\n${text}`;
+            return `User instruction:\n${text}`;
         }
 
         let ctx = '';
         activeFiles.forEach(file => {
-            ctx += `--- ARCHIVO ADJUNTO: ${file.name} ---\n${file.content}\n--- FIN ARCHIVO ---\n\n`;
+            ctx += `--- ATTACHED FILE: ${file.name} ---\n${file.content}\n--- END FILE ---\n\n`;
         });
-        ctx += `Indicación del usuario:\n${text}`;
+        ctx += `User instruction:\n${text}`;
         return ctx;
     }
 
@@ -140,7 +148,9 @@ export class LlamaService {
 
         const openAiCompliantMessages = messages.map(msg => ({
             role: msg.role,
-            content: (msg as any).text || (msg as any).content || ""
+            content: typeof msg.content === 'string'
+                ? msg.content
+                : String((msg.content as Record<string, unknown>)?.['text'] ?? '')
         }));
 
         try {
@@ -229,16 +239,10 @@ export class LlamaService {
         }
     }
 
-    private static extractTokenFromResponse(response: any): string {
+    private static extractTokenFromResponse(response: StreamChunk): string {
         if (response.choices && response.choices.length > 0) {
             const choice = response.choices[0];
-            if (choice.delta?.content) {
-                return choice.delta.content;
-            }
-            if (choice.text) {
-                return choice.text;
-            }
-            return '';
+            return choice.delta?.content ?? choice.text ?? '';
         }
         return '';
     }

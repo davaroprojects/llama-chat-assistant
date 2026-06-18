@@ -47,12 +47,12 @@ export class SessionPayloadBuilder {
         let context = "";
 
         attachedFiles.forEach((file) => {
-            context += `--- ARCHIVO ADJUNTO: ${file.name} ---\n`;
+            context += `--- ATTACHED FILE: ${file.name} ---\n`;
             context += `${file.content}\n`;
-            context += `--- FIN ARCHIVO ---\n\n`;
+            context += `--- END FILE ---\n\n`;
         });
 
-        context += `Indicación del usuario:\n${userPrompt}`;
+        context += `User instruction:\n${userPrompt}`;
 
         return context;
     }

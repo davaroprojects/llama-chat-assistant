@@ -31,6 +31,7 @@ export interface WebviewLabels {
     copyClipboardTitle: string;
     newSessionLabel: string;
     externalServerBlockedLabel: string;
+    repositoryBadgeLabel: string;
 }
 
 export function getWebviewLabels(language: string): WebviewLabels {
@@ -63,7 +64,8 @@ export function getWebviewLabels(language: string): WebviewLabels {
             copyCodeTitle: 'Copiar código',
             copyClipboardTitle: 'Copiar al portapapeles',
             newSessionLabel: 'Nueva Sesión',
-            externalServerBlockedLabel: 'Servidor iniciado externamente. No se puede detener desde aquí.'
+            externalServerBlockedLabel: 'Servidor iniciado externamente. No se puede detener desde aquí.',
+            repositoryBadgeLabel: 'Repositorio'
         };
     }
 
@@ -94,7 +96,8 @@ export function getWebviewLabels(language: string): WebviewLabels {
         copyCodeTitle: 'Copy code',
         copyClipboardTitle: 'Copy to clipboard',
         newSessionLabel: 'New Session',
-        externalServerBlockedLabel: 'Server started externally. Cannot stop from here.'
+        externalServerBlockedLabel: 'Server started externally. Cannot stop from here.',
+        repositoryBadgeLabel: 'Repository'
     };
 }
 
@@ -119,7 +122,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
 
     const csp = [
         "default-src 'none'",
-        `img-src ${webview.cspSource} https: data:`,
+        `img-src ${webview.cspSource}`,
         `style-src ${webview.cspSource}`,
         `font-src ${webview.cspSource}`,
         `script-src ${webview.cspSource} 'nonce-${nonce}'`
@@ -129,34 +132,14 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     const scriptSrc = `<script nonce="${nonce}" src="${prismJsUri}"></script><script nonce="${nonce}" src="${markedJsUri}"></script><script nonce="${nonce}" src="${jsUri}"></script>`;
     const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">`;
 
-    htmlContent = htmlContent.replace('{{htmlLang}}', escapeHtml(labels.htmlLang));
+    // Replace all label placeholders in a single loop (replaceAll handles keys that appear multiple times)
+    for (const [key, value] of Object.entries(labels)) {
+        htmlContent = htmlContent.replaceAll(`{{${key}}}`, escapeHtml(value));
+    }
+
+    // Replace structural placeholders — these are not HTML-escaped
     htmlContent = htmlContent.replace('{{cspMetaPlaceholder}}', cspMetaTag);
     htmlContent = htmlContent.replace('{{stylePlaceholder}}', styleLink);
-    htmlContent = htmlContent.replace('{{chatTabLabel}}', escapeHtml(labels.chatTabLabel));
-    htmlContent = htmlContent.replace('{{serverTabLabel}}', escapeHtml(labels.serverTabLabel));
-    htmlContent = htmlContent.replaceAll('{{serverStartLabel}}', escapeHtml(labels.serverStartLabel));
-    htmlContent = htmlContent.replaceAll('{{serverStopLabel}}', escapeHtml(labels.serverStopLabel));
-    htmlContent = htmlContent.replace('{{serverParametersTitle}}', escapeHtml(labels.serverParametersTitle));
-    htmlContent = htmlContent.replace('{{propertyLabel}}', escapeHtml(labels.propertyLabel));
-    htmlContent = htmlContent.replace('{{valueLabel}}', escapeHtml(labels.valueLabel));
-    htmlContent = htmlContent.replace('{{emptyChatReadyLabel}}', escapeHtml(labels.emptyChatReadyLabel));
-    htmlContent = htmlContent.replace('{{emptyServerStoppedLabel}}', escapeHtml(labels.emptyServerStoppedLabel));
-    htmlContent = htmlContent.replace('{{deleteSessionLabel}}', escapeHtml(labels.deleteSessionLabel));
-    htmlContent = htmlContent.replace('{{sessionUnavailableLabel}}', escapeHtml(labels.sessionUnavailableLabel));
-    htmlContent = htmlContent.replace('{{generationCanceledLabel}}', escapeHtml(labels.generationCanceledLabel));
-    htmlContent = htmlContent.replace('{{backToSessionsTitle}}', escapeHtml(labels.backToSessionsTitle));
-    htmlContent = htmlContent.replace('{{sessionsMainTitle}}', escapeHtml(labels.sessionsMainTitle));
-    htmlContent = htmlContent.replace('{{promptPlaceholder}}', escapeHtml(labels.promptPlaceholder));
-    htmlContent = htmlContent.replace('{{attachFileTitle}}', escapeHtml(labels.attachFileTitle));
-    htmlContent = htmlContent.replace('{{sendMessageTitle}}', escapeHtml(labels.sendMessageTitle));
-    htmlContent = htmlContent.replace('{{stopGenerationTitle}}', escapeHtml(labels.stopGenerationTitle));
-    htmlContent = htmlContent.replace('{{modelMenuTitle}}', escapeHtml(labels.modelMenuTitle));
-    htmlContent = htmlContent.replace('{{modelLabel}}', escapeHtml(labels.modelLabel));
-    htmlContent = htmlContent.replace('{{removeFileTitle}}', escapeHtml(labels.removeFileTitle));
-    htmlContent = htmlContent.replace('{{unavailableShortLabel}}', escapeHtml(labels.unavailableShortLabel));
-    htmlContent = htmlContent.replace('{{copyCodeTitle}}', escapeHtml(labels.copyCodeTitle));
-    htmlContent = htmlContent.replace('{{copyClipboardTitle}}', escapeHtml(labels.copyClipboardTitle));
-    htmlContent = htmlContent.replace('{{newSessionLabel}}', escapeHtml(labels.newSessionLabel));
     return htmlContent.replace('{{scriptPlaceholder}}', scriptSrc);
 }
 

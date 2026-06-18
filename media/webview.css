@@ -1130,6 +1130,18 @@ textarea:disabled {
     color: var(--vscode-foreground);
 }
 
+.file-source-badge {
+    margin-left: 2px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+    background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+    color: var(--vscode-descriptionForeground);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
 .remove-file-btn {
     cursor: pointer;
     font-weight: bold;

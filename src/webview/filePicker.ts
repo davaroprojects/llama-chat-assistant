@@ -3,8 +3,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 interface FileQuickPickItem extends vscode.QuickPickItem {
-    uri: vscode.Uri;
+    uri?: vscode.Uri;
     displayName: string;
+    itemType: 'repository' | 'file';
 }
 
 export async function openFilePicker(webviewView: vscode.WebviewView): Promise<void> {
@@ -34,13 +35,18 @@ export async function openFilePicker(webviewView: vscode.WebviewView): Promise<v
                 label: fileName,
                 description: relativePath,
                 uri,
-                displayName: relativePath
+                displayName: relativePath,
+                itemType: 'file'
             };
         });
 
         const selected = await pickProjectFile(items);
         if (selected) {
-            processSelectedFile(selected.uri, webviewView);
+            if (selected.itemType === 'repository') {
+                processRepositorySelection(projectFiles, webviewView);
+            } else if (selected.uri) {
+                processSelectedFile(selected.uri, webviewView);
+            }
         }
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
@@ -55,13 +61,20 @@ async function pickProjectFile(items: FileQuickPickItem[]): Promise<FileQuickPic
         quickPick.matchOnDescription = true;
         quickPick.ignoreFocusOut = false;
 
+        const repositoryItem: FileQuickPickItem = {
+            label: vscode.l10n.t('Repository'),
+            description: vscode.l10n.t('Attach repository file index'),
+            displayName: vscode.l10n.t('Repository'),
+            itemType: 'repository'
+        };
+
         const applyFilter = (query: string) => {
             const normalizedQuery = query.trim().toLowerCase();
             const filtered = normalizedQuery
                 ? items.filter((item) => item.label.toLowerCase().includes(normalizedQuery) || item.description?.toLowerCase().includes(normalizedQuery))
                 : items;
 
-            quickPick.items = filtered.slice(0, 10);
+            quickPick.items = [repositoryItem, ...filtered.slice(0, 10)];
         };
 
         applyFilter('');
@@ -105,10 +118,34 @@ function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewVie
         webviewView.webview.postMessage({
             type: 'fileSelected',
             name: fileName,
-            content: fileContent
+            content: fileContent,
+            isRepository: false
         });
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
         vscode.window.showErrorMessage(`${vscode.l10n.t('Error reading file')}: ${message}`);
     }
+}
+
+function processRepositorySelection(projectFiles: vscode.Uri[], webviewView: vscode.WebviewView): void {
+    const relativeFiles = projectFiles
+        .map((uri) => vscode.workspace.asRelativePath(uri, false))
+        .sort((a, b) => a.localeCompare(b));
+
+    const maxEntries = 2500;
+    const listedFiles = relativeFiles.slice(0, maxEntries);
+    const omittedCount = Math.max(0, relativeFiles.length - listedFiles.length);
+
+    const header = vscode.l10n.t('Repository file index');
+    const body = listedFiles.join('\n');
+    const footer = omittedCount > 0
+        ? `\n\n${vscode.l10n.t('... and {0} more files', String(omittedCount))}`
+        : '';
+
+    webviewView.webview.postMessage({
+        type: 'fileSelected',
+        name: vscode.l10n.t('Repository'),
+        content: `${header}\n${body}${footer}`,
+        isRepository: true
+    });
 }

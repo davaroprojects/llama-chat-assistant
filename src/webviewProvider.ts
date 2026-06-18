@@ -112,7 +112,7 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
         case 'deleteSession':
             return typeof data.sessionId === 'string' && data.sessionId.length > 0;
         case 'applyCode':
-            return typeof data.value === 'string';
+            return typeof data.value === 'string' && data.value.length <= 1_000_000;
         case 'askLlama':
             if (typeof data.value !== 'string' || data.value.length > 100_000) {
                 return false;

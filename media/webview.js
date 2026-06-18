@@ -47,6 +47,18 @@ function createFileBadgeNode(filename) {
     return badge;
 }
 
+function createFileBadgeNodeWithSource(filename, isRepository = false) {
+    const badge = createFileBadgeNode(filename);
+    if (isRepository) {
+        const sourceBadge = document.createElement('span');
+        sourceBadge.className = 'file-source-badge';
+        sourceBadge.textContent = labels.repositoryBadgeLabel;
+        badge.appendChild(sourceBadge);
+    }
+
+    return badge;
+}
+
 function createServerButtonIconSvg(kind) {
     const parser = new DOMParser();
     const svgMarkup = kind === 'start'
@@ -118,10 +130,15 @@ const labels = {
     copyCodeTitle: document.body.dataset.copyCodeTitle || 'Copiar código',
     copyClipboardTitle: document.body.dataset.copyClipboardTitle || 'Copiar al portapapeles',
     newSessionLabel: document.body.dataset.newSessionLabel || 'Nueva Sesión',
-    externalServerBlockedLabel: document.body.dataset.externalServerBlockedLabel || 'Server started externally. Cannot stop from here.'
+    externalServerBlockedLabel: document.body.dataset.externalServerBlockedLabel || 'Server started externally. Cannot stop from here.',
+    repositoryBadgeLabel: document.body.dataset.repositoryBadgeLabel || 'Repository'
 };
 
-const BLOCKED_HTML_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'form']);
+const BLOCKED_HTML_TAGS = new Set([
+    'script', 'style', 'iframe', 'object', 'embed',
+    'link', 'meta', 'base', 'form',
+    'svg', 'math'
+]);
 
 function isSafeUrl(urlValue) {
     const value = String(urlValue || '').trim();
@@ -158,7 +175,7 @@ function sanitizeHtml(unsafeHtml) {
                 return;
             }
 
-            if ((attrName === 'href' || attrName === 'src') && !isSafeUrl(attrValue)) {
+            if ((attrName === 'href' || attrName === 'src' || attrName === 'xlink:href') && !isSafeUrl(attrValue)) {
                 element.removeAttribute(attribute.name);
             }
         });
@@ -196,6 +213,8 @@ let isServerRunning = false;
 let wasServerStartedByPlugin = false;
 let currentSessions = [];
 let pendingServerAction = null;
+let hasActiveSession = false;
+let currentSessionTokens = 0;
 
 function createAutoContextKey(name, content) {
     return `${name}::${content}`;
@@ -213,14 +232,31 @@ function canStopGeneration() {
     return isServerRunning && isInTransaction;
 }
 
+function syncTokenUsageVisibility() {
+    if (!elements.tokenUsageContainer) {
+        return;
+    }
+
+    const shouldShow = hasActiveSession;
+    elements.tokenUsageContainer.style.display = shouldShow ? 'inline-flex' : 'none';
+    elements.tokenUsageContainer.setAttribute('aria-hidden', String(!shouldShow));
+
+    if (!shouldShow && activeContextMenu === 'token') {
+        hideContextWindow();
+    }
+}
+
 function applyControlState() {
     const allowMainActions = canUseInputActions();
     const allowStop = canStopGeneration();
+
+    syncTokenUsageVisibility();
 
     elements.prompt.disabled = !allowMainActions;
 
     elements.attachBtn.classList.toggle('is-disabled', !allowMainActions);
     elements.backToSessionsBtn.classList.toggle('is-disabled', !allowMainActions);
+    elements.backToSessionsBtn.style.display = hasActiveSession ? 'flex' : 'none';
     elements.modelMenuTrigger?.classList.toggle('is-disabled', !allowMainActions);
 
     elements.attachBtn.setAttribute('aria-disabled', String(!allowMainActions));
@@ -251,6 +287,27 @@ function applyControlState() {
     }
 
     renderAllBadges();
+}
+
+function setHasActiveSession(value) {
+    hasActiveSession = !!value;
+
+    if (hasActiveSession) {
+        elements.sessionsContainer.style.display = 'none';
+        elements.sessionsList.style.display = 'none';
+        elements.sessionsMainTitle.style.display = 'none';
+        elements.activeSessionHeader.style.display = 'flex';
+        elements.chat.style.display = 'flex';
+    } else {
+        elements.activeSessionHeader.style.display = 'none';
+        elements.activeSessionTitle.innerText = '';
+        elements.sessionsMainTitle.style.display = 'block';
+        elements.sessionsList.style.display = 'flex';
+        elements.sessionsContainer.style.display = 'flex';
+        elements.chat.style.display = 'none';
+    }
+
+    applyControlState();
 }
 
 // ============================================================
@@ -289,7 +346,7 @@ elements.attachBtn.addEventListener('click', () => {
     elements.vscode.postMessage({ type: 'openFilePicker' });
 });
 elements.prompt.addEventListener('keydown', handlePromptKeyDown);
-window.addEventListener('message', handleWebsocketMessage);
+window.addEventListener('message', handleExtensionMessage);
 elements.modelMenuTrigger?.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleModelMenu();
@@ -316,7 +373,7 @@ window.addEventListener('blur', () => {
 // ============================================================
 // MESSAGE HANDLERS - MAIN DISPATCHER
 // ============================================================
-function handleWebsocketMessage(event) {
+function handleExtensionMessage(event) {
     const message = event.data;
 
     if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
@@ -362,11 +419,14 @@ function handleWebsocketMessage(event) {
             if (typeof message.modelName === 'string' && message.modelName.trim()) {
                 currentModelName = message.modelName.trim();
             }
-            updateTokenCounter(0, currentContextWindow, currentModelName);
+            updateTokenCounter(currentSessionTokens, currentContextWindow, currentModelName);
             break;
         case 'restoreUiState':
             if (message.activeTab) {
                 switchTab(message.activeTab, false);
+            }
+            if (typeof message.hasActiveSession === 'boolean') {
+                setHasActiveSession(message.hasActiveSession);
             }
             break;
         case 'updateServerState':
@@ -411,6 +471,7 @@ function handleClearActiveEditorContext() {
 }
 
 function handleRestoreActiveChat(message) {
+    setHasActiveSession(true);
     showChatView();
     elements.activeSessionTitle.innerText = message.title;
     elements.chat.innerHTML = '';
@@ -430,6 +491,7 @@ function handleRestoreActiveChat(message) {
         if (typeof message.modelName === 'string' && message.modelName.trim()) {
             currentModelName = message.modelName.trim();
         }
+        currentSessionTokens = Number(message.sessionTokens) || 0;
         updateTokenCounter(message.sessionTokens, message.contextWindow, currentModelName);
     }
 
@@ -444,16 +506,13 @@ function handleRenderSessionsList(message) {
 
     if (currentSessions.length === 0) {
         createEmptySessionsCard();
+        setHasActiveSession(false);
     } else {
         currentSessions.forEach(session => createSessionCard(session));
         syncSessionsServerStoppedNotice();
-    }
-
-    if (elements.activeSessionHeader.style.display !== 'flex') {
-        elements.sessionsMainTitle.style.display = 'block';
-        elements.sessionsList.style.display = 'flex';
-        elements.sessionsContainer.style.display = 'flex';
-        elements.chat.style.display = 'none';
+        if (!hasActiveSession) {
+            setHasActiveSession(false);
+        }
     }
 
     if (message.contextWindow !== undefined) {
@@ -464,7 +523,10 @@ function handleRenderSessionsList(message) {
         currentModelName = message.modelName.trim();
     }
 
-    updateTokenCounter(0, currentContextWindow, currentModelName);
+    if (!hasActiveSession) {
+        currentSessionTokens = 0;
+    }
+    updateTokenCounter(currentSessionTokens, currentContextWindow, currentModelName);
 }
 
 function handleFileSelected(message) {
@@ -473,6 +535,7 @@ function handleFileSelected(message) {
         currentAttachedFiles.push({
             name: message.name,
             content: message.content,
+            isRepository: !!message.isRepository,
             isAutomatic: false
         });
         renderAllBadges();
@@ -481,11 +544,9 @@ function handleFileSelected(message) {
 
 function handleAddMessage(message) {
     if (message.role === 'user') {
-        if (elements.activeSessionHeader.style.display !== 'flex') {
-            elements.sessionsContainer.style.display = 'none';
-            elements.chat.style.display = 'flex';
+        if (!hasActiveSession) {
+            setHasActiveSession(true);
             elements.activeSessionTitle.innerText = truncateTitle(message.text);
-            elements.activeSessionHeader.style.display = 'flex';
         }
         renderUserMessageLive(message);
     }
@@ -655,7 +716,7 @@ function renderAllBadges() {
 
     container.innerHTML = '';
     currentAttachedFiles.forEach((file) => {
-        const badge = createFileBadgeNode(file.name);
+        const badge = createFileBadgeNodeWithSource(file.name, !!file.isRepository);
 
         const removeBtn = document.createElement('div');
         const isDisabled = !canUseInputActions();
@@ -999,11 +1060,7 @@ function showChatView() {
 }
 
 function showActiveChatLayout() {
-    elements.sessionsContainer.style.display = 'none';
-    elements.sessionsList.style.display = 'none';
-    elements.sessionsMainTitle.style.display = 'none';
-    elements.activeSessionHeader.style.display = 'flex';
-    elements.chat.style.display = 'flex';
+    setHasActiveSession(true);
 }
 
 function isActiveChatVisible() {
@@ -1134,15 +1191,11 @@ function handleBackToSessions() {
     }
 
     elements.chat.innerHTML = '';
-    elements.chat.style.display = 'none';
-    elements.activeSessionHeader.style.display = 'none';
-    elements.activeSessionTitle.innerText = '';
+    setHasActiveSession(false);
     elements.vscode.postMessage({ type: 'selectSession', sessionId: null });
     elements.vscode.postMessage({ type: 'requestSessionsUpdate' });
-    elements.sessionsMainTitle.style.display = 'block';
-    elements.sessionsList.style.display = 'flex';
-    elements.sessionsContainer.style.display = 'flex';
     elements.vscode.postMessage({ type: 'webviewReady' });
+    currentSessionTokens = 0;
 
     if (elements.tokenCounter) {
         elements.tokenCounter.style.display = 'block';
@@ -1158,8 +1211,10 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
     if (!elements.tokenCounter) { return; }
     elements.tokenCounter.style.display = 'block';
 
+    currentSessionTokens = Number(sessionTokens) || 0;
+
     const hasTotal = contextWindow > 0;
-    const pct = hasTotal ? Math.min(100, Math.round((sessionTokens / contextWindow) * 100)) : 0;
+    const pct = hasTotal ? Math.min(100, Math.round((currentSessionTokens / contextWindow) * 100)) : 0;
     const warnClass = hasTotal
         ? (pct >= 90 ? ' token-counter--danger' : pct >= 70 ? ' token-counter--warn' : '')
         : '';
@@ -1177,7 +1232,7 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
     }
 
     tokenUsageState = {
-        used: sessionTokens,
+        used: currentSessionTokens,
         total: hasTotal ? contextWindow : 0,
         pct
     };
@@ -1219,6 +1274,7 @@ function renderServerState(message) {
     syncServerStoppedNotice();
     syncSessionCardsAvailability();
     syncSessionsServerStoppedNotice();
+    updateTokenCounter(currentSessionTokens, currentContextWindow, currentModelName);
 
     if (currentSessions.length === 0 && elements.sessionsList) {
         elements.sessionsList.innerHTML = '';
