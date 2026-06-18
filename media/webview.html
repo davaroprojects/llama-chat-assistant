@@ -7,10 +7,11 @@
     {{stylePlaceholder}}
 </head>
 
-<body data-empty-chat-ready-label="{{emptyChatReadyLabel}}" data-empty-server-stopped-label="{{emptyServerStoppedLabel}}" data-delete-session-label="{{deleteSessionLabel}}" data-session-unavailable-label="{{sessionUnavailableLabel}}" data-generation-canceled-label="{{generationCanceledLabel}}" data-remove-file-title="{{removeFileTitle}}" data-unavailable-short-label="{{unavailableShortLabel}}" data-copy-code-title="{{copyCodeTitle}}" data-copy-clipboard-title="{{copyClipboardTitle}}" data-new-session-label="{{newSessionLabel}}" data-external-server-blocked-label="{{externalServerBlockedLabel}}" data-repository-badge-label="{{repositoryBadgeLabel}}">
+<body data-empty-chat-ready-label="{{emptyChatReadyLabel}}" data-empty-server-stopped-label="{{emptyServerStoppedLabel}}" data-delete-session-label="{{deleteSessionLabel}}" data-session-unavailable-label="{{sessionUnavailableLabel}}" data-generation-canceled-label="{{generationCanceledLabel}}" data-remove-file-title="{{removeFileTitle}}" data-unavailable-short-label="{{unavailableShortLabel}}" data-copy-code-title="{{copyCodeTitle}}" data-copy-clipboard-title="{{copyClipboardTitle}}" data-new-session-label="{{newSessionLabel}}" data-external-server-blocked-label="{{externalServerBlockedLabel}}" data-repository-badge-label="{{repositoryBadgeLabel}}" data-rag-idle-label="{{ragIdleLabel}}" data-rag-indexing-label="{{ragIndexingLabel}}" data-rag-indexed-label="{{ragIndexedLabel}}" data-rag-never-indexed-label="{{ragNeverIndexedLabel}}">
     <div class="tab-bar" role="tablist" aria-label="Sections">
         <button id="chat-tab-btn" class="tab-button is-active" type="button" role="tab" aria-selected="true">{{chatTabLabel}}</button>
         <button id="server-tab-btn" class="tab-button" type="button" role="tab" aria-selected="false">{{serverTabLabel}}</button>
+        <button id="rag-tab-btn" class="tab-button" type="button" role="tab" aria-selected="false">{{ragTabLabel}}</button>
     </div>
 
     <div id="chat-tab-panel" class="tab-panel">
@@ -105,6 +106,38 @@
                     </tr>
                 </thead>
                 <tbody id="server-parameters-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="rag-tab-panel" class="tab-panel server-tab-panel" style="display:none;">
+        <div class="server-panel-card">
+            <button id="rag-index-btn" class="server-start-button" type="button" title="{{ragIndexLabel}}" data-label="{{ragIndexLabel}}" data-loading-label="{{ragIndexLabel}}">
+                <span class="server-action-button-label">{{ragIndexLabel}}</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                </svg>
+            </button>
+        </div>
+        <div class="server-parameters-panel">
+            <div class="server-parameters-title">{{ragStatusTitle}}</div>
+            <table class="server-parameters-table">
+                <tbody>
+                    <tr>
+                        <td>{{ragStateLabel}}</td>
+                        <td id="rag-state-value">{{ragIdleLabel}}</td>
+                    </tr>
+                    <tr>
+                        <td>{{ragIndexedAtLabel}}</td>
+                        <td id="rag-indexed-at-value">{{ragNeverIndexedLabel}}</td>
+                    </tr>
+                    <tr>
+                        <td>{{ragIndexedFilesLabel}}</td>
+                        <td id="rag-indexed-files-value">0</td>
+                    </tr>
+                </tbody>
             </table>
         </div>
     </div>

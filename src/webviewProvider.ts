@@ -18,6 +18,7 @@ import {
 import { sendActiveEditorContext } from './webview/editorContext';
 import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
+import { indexAll } from './rag/indexAll';
 
 interface BaseWebviewMessage {
     type: string;
@@ -46,7 +47,7 @@ interface ApplyCodeMessage extends BaseWebviewMessage {
 
 interface SetActiveTabMessage extends BaseWebviewMessage {
     type: 'setActiveTab';
-    tab: 'chat' | 'server';
+    tab: 'chat' | 'server' | 'rag';
 }
 
 type IncomingWebviewMessage =
@@ -61,7 +62,8 @@ type IncomingWebviewMessage =
     | { type: 'stopServer' }
     | { type: 'openFilePicker' }
     | { type: 'requestSessionsUpdate' }
-    | { type: 'requestActiveEditorRefresh' };
+    | { type: 'requestActiveEditorRefresh' }
+    | { type: 'indexAll' };
 
 interface RuntimeMetrics {
     totalRequests: number;
@@ -104,9 +106,10 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
         case 'openFilePicker':
         case 'requestSessionsUpdate':
         case 'requestActiveEditorRefresh':
+        case 'indexAll':
             return true;
         case 'setActiveTab':
-            return data.tab === 'chat' || data.tab === 'server';
+            return data.tab === 'chat' || data.tab === 'server' || data.tab === 'rag';
         case 'selectSession':
             return data.sessionId === null || typeof data.sessionId === 'string';
         case 'deleteSession':
@@ -131,6 +134,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     private serverProcess: ChildProcess | null = null;
     private serverProps: LlamaServerProps | null = null;
     private wasServerStartedByPlugin = false;
+    private isRagIndexing = false;
     private readonly metrics: RuntimeMetrics = {
         totalRequests: 0,
         totalErrors: 0,
@@ -213,6 +217,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             case 'requestActiveEditorRefresh':
                 this.handleRequestActiveEditorRefresh(webviewView);
                 break;
+            case 'indexAll':
+                await this.handleIndexAll(webviewView);
+                break;
         }
     }
 
@@ -238,6 +245,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         });
 
         this.postServerState(webviewView);
+        this.postRagState(webviewView);
 
         if (activeSession) {
             webviewView.webview.postMessage({
@@ -453,6 +461,38 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
     }
 
+    private async handleIndexAll(webviewView: vscode.WebviewView): Promise<void> {
+        if (this.isRagIndexing) {
+            return;
+        }
+
+        this.isRagIndexing = true;
+        const previousState = this.sessionManager.getRagIndexState();
+        this.sessionManager.setRagIndexState({
+            ...previousState,
+            status: 'indexing'
+        });
+        this.postRagState(webviewView);
+
+        try {
+            const result = await indexAll();
+            this.sessionManager.setRagIndexState({
+                status: result.status,
+                indexedAt: result.indexedAt,
+                indexedFiles: result.indexedFiles
+            });
+        } catch (error) {
+            console.error('[llama-chat] RAG indexing failed:', error);
+            this.sessionManager.setRagIndexState({
+                ...previousState,
+                status: 'idle'
+            });
+        } finally {
+            this.isRagIndexing = false;
+            this.postRagState(webviewView);
+        }
+    }
+
     private async generateLlamaResponse(
         userPrompt: string,
         filesMetadata: FileMetadata[],
@@ -666,6 +706,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             modelName: this.getModelName()
         });
         this.postServerState(targetView);
+        this.postRagState(targetView);
     }
 
     private postServerState(webviewView: vscode.WebviewView): void {
@@ -674,6 +715,17 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             isRunning: this.serverProps !== null,
             wasServerStartedByPlugin: this.wasServerStartedByPlugin,
             parameterRows: buildServerParameterRows(this.getServerLaunchConfig())
+        });
+    }
+
+    private postRagState(webviewView: vscode.WebviewView): void {
+        const ragState = this.sessionManager.getRagIndexState();
+        webviewView.webview.postMessage({
+            type: 'updateRagState',
+            isIndexing: this.isRagIndexing || ragState.status === 'indexing',
+            status: ragState.status,
+            indexedAt: ragState.indexedAt,
+            indexedFiles: ragState.indexedFiles
         });
     }
 

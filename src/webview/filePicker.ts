@@ -30,10 +30,12 @@ export async function openFilePicker(webviewView: vscode.WebviewView): Promise<v
             const filePath = uri.fsPath;
             const relativePath = vscode.workspace.asRelativePath(uri, false);
             const fileName = path.basename(filePath);
+            const dirPath = path.dirname(relativePath);
 
             return {
                 label: fileName,
-                description: relativePath,
+                description: dirPath !== '.' ? dirPath : '',
+                iconPath: new vscode.ThemeIcon('file'),
                 uri,
                 displayName: relativePath,
                 itemType: 'file'
@@ -64,8 +66,16 @@ async function pickProjectFile(items: FileQuickPickItem[]): Promise<FileQuickPic
         const repositoryItem: FileQuickPickItem = {
             label: vscode.l10n.t('Repository'),
             description: vscode.l10n.t('Attach repository file index'),
+            iconPath: new vscode.ThemeIcon('folder'),
             displayName: vscode.l10n.t('Repository'),
             itemType: 'repository'
+        };
+
+        const separatorItem: FileQuickPickItem = {
+            label: '',
+            kind: vscode.QuickPickItemKind.Separator,
+            displayName: '',
+            itemType: 'file'
         };
 
         const applyFilter = (query: string) => {
@@ -74,7 +84,7 @@ async function pickProjectFile(items: FileQuickPickItem[]): Promise<FileQuickPic
                 ? items.filter((item) => item.label.toLowerCase().includes(normalizedQuery) || item.description?.toLowerCase().includes(normalizedQuery))
                 : items;
 
-            quickPick.items = [repositoryItem, ...filtered.slice(0, 10)];
+            quickPick.items = [repositoryItem, separatorItem, ...filtered.slice(0, 10)];
         };
 
         applyFilter('');

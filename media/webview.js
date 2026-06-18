@@ -36,27 +36,20 @@ function createUserMessageNode(text) {
     return messageNode;
 }
 
-function createFileBadgeNode(filename) {
+function createFileBadgeNode(filename, isRepository = false) {
     const badge = document.createElement('div');
     badge.className = 'attached-file-badge';
 
     const span = document.createElement('span');
-    span.textContent = `📄 ${filename}`;
+    const fileIcon = isRepository ? '📁' : '📄';
+    span.textContent = `${fileIcon} ${filename}`;
     badge.appendChild(span);
 
     return badge;
 }
 
 function createFileBadgeNodeWithSource(filename, isRepository = false) {
-    const badge = createFileBadgeNode(filename);
-    if (isRepository) {
-        const sourceBadge = document.createElement('span');
-        sourceBadge.className = 'file-source-badge';
-        sourceBadge.textContent = labels.repositoryBadgeLabel;
-        badge.appendChild(sourceBadge);
-    }
-
-    return badge;
+    return createFileBadgeNode(filename, isRepository);
 }
 
 function createServerButtonIconSvg(kind) {
@@ -91,11 +84,17 @@ const elements = {
     vscode: acquireVsCodeApi(),
     chatTabBtn: document.getElementById('chat-tab-btn'),
     serverTabBtn: document.getElementById('server-tab-btn'),
+    ragTabBtn: document.getElementById('rag-tab-btn'),
     chatTabPanel: document.getElementById('chat-tab-panel'),
     serverTabPanel: document.getElementById('server-tab-panel'),
+    ragTabPanel: document.getElementById('rag-tab-panel'),
     serverStartBtn: document.getElementById('server-start-btn'),
     serverStopBtn: document.getElementById('server-stop-btn'),
+    ragIndexBtn: document.getElementById('rag-index-btn'),
     serverParametersBody: document.getElementById('server-parameters-body'),
+    ragStateValue: document.getElementById('rag-state-value'),
+    ragIndexedAtValue: document.getElementById('rag-indexed-at-value'),
+    ragIndexedFilesValue: document.getElementById('rag-indexed-files-value'),
     chat: document.getElementById('chat'),
     prompt: document.getElementById('prompt'),
     sessionsContainer: document.getElementById('sessions-container'),
@@ -131,7 +130,11 @@ const labels = {
     copyClipboardTitle: document.body.dataset.copyClipboardTitle || 'Copiar al portapapeles',
     newSessionLabel: document.body.dataset.newSessionLabel || 'Nueva Sesión',
     externalServerBlockedLabel: document.body.dataset.externalServerBlockedLabel || 'Server started externally. Cannot stop from here.',
-    repositoryBadgeLabel: document.body.dataset.repositoryBadgeLabel || 'Repository'
+    repositoryBadgeLabel: document.body.dataset.repositoryBadgeLabel || 'Repository',
+    ragIdleLabel: document.body.dataset.ragIdleLabel || 'Idle',
+    ragIndexingLabel: document.body.dataset.ragIndexingLabel || 'Indexing',
+    ragIndexedLabel: document.body.dataset.ragIndexedLabel || 'Indexed',
+    ragNeverIndexedLabel: document.body.dataset.ragNeverIndexedLabel || 'Never'
 };
 
 const BLOCKED_HTML_TAGS = new Set([
@@ -213,6 +216,7 @@ let isServerRunning = false;
 let wasServerStartedByPlugin = false;
 let currentSessions = [];
 let pendingServerAction = null;
+let pendingRagAction = false;
 let hasActiveSession = false;
 let currentSessionTokens = 0;
 
@@ -315,6 +319,7 @@ function setHasActiveSession(value) {
 // ============================================================
 elements.chatTabBtn?.addEventListener('click', () => switchTab('chat'));
 elements.serverTabBtn?.addEventListener('click', () => switchTab('server'));
+elements.ragTabBtn?.addEventListener('click', () => switchTab('rag'));
 elements.serverStartBtn?.addEventListener('click', () => {
     if (pendingServerAction || isServerRunning) {
         return;
@@ -330,6 +335,15 @@ elements.serverStopBtn?.addEventListener('click', () => {
     setPendingServerAction('stopping');
     elements.serverStopBtn.blur();
     elements.vscode.postMessage({ type: 'stopServer' });
+});
+elements.ragIndexBtn?.addEventListener('click', () => {
+    if (pendingRagAction) {
+        return;
+    }
+    pendingRagAction = true;
+    updateRagActionButton();
+    elements.ragIndexBtn.blur();
+    elements.vscode.postMessage({ type: 'indexAll' });
 });
 elements.backToSessionsBtn.addEventListener('click', handleBackToSessions);
 elements.sendBtn.addEventListener('click', sendMessage);
@@ -432,6 +446,65 @@ function handleExtensionMessage(event) {
         case 'updateServerState':
             renderServerState(message);
             break;
+        case 'updateRagState':
+            renderRagState(message);
+            break;
+    }
+}
+
+function formatIndexedAt(value) {
+    if (!value) {
+        return labels.ragNeverIndexedLabel;
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return labels.ragNeverIndexedLabel;
+    }
+
+    return date.toLocaleString();
+}
+
+function getRagStatusLabel(status) {
+    switch (status) {
+        case 'indexing':
+            return labels.ragIndexingLabel;
+        case 'indexed':
+            return labels.ragIndexedLabel;
+        default:
+            return labels.ragIdleLabel;
+    }
+}
+
+function updateRagActionButton() {
+    if (!elements.ragIndexBtn) {
+        return;
+    }
+
+    elements.ragIndexBtn.disabled = pendingRagAction;
+    elements.ragIndexBtn.classList.toggle('is-pending', pendingRagAction);
+
+    const label = pendingRagAction
+        ? (elements.ragIndexBtn.dataset.loadingLabel || labels.ragIndexingLabel)
+        : (elements.ragIndexBtn.dataset.label || labels.ragIndexedLabel);
+
+    setServerButtonContent(elements.ragIndexBtn, label, 'start', pendingRagAction);
+}
+
+function renderRagState(message) {
+    pendingRagAction = !!message.isIndexing;
+    updateRagActionButton();
+
+    if (elements.ragStateValue) {
+        elements.ragStateValue.textContent = getRagStatusLabel(message.status);
+    }
+
+    if (elements.ragIndexedAtValue) {
+        elements.ragIndexedAtValue.textContent = formatIndexedAt(message.indexedAt);
+    }
+
+    if (elements.ragIndexedFilesValue) {
+        elements.ragIndexedFilesValue.textContent = String(Number(message.indexedFiles) || 0);
     }
 }
 
@@ -1165,17 +1238,24 @@ function syncServerStoppedNotice() {
 function switchTab(tabName, shouldPersist = true) {
     activeTab = tabName;
     const isChatTab = tabName === 'chat';
+    const isServerTab = tabName === 'server';
+    const isRagTab = tabName === 'rag';
 
     elements.chatTabBtn?.classList.toggle('is-active', isChatTab);
-    elements.serverTabBtn?.classList.toggle('is-active', !isChatTab);
+    elements.serverTabBtn?.classList.toggle('is-active', isServerTab);
+    elements.ragTabBtn?.classList.toggle('is-active', isRagTab);
     elements.chatTabBtn?.setAttribute('aria-selected', String(isChatTab));
-    elements.serverTabBtn?.setAttribute('aria-selected', String(!isChatTab));
+    elements.serverTabBtn?.setAttribute('aria-selected', String(isServerTab));
+    elements.ragTabBtn?.setAttribute('aria-selected', String(isRagTab));
 
     if (elements.chatTabPanel) {
         elements.chatTabPanel.style.display = isChatTab ? 'flex' : 'none';
     }
     if (elements.serverTabPanel) {
-        elements.serverTabPanel.style.display = isChatTab ? 'none' : 'flex';
+        elements.serverTabPanel.style.display = isServerTab ? 'flex' : 'none';
+    }
+    if (elements.ragTabPanel) {
+        elements.ragTabPanel.style.display = isRagTab ? 'flex' : 'none';
     }
 
     closeModelMenu();
@@ -1508,6 +1588,7 @@ function truncateTitle(text) {
 // ============================================================// INITIALIZATION// ============================================================
 updateTokenCounter(0, 0, currentModelName);
 updateServerActionButtons();
+updateRagActionButton();
 switchTab(activeTab, false);
 applyControlState();
 elements.vscode.postMessage({ type: 'webviewReady' });

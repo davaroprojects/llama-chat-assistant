@@ -7,8 +7,18 @@ export interface WebviewLabels {
     htmlLang: string;
     chatTabLabel: string;
     serverTabLabel: string;
+    ragTabLabel: string;
     serverStartLabel: string;
     serverStopLabel: string;
+    ragIndexLabel: string;
+    ragStatusTitle: string;
+    ragStateLabel: string;
+    ragIndexedAtLabel: string;
+    ragIndexedFilesLabel: string;
+    ragIdleLabel: string;
+    ragIndexingLabel: string;
+    ragIndexedLabel: string;
+    ragNeverIndexedLabel: string;
     serverParametersTitle: string;
     propertyLabel: string;
     valueLabel: string;
@@ -41,8 +51,18 @@ export function getWebviewLabels(language: string): WebviewLabels {
             htmlLang: 'es',
             chatTabLabel: 'Chat',
             serverTabLabel: 'Servidor',
+            ragTabLabel: 'RAG',
             serverStartLabel: 'Iniciar',
             serverStopLabel: 'Detener',
+            ragIndexLabel: 'Indexar',
+            ragStatusTitle: 'Estado de indexación',
+            ragStateLabel: 'Estado',
+            ragIndexedAtLabel: 'Fecha de indexación',
+            ragIndexedFilesLabel: 'Archivos indexados',
+            ragIdleLabel: 'Inactivo',
+            ragIndexingLabel: 'Indexando',
+            ragIndexedLabel: 'Indexado',
+            ragNeverIndexedLabel: 'Nunca',
             serverParametersTitle: 'Parámetros',
             propertyLabel: 'Propiedad',
             valueLabel: 'Valor',
@@ -73,8 +93,18 @@ export function getWebviewLabels(language: string): WebviewLabels {
         htmlLang: 'en',
         chatTabLabel: 'Chat',
         serverTabLabel: 'Server',
+        ragTabLabel: 'RAG',
         serverStartLabel: 'Start',
         serverStopLabel: 'Stop',
+        ragIndexLabel: 'Index',
+        ragStatusTitle: 'Indexing status',
+        ragStateLabel: 'State',
+        ragIndexedAtLabel: 'Indexed at',
+        ragIndexedFilesLabel: 'Indexed files',
+        ragIdleLabel: 'Idle',
+        ragIndexingLabel: 'Indexing',
+        ragIndexedLabel: 'Indexed',
+        ragNeverIndexedLabel: 'Never',
         serverParametersTitle: 'Parameters',
         propertyLabel: 'Property',
         valueLabel: 'Value',

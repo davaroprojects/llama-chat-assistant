@@ -13,8 +13,15 @@ export interface ChatSession {
 }
 
 export interface ChatUiState {
-    activeTab: 'chat' | 'server';
+    activeTab: 'chat' | 'server' | 'rag';
     currentSessionId: string | null;
+    ragIndexState: RagIndexState;
+}
+
+export interface RagIndexState {
+    status: 'idle' | 'indexing' | 'indexed';
+    indexedAt: number | null;
+    indexedFiles: number;
 }
 
 interface StoredChatState {
@@ -28,7 +35,12 @@ export class SessionManager {
     private readonly STORAGE_KEY = 'llamaChatSessions';
     private uiState: ChatUiState = {
         activeTab: 'chat',
-        currentSessionId: null
+        currentSessionId: null,
+        ragIndexState: {
+            status: 'idle',
+            indexedAt: null,
+            indexedFiles: 0
+        }
     };
 
     constructor(private readonly context: vscode.ExtensionContext) {
@@ -40,7 +52,14 @@ export class SessionManager {
         }
 
         this.sessions = new Map((storedState.sessions || []).map(s => [s.id, s]));
-        this.uiState = storedState.uiState || this.uiState;
+        this.uiState = {
+            ...this.uiState,
+            ...(storedState.uiState || {}),
+            ragIndexState: {
+                ...this.uiState.ragIndexState,
+                ...(storedState.uiState?.ragIndexState || {})
+            }
+        };
         this.currentSessionId = this.uiState.currentSessionId;
     }
 
@@ -99,8 +118,17 @@ export class SessionManager {
         return { ...this.uiState };
     }
 
-    public setActiveTab(activeTab: 'chat' | 'server'): void {
+    public setActiveTab(activeTab: 'chat' | 'server' | 'rag'): void {
         this.uiState.activeTab = activeTab;
+        this.saveToDisk();
+    }
+
+    public getRagIndexState(): RagIndexState {
+        return { ...this.uiState.ragIndexState };
+    }
+
+    public setRagIndexState(state: RagIndexState): void {
+        this.uiState.ragIndexState = { ...state };
         this.saveToDisk();
     }
 
