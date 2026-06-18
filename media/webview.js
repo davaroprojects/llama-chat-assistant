@@ -2,8 +2,6 @@
 // HTML TEMPLATES (Static HTML without value injection)
 // ============================================================
 const HTML_TEMPLATES = {
-    userMessage: (text) => `<div class="message"><span>${text}</span></div>`,
-    attachedFileBadge: (filename) => `<span>📄 ${filename}</span>`,
     copyIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
         <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
@@ -11,11 +9,68 @@ const HTML_TEMPLATES = {
     checkmarkIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M20 6 9 17l-5-5"/>
     </svg>`,
-    typingIndicator: '<div class="typing-indicator"><span></span><span></span><span></span></div>',
     deleteSessionIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 6 6 18M6 6l12 12"/>
     </svg>`
 };
+
+function createTypingIndicator(className = 'typing-indicator') {
+    const wrapper = document.createElement('div');
+    wrapper.className = className;
+
+    for (let i = 0; i < 3; i += 1) {
+        wrapper.appendChild(document.createElement('span'));
+    }
+
+    return wrapper;
+}
+
+function createUserMessageNode(text) {
+    const messageNode = document.createElement('div');
+    messageNode.className = 'message';
+
+    const spanNode = document.createElement('span');
+    spanNode.textContent = text;
+    messageNode.appendChild(spanNode);
+
+    return messageNode;
+}
+
+function createFileBadgeNode(filename) {
+    const badge = document.createElement('div');
+    badge.className = 'attached-file-badge';
+
+    const span = document.createElement('span');
+    span.textContent = `📄 ${filename}`;
+    badge.appendChild(span);
+
+    return badge;
+}
+
+function createServerButtonIconSvg(kind) {
+    const parser = new DOMParser();
+    const svgMarkup = kind === 'start'
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>`
+        : `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://w3.org"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>`;
+
+    const doc = parser.parseFromString(svgMarkup, 'image/svg+xml');
+    return document.importNode(doc.documentElement, true);
+}
+
+function setServerButtonContent(button, label, kind, isPending) {
+    button.replaceChildren();
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'server-action-button-label';
+    textSpan.textContent = label;
+    button.appendChild(textSpan);
+
+    if (isPending) {
+        button.appendChild(createTypingIndicator('typing-indicator typing-indicator--button'));
+    } else {
+        button.appendChild(createServerButtonIconSvg(kind));
+    }
+}
 
 // ============================================================
 // DOM ELEMENTS CACHE
@@ -55,8 +110,60 @@ const labels = {
     emptyServerStoppedLabel: document.body.dataset.emptyServerStoppedLabel || 'Inicie el servidor para iniciar',
     deleteSessionLabel: document.body.dataset.deleteSessionLabel || 'Eliminar sesión permanentemente',
     sessionUnavailableLabel: document.body.dataset.sessionUnavailableLabel || 'No disponible mientras el servidor está detenido',
-    generationCanceledLabel: document.body.dataset.generationCanceledLabel || 'Generación cancelada'
+    generationCanceledLabel: document.body.dataset.generationCanceledLabel || 'Generación cancelada',
+    removeFileTitle: document.body.dataset.removeFileTitle || 'Quitar archivo',
+    unavailableShortLabel: document.body.dataset.unavailableShortLabel || 'No disponible',
+    copyCodeTitle: document.body.dataset.copyCodeTitle || 'Copiar código',
+    copyClipboardTitle: document.body.dataset.copyClipboardTitle || 'Copiar al portapapeles',
+    newSessionLabel: document.body.dataset.newSessionLabel || 'Nueva Sesión',
+    externalServerBlockedLabel: document.body.dataset.externalServerBlockedLabel || 'Server started externally. Cannot stop from here.'
 };
+
+const BLOCKED_HTML_TAGS = new Set(['script', 'style', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'form']);
+
+function isSafeUrl(urlValue) {
+    const value = String(urlValue || '').trim();
+    if (!value) {
+        return true;
+    }
+
+    if (value.startsWith('#') || value.startsWith('/') || value.startsWith('./') || value.startsWith('../')) {
+        return true;
+    }
+
+    return /^(https?:|mailto:)/i.test(value);
+}
+
+function sanitizeHtml(unsafeHtml) {
+    const template = document.createElement('template');
+    template.innerHTML = String(unsafeHtml || '');
+
+    const allElements = template.content.querySelectorAll('*');
+    allElements.forEach((element) => {
+        const tagName = element.tagName.toLowerCase();
+
+        if (BLOCKED_HTML_TAGS.has(tagName)) {
+            element.remove();
+            return;
+        }
+
+        Array.from(element.attributes).forEach((attribute) => {
+            const attrName = attribute.name.toLowerCase();
+            const attrValue = attribute.value;
+
+            if (attrName.startsWith('on') || attrName === 'style') {
+                element.removeAttribute(attribute.name);
+                return;
+            }
+
+            if ((attrName === 'href' || attrName === 'src') && !isSafeUrl(attrValue)) {
+                element.removeAttribute(attribute.name);
+            }
+        });
+    });
+
+    return template.innerHTML;
+}
 
 // Lazy load attachedFilesContainer
 function getAttachedFilesContainer() {
@@ -75,12 +182,13 @@ let currentAssistantText = "";
 let streamingBlocksContainer = null;
 let lastBlockRenderTime = 0;
 const BLOCK_RENDER_INTERVAL = 0;
-let isStreamingActive = false;
+let isInTransaction = false;
 const removedAutoContextKeys = new Set();
 let currentContextWindow = 0;
 let currentModelName = 'local';
 let activeTab = 'chat';
 let isServerRunning = false;
+let wasServerStartedByPlugin = false;
 let currentSessions = [];
 let pendingServerAction = null;
 
@@ -92,50 +200,43 @@ function getBaseFileName(fileName) {
     return (fileName || '').replace(/:\d+(?:-\d+)?$/, '');
 }
 
-function setStreamingUiLocked(locked) {
-    isStreamingActive = locked;
-
-    elements.attachBtn.classList.toggle('is-disabled', locked);
-    elements.backToSessionsBtn.classList.toggle('is-disabled', locked);
-    elements.modelMenuTrigger?.classList.toggle('is-disabled', locked || !isServerRunning);
-
-    elements.attachBtn.setAttribute('aria-disabled', String(locked));
-    elements.backToSessionsBtn.setAttribute('aria-disabled', String(locked));
-    elements.modelMenuTrigger?.setAttribute('aria-disabled', String(locked || !isServerRunning));
-
-    if (elements.modelMenuTrigger) {
-        elements.modelMenuTrigger.disabled = locked || !isServerRunning;
-    }
-
-    if (locked) {
-        closeModelMenu();
-    }
-
-    renderAllBadges();
+function canUseInputActions() {
+    return isServerRunning && !isInTransaction;
 }
 
-function setChatUiAvailability(available) {
-    elements.prompt.disabled = !available || isStreamingActive;
+function canStopGeneration() {
+    return isServerRunning && isInTransaction;
+}
 
-    elements.attachBtn.classList.toggle('is-disabled', !available || isStreamingActive);
-    elements.backToSessionsBtn.classList.toggle('is-disabled', !available || isStreamingActive);
-    elements.modelMenuTrigger?.classList.toggle('is-disabled', !available || isStreamingActive);
+function applyControlState() {
+    const allowMainActions = canUseInputActions();
+    const allowStop = canStopGeneration();
 
-    elements.attachBtn.setAttribute('aria-disabled', String(!available || isStreamingActive));
-    elements.backToSessionsBtn.setAttribute('aria-disabled', String(!available || isStreamingActive));
-    elements.modelMenuTrigger?.setAttribute('aria-disabled', String(!available || isStreamingActive));
+    elements.prompt.disabled = !allowMainActions;
+
+    elements.attachBtn.classList.toggle('is-disabled', !allowMainActions);
+    elements.backToSessionsBtn.classList.toggle('is-disabled', !allowMainActions);
+    elements.modelMenuTrigger?.classList.toggle('is-disabled', !allowMainActions);
+
+    elements.attachBtn.setAttribute('aria-disabled', String(!allowMainActions));
+    elements.backToSessionsBtn.setAttribute('aria-disabled', String(!allowMainActions));
+    elements.modelMenuTrigger?.setAttribute('aria-disabled', String(!allowMainActions));
+
+    if (elements.modelMenuTrigger) {
+        elements.modelMenuTrigger.disabled = !allowMainActions;
+    }
 
     if (elements.sendBtn) {
-        elements.sendBtn.disabled = !available;
-    }
-    if (elements.stopBtn) {
-        elements.stopBtn.disabled = !available;
-    }
-    if (elements.modelMenuTrigger) {
-        elements.modelMenuTrigger.disabled = !available || isStreamingActive;
+        elements.sendBtn.style.display = allowMainActions ? 'flex' : 'none';
+        elements.sendBtn.disabled = !allowMainActions;
     }
 
-    if (!available) {
+    if (elements.stopBtn) {
+        elements.stopBtn.style.display = allowStop ? 'flex' : 'none';
+        elements.stopBtn.disabled = !allowStop;
+    }
+
+    if (!allowMainActions) {
         closeModelMenu();
     }
 
@@ -166,10 +267,13 @@ elements.serverStopBtn?.addEventListener('click', () => {
 elements.backToSessionsBtn.addEventListener('click', handleBackToSessions);
 elements.sendBtn.addEventListener('click', sendMessage);
 elements.stopBtn.addEventListener('click', () => {
+    if (!canStopGeneration()) {
+        return;
+    }
     elements.vscode.postMessage({ type: 'stopGeneration' });
 });
 elements.attachBtn.addEventListener('click', () => {
-    if (isStreamingActive || !isServerRunning) {
+    if (!canUseInputActions()) {
         return;
     }
     elements.vscode.postMessage({ type: 'openFilePicker' });
@@ -190,6 +294,10 @@ document.addEventListener('click', closeModelMenu);
 // ============================================================
 function handleWebsocketMessage(event) {
     const message = event.data;
+
+    if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
+        return;
+    }
 
     switch (message.type) {
         case 'codeSelectionCaptured':
@@ -360,10 +468,8 @@ function handleAddMessage(message) {
 }
 
 function handleStartStreaming() {
-    setStreamingUiLocked(true);
-    elements.prompt.disabled = true;
-    elements.sendBtn.style.display = 'none';
-    elements.stopBtn.style.display = 'flex';
+    isInTransaction = true;
+    applyControlState();
     currentAssistantText = "";
     lastBlockRenderTime = 0;
 
@@ -378,10 +484,7 @@ function handleStartStreaming() {
 
     streamingBlocksContainer = currentAssistantBubble;
 
-    const indicatorContainer = document.createElement('div');
-    indicatorContainer.innerHTML = HTML_TEMPLATES.typingIndicator;
-    const indicatorNode = indicatorContainer.firstChild;
-    msgBubble.appendChild(indicatorNode);
+    msgBubble.appendChild(createTypingIndicator());
 
     container.appendChild(msgBubble);
     elements.chat.appendChild(container);
@@ -420,11 +523,11 @@ function handleAppendToken(message) {
 }
 
 function handleEndStreaming(message) {
-    setStreamingUiLocked(false);
-    elements.prompt.disabled = false;
-    elements.stopBtn.style.display = 'none';
-    elements.sendBtn.style.display = 'flex';
-    elements.prompt.focus();
+    isInTransaction = false;
+    applyControlState();
+    if (canUseInputActions()) {
+        elements.prompt.focus();
+    }
 
     if (currentAssistantBubble) {
         const bubbleNode = currentAssistantBubble.closest('.message');
@@ -454,11 +557,11 @@ function handleEndStreaming(message) {
 }
 
 function handleErrorStreaming(message) {
-    setStreamingUiLocked(false);
-    elements.prompt.disabled = false;
-    elements.stopBtn.style.display = 'none';
-    elements.sendBtn.style.display = 'flex';
-    elements.prompt.focus();
+    isInTransaction = false;
+    applyControlState();
+    if (canUseInputActions()) {
+        elements.prompt.focus();
+    }
 
     if (currentAssistantBubble) {
         const bubbleNode = currentAssistantBubble.closest('.message');
@@ -471,7 +574,11 @@ function handleErrorStreaming(message) {
 
     const container = document.createElement('div');
     container.className = 'message-container assistant';
-    container.innerHTML = `<div class="message" style="color:var(--vscode-errorForeground)">${message.text}</div>`;
+    const errorNode = document.createElement('div');
+    errorNode.className = 'message';
+    errorNode.style.color = 'var(--vscode-errorForeground)';
+    errorNode.textContent = typeof message.text === 'string' ? message.text : String(message.text || 'Error');
+    container.appendChild(errorNode);
     elements.chat.appendChild(container);
 
     if (currentAssistantBubble) {
@@ -487,11 +594,11 @@ function handleErrorStreaming(message) {
 }
 
 function handleStopStreaming() {
-    setStreamingUiLocked(false);
-    elements.prompt.disabled = false;
-    elements.stopBtn.style.display = 'none';
-    elements.sendBtn.style.display = 'flex';
-    elements.prompt.focus();
+    isInTransaction = false;
+    applyControlState();
+    if (canUseInputActions()) {
+        elements.prompt.focus();
+    }
 
     if (currentAssistantBubble) {
         const bubbleNode = currentAssistantBubble.closest('.message');
@@ -504,7 +611,11 @@ function handleStopStreaming() {
 
     const container = document.createElement('div');
     container.className = 'message-container assistant';
-    container.innerHTML = `<div class="message" style="color:var(--vscode-errorForeground)">${labels.generationCanceledLabel}</div>`;
+    const cancelNode = document.createElement('div');
+    cancelNode.className = 'message';
+    cancelNode.style.color = 'var(--vscode-errorForeground)';
+    cancelNode.textContent = labels.generationCanceledLabel;
+    container.appendChild(cancelNode);
     elements.chat.appendChild(container);
 
     elements.vscode.postMessage({ type: 'requestActiveEditorRefresh' });
@@ -520,15 +631,13 @@ function renderAllBadges() {
 
     container.innerHTML = '';
     currentAttachedFiles.forEach((file) => {
-        const badge = document.createElement('div');
-        badge.className = 'attached-file-badge';
-        badge.innerHTML = `<span>${HTML_TEMPLATES.attachedFileBadge(file.name)}</span>`;
+        const badge = createFileBadgeNode(file.name);
 
         const removeBtn = document.createElement('div');
-        const isDisabled = isStreamingActive || !isServerRunning;
+        const isDisabled = !canUseInputActions();
         removeBtn.className = 'remove-file-btn' + (isDisabled ? ' is-disabled' : '');
         removeBtn.innerText = '×';
-        removeBtn.title = isDisabled ? 'No disponible' : 'Quitar archivo';
+        removeBtn.title = isDisabled ? labels.unavailableShortLabel : labels.removeFileTitle;
         removeBtn.onclick = () => {
             if (isDisabled) { return; }
             if (file.isAutomatic) {
@@ -549,7 +658,7 @@ function renderUserMessageLive(message) {
         userContainer = document.createElement('div');
         userContainer.className = 'message-container user';
         if (message.text) {
-            userContainer.innerHTML = HTML_TEMPLATES.userMessage(message.text);
+            userContainer.appendChild(createUserMessageNode(message.text));
         }
         elements.chat.appendChild(userContainer);
     }
@@ -568,7 +677,7 @@ function renderUserMessageFromHistory(msg) {
         userContainer = document.createElement('div');
         userContainer.className = 'message-container user';
         if (text) {
-            userContainer.innerHTML = HTML_TEMPLATES.userMessage(text);
+            userContainer.appendChild(createUserMessageNode(text));
         }
         elements.chat.appendChild(userContainer);
     }
@@ -621,7 +730,7 @@ function renderFormattedContent(bubbleNode, content) {
         const codeText = codeNode.textContent || '';
         const copyBtn = createCopyButton(codeText);
         copyBtn.className = 'copy-icon-button code-block-copy-btn';
-        copyBtn.title = 'Copiar código';
+        copyBtn.title = labels.copyCodeTitle;
 
         header.appendChild(languageName);
         header.appendChild(copyBtn);
@@ -651,7 +760,7 @@ function renderMarkdownContent(bubbleNode, content) {
     }
 
     const parsedHtml = marked.parse(content, { breaks: true, gfm: true });
-    bubbleNode.innerHTML = parsedHtml;
+    bubbleNode.innerHTML = sanitizeHtml(parsedHtml);
 }
 
 function renderIncrementalStreaming(bubbleNode, fullContent) {
@@ -665,7 +774,7 @@ function renderIncrementalStreaming(bubbleNode, fullContent) {
         stableContainer.className = 'streaming-stable-block';
         if (typeof marked !== 'undefined') {
             const parsedHtml = marked.parse(stableContent, { breaks: true, gfm: true });
-            stableContainer.innerHTML = parsedHtml;
+            stableContainer.innerHTML = sanitizeHtml(parsedHtml);
         } else {
             stableContainer.textContent = stableContent;
         }
@@ -739,7 +848,7 @@ function addMessageFooter(bubbleNode, content, time, tokens) {
 function createCopyButton(content) {
     const copyBtn = document.createElement('div');
     copyBtn.className = 'copy-icon-button';
-    copyBtn.title = 'Copiar al portapapeles';
+    copyBtn.title = labels.copyClipboardTitle;
     copyBtn.innerHTML = HTML_TEMPLATES.copyIcon;
 
     copyBtn.onclick = () => {
@@ -764,9 +873,7 @@ function renderFileBadgesInChat(fileNames, targetContainer = elements.chat) {
     filesContainer.className = 'attached-files-container chat-attached-files-container';
 
     fileNames.forEach(filename => {
-        const badge = document.createElement('div');
-        badge.className = 'attached-file-badge';
-        badge.innerHTML = `<span>${HTML_TEMPLATES.attachedFileBadge(filename)}</span>`;
+        const badge = createFileBadgeNode(filename);
         filesContainer.appendChild(badge);
     });
 
@@ -775,24 +882,34 @@ function renderFileBadgesInChat(fileNames, targetContainer = elements.chat) {
 
 function createSessionCard(session) {
     const card = document.createElement('div');
-    const isDisabled = !isServerRunning;
+    const isDisabled = !canUseInputActions();
     card.className = 'session-card' + (isDisabled ? ' is-disabled' : '');
-    card.innerHTML = `
-        <div class="session-card-body">
-            <div class="session-card-title"></div>
-            <div class="session-card-time"></div>
-        </div>
-        <div class="delete-session-button${isDisabled ? ' is-disabled' : ''}" title="${isDisabled ? labels.sessionUnavailableLabel : labels.deleteSessionLabel}">
-            ${HTML_TEMPLATES.deleteSessionIcon}
-        </div>
-    `;
 
-    card.querySelector('.session-card-title').innerText = session.title || "Nueva Sesión";
-    card.querySelector('.session-card-time').innerText = session.relativeTime || "";
+    const body = document.createElement('div');
+    body.className = 'session-card-body';
+
+    const title = document.createElement('div');
+    title.className = 'session-card-title';
+    title.innerText = session.title || labels.newSessionLabel;
+
+    const time = document.createElement('div');
+    time.className = 'session-card-time';
+    time.innerText = session.relativeTime || '';
+
+    body.appendChild(title);
+    body.appendChild(time);
+
+    const deleteBtn = document.createElement('div');
+    deleteBtn.className = 'delete-session-button' + (isDisabled ? ' is-disabled' : '');
+    deleteBtn.setAttribute('title', isDisabled ? labels.sessionUnavailableLabel : labels.deleteSessionLabel);
+    deleteBtn.innerHTML = HTML_TEMPLATES.deleteSessionIcon;
+
+    card.appendChild(body);
+    card.appendChild(deleteBtn);
     card.setAttribute('aria-disabled', String(isDisabled));
 
     card.onclick = () => {
-        if (!isServerRunning) {
+        if (!canUseInputActions()) {
             return;
         }
         showChatView();
@@ -801,10 +918,9 @@ function createSessionCard(session) {
         elements.vscode.postMessage({ type: 'selectSession', sessionId: session.id });
     };
 
-    const deleteBtn = card.querySelector('.delete-session-button');
     deleteBtn.onclick = (e) => {
         e.stopPropagation();
-        if (!isServerRunning) {
+        if (!canUseInputActions()) {
             return;
         }
         card.style.opacity = '0';
@@ -820,22 +936,32 @@ function createSessionCard(session) {
 function createEmptySessionsCard() {
     const emptyCard = document.createElement('div');
     emptyCard.className = 'session-card empty-session-card';
-    emptyCard.innerHTML = `
-        <div class="session-card-body">
-            <div class="session-card-title">${isServerRunning ? labels.emptyChatReadyLabel : labels.emptyServerStoppedLabel}</div>
-        </div>
-    `;
+
+    const body = document.createElement('div');
+    body.className = 'session-card-body';
+
+    const title = document.createElement('div');
+    title.className = 'session-card-title';
+    title.textContent = isServerRunning ? labels.emptyChatReadyLabel : labels.emptyServerStoppedLabel;
+
+    body.appendChild(title);
+    emptyCard.appendChild(body);
     elements.sessionsList.appendChild(emptyCard);
 }
 
 function createServerStoppedSessionsNotice() {
     const noticeCard = document.createElement('div');
     noticeCard.className = 'session-card empty-session-card server-stopped-sessions-notice';
-    noticeCard.innerHTML = `
-        <div class="session-card-body">
-            <div class="session-card-title">${labels.emptyServerStoppedLabel}</div>
-        </div>
-    `;
+
+    const body = document.createElement('div');
+    body.className = 'session-card-body';
+
+    const title = document.createElement('div');
+    title.className = 'session-card-title';
+    title.textContent = labels.emptyServerStoppedLabel;
+
+    body.appendChild(title);
+    noticeCard.appendChild(body);
     elements.sessionsList.appendChild(noticeCard);
 }
 
@@ -883,16 +1009,18 @@ function syncSessionCardsAvailability() {
         return;
     }
 
+    const cardsDisabled = !canUseInputActions();
+
     const sessionCards = elements.sessionsList.querySelectorAll('.session-card:not(.empty-session-card)');
     sessionCards.forEach((card) => {
-        card.classList.toggle('is-disabled', !isServerRunning);
-        card.setAttribute('aria-disabled', String(!isServerRunning));
+        card.classList.toggle('is-disabled', cardsDisabled);
+        card.setAttribute('aria-disabled', String(cardsDisabled));
     });
 
     const deleteButtons = elements.sessionsList.querySelectorAll('.delete-session-button');
     deleteButtons.forEach((button) => {
-        button.classList.toggle('is-disabled', !isServerRunning);
-        button.setAttribute('title', !isServerRunning ? labels.sessionUnavailableLabel : labels.deleteSessionLabel);
+        button.classList.toggle('is-disabled', cardsDisabled);
+        button.setAttribute('title', cardsDisabled ? labels.sessionUnavailableLabel : labels.deleteSessionLabel);
     });
 }
 
@@ -906,45 +1034,34 @@ function clearPendingServerAction() {
     updateServerActionButtons();
 }
 
-function buildServerActionButtonContent(label) {
-    return `
-        <span class="server-action-button-label">${label}</span>
-        <div class="typing-indicator typing-indicator--button" aria-hidden="true"><span></span><span></span><span></span></div>
-    `;
-}
-
 function updateServerActionButtons() {
     if (elements.serverStartBtn) {
         const isPendingStart = pendingServerAction === 'starting';
         elements.serverStartBtn.disabled = !!pendingServerAction;
         elements.serverStartBtn.classList.toggle('is-pending', isPendingStart);
-        elements.serverStartBtn.innerHTML = isPendingStart
-            ? buildServerActionButtonContent(elements.serverStartBtn.dataset.loadingLabel || 'Iniciar')
-            : `
-                <span class="server-action-button-label">${elements.serverStartBtn.dataset.label || 'Iniciar'}</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M5 12h14" />
-                    <path d="m12 5 7 7-7 7" />
-                </svg>
-            `;
+        const label = isPendingStart
+            ? (elements.serverStartBtn.dataset.loadingLabel || 'Iniciar')
+            : (elements.serverStartBtn.dataset.label || 'Iniciar');
+        setServerButtonContent(elements.serverStartBtn, label, 'start', isPendingStart);
     }
+
 
     if (elements.serverStopBtn) {
         const isPendingStop = pendingServerAction === 'stopping';
-        elements.serverStopBtn.disabled = !!pendingServerAction;
+        // Block stop button if server was started externally
+        const isBlocked = isServerRunning && !wasServerStartedByPlugin;
+        elements.serverStopBtn.disabled = !!pendingServerAction || isBlocked;
         elements.serverStopBtn.classList.toggle('is-pending', isPendingStop);
-        elements.serverStopBtn.innerHTML = isPendingStop
-            ? buildServerActionButtonContent(elements.serverStopBtn.dataset.loadingLabel || 'Detener')
-            : `
-                <span class="server-action-button-label">${elements.serverStopBtn.dataset.label || 'Detener'}</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://w3.org">
-                    <rect x="4" y="4" width="16" height="16" rx="2" />
-                </svg>
-            `;
+        elements.serverStopBtn.classList.toggle('is-disabled', isBlocked);
+        elements.serverStopBtn.title = isBlocked
+            ? labels.externalServerBlockedLabel
+            : (elements.serverStopBtn.dataset.label || 'Detener');
+        const label = isPendingStop
+            ? (elements.serverStopBtn.dataset.loadingLabel || 'Detener')
+            : (elements.serverStopBtn.dataset.label || 'Detener');
+        setServerButtonContent(elements.serverStopBtn, label, 'stop', isPendingStop);
     }
 }
-
 function syncServerStoppedNotice() {
     removeServerStoppedNotice();
 
@@ -988,7 +1105,7 @@ function switchTab(tabName, shouldPersist = true) {
 }
 
 function handleBackToSessions() {
-    if (isStreamingActive) {
+    if (!canUseInputActions()) {
         return;
     }
 
@@ -1034,6 +1151,7 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
 
 function renderServerState(message) {
     isServerRunning = !!message.isRunning;
+    wasServerStartedByPlugin = !!message.wasServerStartedByPlugin;
     clearPendingServerAction();
 
     if (elements.serverStartBtn) {
@@ -1061,7 +1179,8 @@ function renderServerState(message) {
         });
     }
 
-    setChatUiAvailability(isServerRunning);
+    updateServerActionButtons();
+    applyControlState();
     syncServerStoppedNotice();
     syncSessionCardsAvailability();
     syncSessionsServerStoppedNotice();
@@ -1146,7 +1265,7 @@ function handlePromptKeyDown(event) {
 }
 
 function sendMessage() {
-    if (!isServerRunning) {
+    if (!canUseInputActions()) {
         return;
     }
 
@@ -1165,7 +1284,7 @@ function sendMessage() {
 }
 
 function truncateTitle(text) {
-    if (!text) return "Nueva Sesión";
+    if (!text) return labels.newSessionLabel;
     let cleanText = text.replace(/---[\s\S]*?---/g, '');
     cleanText = cleanText.split(/Indicación(?: del usuario)?:/i).pop()?.trim() || cleanText; cleanText = cleanText.replace(/\s+/g, ' ');
     return cleanText.length > 30 ? cleanText.substring(0, 27) + '...' : cleanText;
@@ -1174,5 +1293,5 @@ function truncateTitle(text) {
 updateTokenCounter(0, 0, currentModelName);
 updateServerActionButtons();
 switchTab(activeTab, false);
-setChatUiAvailability(false);
+applyControlState();
 elements.vscode.postMessage({ type: 'webviewReady' });

@@ -17,6 +17,19 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.deleteSessionLabel, 'Eliminar sesión permanentemente');
         assert.strictEqual(labels.sessionUnavailableLabel, 'No disponible mientras el servidor está detenido');
         assert.strictEqual(labels.generationCanceledLabel, 'Generación cancelada');
+        assert.strictEqual(labels.backToSessionsTitle, 'Volver a las sesiones');
+        assert.strictEqual(labels.sessionsMainTitle, 'Sesiones');
+        assert.strictEqual(labels.promptPlaceholder, 'Pregúntale a tu Llama local o pide cambios...');
+        assert.strictEqual(labels.attachFileTitle, 'Agregar archivo al contexto');
+        assert.strictEqual(labels.sendMessageTitle, 'Enviar mensaje');
+        assert.strictEqual(labels.stopGenerationTitle, 'Detener generación');
+        assert.strictEqual(labels.modelMenuTitle, 'Ver modelo actual');
+        assert.strictEqual(labels.modelLabel, 'Modelo');
+        assert.strictEqual(labels.removeFileTitle, 'Quitar archivo');
+        assert.strictEqual(labels.unavailableShortLabel, 'No disponible');
+        assert.strictEqual(labels.copyCodeTitle, 'Copiar código');
+        assert.strictEqual(labels.copyClipboardTitle, 'Copiar al portapapeles');
+        assert.strictEqual(labels.newSessionLabel, 'Nueva Sesión');
     });
 
     test('Returns English labels for non-es locales', () => {
@@ -34,5 +47,18 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.deleteSessionLabel, 'Delete session permanently');
         assert.strictEqual(labels.sessionUnavailableLabel, 'Unavailable while the server is stopped');
         assert.strictEqual(labels.generationCanceledLabel, 'Generation canceled');
+        assert.strictEqual(labels.backToSessionsTitle, 'Back to sessions');
+        assert.strictEqual(labels.sessionsMainTitle, 'Sessions');
+        assert.strictEqual(labels.promptPlaceholder, 'Ask your local Llama or request changes...');
+        assert.strictEqual(labels.attachFileTitle, 'Add file to context');
+        assert.strictEqual(labels.sendMessageTitle, 'Send message');
+        assert.strictEqual(labels.stopGenerationTitle, 'Stop generation');
+        assert.strictEqual(labels.modelMenuTitle, 'View current model');
+        assert.strictEqual(labels.modelLabel, 'Model');
+        assert.strictEqual(labels.removeFileTitle, 'Remove file');
+        assert.strictEqual(labels.unavailableShortLabel, 'Unavailable');
+        assert.strictEqual(labels.copyCodeTitle, 'Copy code');
+        assert.strictEqual(labels.copyClipboardTitle, 'Copy to clipboard');
+        assert.strictEqual(labels.newSessionLabel, 'New Session');
     });
 });

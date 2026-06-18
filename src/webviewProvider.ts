@@ -69,13 +69,68 @@ interface RuntimeMetrics {
     totalDurationMs: number;
 }
 
-export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isFileMetadataArray(value: unknown): value is FileMetadata[] {
+    if (!Array.isArray(value)) {
+        return false;
+    }
+
+    return value.every((item) => {
+        if (!isRecord(item)) {
+            return false;
+        }
+
+        return typeof item.name === 'string'
+            && typeof item.content === 'string'
+            && item.name.length > 0
+            && item.name.length <= 1024
+            && item.content.length <= 2_000_000;
+    });
+}
+
+function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage {
+    if (!isRecord(data) || typeof data.type !== 'string') {
+        return false;
+    }
+
+    switch (data.type) {
+        case 'webviewReady':
+        case 'stopGeneration':
+        case 'startServer':
+        case 'stopServer':
+        case 'openFilePicker':
+        case 'requestSessionsUpdate':
+        case 'requestActiveEditorRefresh':
+            return true;
+        case 'setActiveTab':
+            return data.tab === 'chat' || data.tab === 'server';
+        case 'selectSession':
+            return data.sessionId === null || typeof data.sessionId === 'string';
+        case 'deleteSession':
+            return typeof data.sessionId === 'string' && data.sessionId.length > 0;
+        case 'applyCode':
+            return typeof data.value === 'string';
+        case 'askLlama':
+            if (typeof data.value !== 'string' || data.value.length > 100_000) {
+                return false;
+            }
+            return data.attachedFiles === undefined || isFileMetadataArray(data.attachedFiles);
+        default:
+            return false;
+    }
+}
+
+export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private currentAbortController: AbortController | null = null;
     private _view?: vscode.WebviewView;
     private isPickerOpen = false;
     private isGenerationActive = false;
     private serverProcess: ChildProcess | null = null;
     private serverProps: LlamaServerProps | null = null;
+    private wasServerStartedByPlugin = false;
     private readonly metrics: RuntimeMetrics = {
         totalRequests: 0,
         totalErrors: 0,
@@ -108,7 +163,12 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private setupMessageHandlers(webviewView: vscode.WebviewView): void {
         webviewView.webview.onDidReceiveMessage(async (data) => {
             try {
-                await this.routeMessage(data as IncomingWebviewMessage, webviewView);
+                if (!isIncomingWebviewMessage(data)) {
+                    console.warn('[llama-chat] Ignored invalid webview message payload');
+                    return;
+                }
+
+                await this.routeMessage(data, webviewView);
             } catch (error) {
                 console.error('Error handling message:', error);
             }
@@ -157,8 +217,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private async handleWebviewReady(webviewView: vscode.WebviewView): Promise<void> {
+        this._view = webviewView;
+        // Detect if server is already running (don't claim ownership)
         await this.refreshServerProps();
-
         const initialSessions = this.sessionManager.getAllSessions();
         const uiState = this.sessionManager.getUiState();
         const activeSession = this.sessionManager.getCurrentSession();
@@ -229,21 +290,25 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
             serverProcess.on('exit', () => {
                 this.serverProcess = null;
                 this.serverProps = null;
+                this.wasServerStartedByPlugin = false;
                 this.postRuntimeState();
             });
             serverProcess.on('error', (error) => {
                 this.serverProcess = null;
                 this.serverProps = null;
+                this.wasServerStartedByPlugin = false;
                 vscode.window.showErrorMessage(`Failed to start llama-server: ${error.message}`);
                 this.postRuntimeState();
             });
             await this.refreshServerProps(8, 500);
+            this.wasServerStartedByPlugin = true;
             this.postRuntimeState();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             vscode.window.showErrorMessage(`Failed to start llama-server: ${errorMessage}`);
             this.serverProcess = null;
             this.serverProps = null;
+            this.wasServerStartedByPlugin = false;
             this.postRuntimeState(webviewView);
         }
     }
@@ -251,6 +316,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
     private handleStopServer(): void {
         if (!this.serverProcess) {
             this.serverProps = null;
+            this.wasServerStartedByPlugin = false;
             this.postRuntimeState();
             return;
         }
@@ -258,6 +324,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         this.serverProcess.kill();
         this.serverProcess = null;
         this.serverProps = null;
+        this.wasServerStartedByPlugin = false;
         this.postRuntimeState();
     }
 
@@ -605,6 +672,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.postMessage({
             type: 'updateServerState',
             isRunning: this.serverProps !== null,
+            wasServerStartedByPlugin: this.wasServerStartedByPlugin,
             parameterRows: buildServerParameterRows(this.getServerLaunchConfig())
         });
     }
@@ -625,6 +693,25 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider {
         console.log(
             `[llama-chat] metrics req=${this.metrics.totalRequests} err=${this.metrics.totalErrors} avgMs=${avgMs.toFixed(0)}`
         );
+    }
+
+    public dispose(): void {
+        if (this.currentAbortController) {
+            this.currentAbortController.abort();
+            this.currentAbortController = null;
+        }
+
+        // Only stop server if plugin started it
+        if (this.wasServerStartedByPlugin && this.serverProcess) {
+            try {
+                this.serverProcess.kill();
+            } catch (error) {
+                console.error('Error killing server process:', error);
+            }
+            this.serverProcess = null;
+        }
+
+        this.serverProps = null;
     }
 
 }

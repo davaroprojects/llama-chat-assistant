@@ -11,7 +11,7 @@ export async function openFilePicker(webviewView: vscode.WebviewView): Promise<v
     try {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
-            vscode.window.showWarningMessage(getLocalizedLabel('No hay un workspace abierto.', 'No workspace is open.'));
+            vscode.window.showWarningMessage(vscode.l10n.t('No workspace is open.'));
             return;
         }
 
@@ -21,7 +21,7 @@ export async function openFilePicker(webviewView: vscode.WebviewView): Promise<v
         );
 
         if (projectFiles.length === 0) {
-            vscode.window.showInformationMessage(getLocalizedLabel('No se encontraron archivos del proyecto.', 'No project files were found.'));
+            vscode.window.showInformationMessage(vscode.l10n.t('No project files were found.'));
             return;
         }
 
@@ -43,15 +43,15 @@ export async function openFilePicker(webviewView: vscode.WebviewView): Promise<v
             processSelectedFile(selected.uri, webviewView);
         }
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : getLocalizedLabel('Error desconocido', 'Unknown error');
-        vscode.window.showErrorMessage(`${getLocalizedLabel('Error al leer archivo', 'Error reading file')}: ${message}`);
+        const message = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
+        vscode.window.showErrorMessage(`${vscode.l10n.t('Error reading file')}: ${message}`);
     }
 }
 
 async function pickProjectFile(items: FileQuickPickItem[]): Promise<FileQuickPickItem | undefined> {
     return new Promise((resolve) => {
         const quickPick = vscode.window.createQuickPick<FileQuickPickItem>();
-        quickPick.placeholder = getLocalizedLabel('Busca por nombre de archivo...', 'Search by file name...');
+        quickPick.placeholder = vscode.l10n.t('Search by file name...');
         quickPick.matchOnDescription = true;
         quickPick.ignoreFocusOut = false;
 
@@ -95,10 +95,7 @@ function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewVie
 
         if (fileStats.size > maxFileSizeKb * 1024) {
             vscode.window.showWarningMessage(
-                getLocalizedLabel(
-                    `El archivo ${fileName} excede el límite de ${maxFileSizeKb}KB.`,
-                    `The file ${fileName} exceeds the ${maxFileSizeKb}KB limit.`
-                )
+                vscode.l10n.t('The file {0} exceeds the {1}KB limit.', fileName, String(maxFileSizeKb))
             );
             return;
         }
@@ -111,11 +108,7 @@ function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewVie
             content: fileContent
         });
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : getLocalizedLabel('Error desconocido', 'Unknown error');
-        vscode.window.showErrorMessage(`${getLocalizedLabel('Error al leer archivo', 'Error reading file')}: ${message}`);
+        const message = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
+        vscode.window.showErrorMessage(`${vscode.l10n.t('Error reading file')}: ${message}`);
     }
-}
-
-function getLocalizedLabel(spanish: string, english: string): string {
-    return vscode.env.language.toLowerCase().startsWith('es') ? spanish : english;
 }

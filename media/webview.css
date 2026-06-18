@@ -125,6 +125,14 @@ body {
     align-items: center;
 }
 
+.server-stop-button.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.server-stop-button.is-disabled:hover {
+    filter: brightness(1);
+}
 .server-parameters-panel {
     border: 1px solid var(--vscode-panel-border);
     border-radius: 10px;
