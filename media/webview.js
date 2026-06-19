@@ -154,6 +154,10 @@ function isSafeUrl(urlValue) {
         return true;
     }
 
+    if (value.startsWith('//')) {
+        return false;
+    }
+
     if (value.startsWith('#') || value.startsWith('/') || value.startsWith('./') || value.startsWith('../')) {
         return true;
     }
@@ -226,8 +230,36 @@ let isChromaAvailable = false;
 let hasActiveSession = false;
 let currentSessionTokens = 0;
 
+const uiState = {
+    // Current visible tab in the UI.
+    activeTab: 'chat',
+    // Tabs visited by the user during this webview lifecycle.
+    activeScreens: ['chat'],
+    // Whether llama.cpp server is currently running.
+    isServerRunning: false,
+    // Whether the running server process was started by this extension.
+    wasServerStartedByPlugin: false,
+    // Current pending server action (starting/stopping) if any.
+    pendingServerAction: null,
+    // Whether repository indexing is currently running.
+    isRagIndexing: false,
+    // Whether ChromaDB is reachable.
+    isChromaAvailable: false,
+    // Whether a chat session is currently active.
+    hasActiveSession: false,
+    // Whether assistant generation transaction is active.
+    isInTransaction: false,
+    // Current context window reported by backend.
+    currentContextWindow: 0,
+    // Current model name reported by backend.
+    currentModelName: 'local',
+    // Current session token estimate.
+    currentSessionTokens: 0
+};
+
 function setRagIndexingState(value) {
     isRagIndexing = !!value;
+    uiState.isRagIndexing = isRagIndexing;
     updateRagActionButton();
 }
 
@@ -306,6 +338,7 @@ function applyControlState() {
 
 function setHasActiveSession(value) {
     hasActiveSession = !!value;
+    uiState.hasActiveSession = hasActiveSession;
 
     if (hasActiveSession) {
         elements.sessionsContainer.style.display = 'none';
@@ -440,14 +473,24 @@ function handleExtensionMessage(event) {
             break;
         case 'updateContextWindow':
             currentContextWindow = message.contextWindow;
+            uiState.currentContextWindow = currentContextWindow;
             if (typeof message.modelName === 'string' && message.modelName.trim()) {
                 currentModelName = message.modelName.trim();
+                uiState.currentModelName = currentModelName;
             }
             updateTokenCounter(currentSessionTokens, currentContextWindow, currentModelName);
             break;
         case 'restoreUiState':
             if (message.activeTab) {
                 switchTab(message.activeTab, false);
+            }
+            if (Array.isArray(message.activeScreens)) {
+                uiState.activeScreens = message.activeScreens.filter((screen) =>
+                    screen === 'chat' || screen === 'server' || screen === 'rag'
+                );
+                if (uiState.activeScreens.length === 0) {
+                    uiState.activeScreens = [uiState.activeTab];
+                }
             }
             if (typeof message.hasActiveSession === 'boolean') {
                 setHasActiveSession(message.hasActiveSession);
@@ -509,6 +552,7 @@ function updateRagActionButton() {
 function renderRagState(message) {
     setRagIndexingState(!!message.isIndexing);
     isChromaAvailable = !!message.chromaAvailable;
+    uiState.isChromaAvailable = isChromaAvailable;
     updateRagActionButton();
 
     if (elements.ragStateValue) {
@@ -653,6 +697,7 @@ function handleAddMessage(message) {
 
 function handleStartStreaming() {
     isInTransaction = true;
+    uiState.isInTransaction = isInTransaction;
     applyControlState();
     currentAssistantText = "";
     lastBlockRenderTime = 0;
@@ -710,6 +755,7 @@ function handleAppendToken(message) {
 
 function handleEndStreaming(message) {
     isInTransaction = false;
+    uiState.isInTransaction = isInTransaction;
     applyControlState();
     if (canUseInputActions()) {
         elements.prompt.focus();
@@ -744,6 +790,7 @@ function handleEndStreaming(message) {
 
 function handleErrorStreaming(message) {
     isInTransaction = false;
+    uiState.isInTransaction = isInTransaction;
     applyControlState();
     if (canUseInputActions()) {
         elements.prompt.focus();
@@ -781,6 +828,7 @@ function handleErrorStreaming(message) {
 
 function handleStopStreaming() {
     isInTransaction = false;
+    uiState.isInTransaction = isInTransaction;
     applyControlState();
     if (canUseInputActions()) {
         elements.prompt.focus();
@@ -1208,11 +1256,13 @@ function syncSessionCardsAvailability() {
 
 function setPendingServerAction(action) {
     pendingServerAction = action;
+    uiState.pendingServerAction = pendingServerAction;
     updateServerActionButtons();
 }
 
 function clearPendingServerAction() {
     pendingServerAction = null;
+    uiState.pendingServerAction = pendingServerAction;
     updateServerActionButtons();
 }
 
@@ -1265,6 +1315,10 @@ function syncServerStoppedNotice() {
 
 function switchTab(tabName, shouldPersist = true) {
     activeTab = tabName;
+    uiState.activeTab = tabName;
+    if (!uiState.activeScreens.includes(tabName)) {
+        uiState.activeScreens.push(tabName);
+    }
     const isChatTab = tabName === 'chat';
     const isServerTab = tabName === 'server';
     const isRagTab = tabName === 'rag';
@@ -1320,6 +1374,7 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
     elements.tokenCounter.style.display = 'block';
 
     currentSessionTokens = Number(sessionTokens) || 0;
+    uiState.currentSessionTokens = currentSessionTokens;
 
     const hasTotal = contextWindow > 0;
     const pct = hasTotal ? Math.min(100, Math.round((currentSessionTokens / contextWindow) * 100)) : 0;
@@ -1350,6 +1405,8 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
 function renderServerState(message) {
     isServerRunning = !!message.isRunning;
     wasServerStartedByPlugin = !!message.wasServerStartedByPlugin;
+    uiState.isServerRunning = isServerRunning;
+    uiState.wasServerStartedByPlugin = wasServerStartedByPlugin;
     clearPendingServerAction();
 
     if (elements.serverStartBtn) {

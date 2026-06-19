@@ -13,8 +13,13 @@ export interface ChatSession {
 }
 
 export interface ChatUiState {
+    // Current visible tab in the webview UI.
     activeTab: 'chat' | 'server' | 'rag';
+    // Ordered list of tabs visited by the user in the current UI lifecycle.
+    activeScreens: Array<'chat' | 'server' | 'rag'>;
+    // Session currently selected in the chat UI.
     currentSessionId: string | null;
+    // Persisted state of repository indexing in the RAG tab.
     ragIndexState: RagIndexState;
 }
 
@@ -34,8 +39,13 @@ export class SessionManager {
     private currentSessionId: string | null = null;
     private readonly STORAGE_KEY = 'llamaChatSessions';
     private uiState: ChatUiState = {
+        // Current visible tab in the webview UI.
         activeTab: 'chat',
+        // Ordered list of tabs visited by the user in the current UI lifecycle.
+        activeScreens: ['chat'],
+        // Session currently selected in the chat UI.
         currentSessionId: null,
+        // Persisted state of repository indexing in the RAG tab.
         ragIndexState: {
             status: 'idle',
             indexedAt: null,
@@ -120,6 +130,9 @@ export class SessionManager {
 
     public setActiveTab(activeTab: 'chat' | 'server' | 'rag'): void {
         this.uiState.activeTab = activeTab;
+        if (!this.uiState.activeScreens.includes(activeTab)) {
+            this.uiState.activeScreens.push(activeTab);
+        }
         this.saveToDisk();
     }
 

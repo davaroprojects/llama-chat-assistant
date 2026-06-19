@@ -19,6 +19,8 @@ export interface ChromaSearchResult {
     distance?: number;
 }
 
+export type ChromaQueryMode = 'semantic' | 'lexical';
+
 const COLLECTION_PREFIX = 'llama-chat-ephemeral';
 const IGNORED_DIRS = new Set(['.git', '.gradle', '.idea', 'node_modules', 'dist', 'out', 'build', 'coverage', 'target', '.vscode']);
 const MAX_FILE_SIZE_BYTES = 512 * 1024;
@@ -383,6 +385,20 @@ export async function queryRelevantContextFromChromaDb(
     queryText: string,
     config: ChromaDbConnectionConfig,
     maxResults = 12,
+    mode: ChromaQueryMode = 'semantic',
+    signal?: AbortSignal
+): Promise<ChromaSearchResult[]> {
+    if (mode === 'lexical') {
+        return queryRelevantContextFromChromaDbLexical(queryText, config, maxResults, signal);
+    }
+
+    return queryRelevantContextFromChromaDbSemantic(queryText, config, maxResults, signal);
+}
+
+export async function queryRelevantContextFromChromaDbSemantic(
+    queryText: string,
+    config: ChromaDbConnectionConfig,
+    maxResults = 12,
     signal?: AbortSignal
 ): Promise<ChromaSearchResult[]> {
     if (!queryText.trim()) {
@@ -414,7 +430,7 @@ export async function queryRelevantContextFromChromaDb(
     const metadatas = queryResult.metadatas?.[0] ?? [];
     const distances = queryResult.distances?.[0] ?? [];
 
-    const ranked: Array<ChromaSearchResult & { hybridScore: number; lexicalScore: number }> = [];
+    const ranked: Array<ChromaSearchResult & { vectorScore: number }> = [];
     documents.forEach((content, index) => {
         if (typeof content !== 'string') {
             return;
@@ -423,9 +439,7 @@ export async function queryRelevantContextFromChromaDb(
         const metadata = metadatas[index] as Record<string, unknown> | undefined;
         const pathValue = getMetadataString(metadata, 'path', `document-${index + 1}`);
         const distance = typeof distances[index] === 'number' ? distances[index] : undefined;
-        const lexicalScore = lexicalPathScore(queryText, metadata);
         const vectorScore = distance === undefined ? 0 : 1 / (1 + Math.max(0, distance));
-        const hybridScore = (0.7 * vectorScore) + (0.3 * lexicalScore);
 
         const chunkIndex = getMetadataString(metadata, 'chunkIndex');
         const chunkCount = getMetadataString(metadata, 'chunkCount');
@@ -437,15 +451,98 @@ export async function queryRelevantContextFromChromaDb(
             path: `${pathValue}${chunkSuffix}`,
             content,
             distance,
-            hybridScore,
-            lexicalScore
+            vectorScore
         });
     });
 
-    ranked.sort((a, b) => b.hybridScore - a.hybridScore || b.lexicalScore - a.lexicalScore);
+    ranked.sort((a, b) => b.vectorScore - a.vectorScore);
     return ranked.slice(0, maxResults).map((item) => ({
         path: item.path,
         content: item.content,
         distance: item.distance
+    }));
+}
+
+export async function queryRelevantContextFromChromaDbLexical(
+    queryText: string,
+    config: ChromaDbConnectionConfig,
+    maxResults = 12,
+    signal?: AbortSignal
+): Promise<ChromaSearchResult[]> {
+    if (!queryText.trim()) {
+        return [];
+    }
+
+    if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+    }
+
+    const client = getClient(config, signal);
+    const collectionName = await getLatestEphemeralCollectionName(client);
+    if (!collectionName) {
+        return [];
+    }
+
+    const collection = await client.getCollection({ name: collectionName });
+    const pageSize = 500;
+    let offset = 0;
+    const matches: Array<ChromaSearchResult & { lexicalScore: number }> = [];
+
+    while (true) {
+        if (signal?.aborted) {
+            throw new DOMException('Aborted', 'AbortError');
+        }
+
+        const page = await collection.get({
+            limit: pageSize,
+            offset,
+            include: ['documents', 'metadatas']
+        } as any);
+
+        const ids = page.ids ?? [];
+        const documents = page.documents ?? [];
+        const metadatas = page.metadatas ?? [];
+        if (ids.length === 0) {
+            break;
+        }
+
+        for (let i = 0; i < ids.length; i += 1) {
+            const content = documents[i];
+            if (typeof content !== 'string') {
+                continue;
+            }
+
+            const metadata = metadatas[i] as Record<string, unknown> | undefined;
+            const lexicalScore = lexicalPathScore(queryText, metadata);
+            if (lexicalScore <= 0) {
+                continue;
+            }
+
+            const pathValue = getMetadataString(metadata, 'path', `document-${i + offset + 1}`);
+            const chunkIndex = getMetadataString(metadata, 'chunkIndex');
+            const chunkCount = getMetadataString(metadata, 'chunkCount');
+            const chunkSuffix = chunkIndex && chunkCount
+                ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
+                : '';
+
+            matches.push({
+                path: `${pathValue}${chunkSuffix}`,
+                content,
+                lexicalScore
+            });
+        }
+
+        if (ids.length < pageSize) {
+            break;
+        }
+
+        offset += pageSize;
+    }
+
+    matches.sort((a, b) => b.lexicalScore - a.lexicalScore);
+    return matches.slice(0, maxResults).map((item) => ({
+        path: item.path,
+        content: item.content,
+        distance: undefined
     }));
 }

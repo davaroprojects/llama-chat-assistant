@@ -20,6 +20,7 @@ import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
 import {
     ChromaDbConnectionConfig,
+    ChromaQueryMode,
     indexAllWithChromaDb,
     isChromaDbAvailable,
     queryRelevantContextFromChromaDb
@@ -252,6 +253,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         webviewView.webview.postMessage({
             type: 'restoreUiState',
             activeTab: uiState.activeTab,
+            activeScreens: uiState.activeScreens,
             hasActiveSession: !!uiState.currentSessionId
         });
 
@@ -720,6 +722,12 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         };
     }
 
+    private getChromaQueryMode(): ChromaQueryMode {
+        const config = vscode.workspace.getConfiguration('llamaChat');
+        const mode = config.get<string>('rag.queryMode') || 'semantic';
+        return mode === 'lexical' ? 'lexical' : 'semantic';
+    }
+
     private async refreshServerProps(retries = 1, delayMs = 0): Promise<void> {
         const config = this.getLlamaConfig();
 
@@ -763,7 +771,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
 
         try {
             this.throwIfAborted(abortSignal);
-            const results = await queryRelevantContextFromChromaDb(userPrompt, chromaConfig, 12, abortSignal);
+            const queryMode = this.getChromaQueryMode();
+            const results = await queryRelevantContextFromChromaDb(userPrompt, chromaConfig, 12, queryMode, abortSignal);
             this.throwIfAborted(abortSignal);
             return results.map((result) => ({
                 path: result.path,

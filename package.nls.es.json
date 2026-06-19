@@ -17,6 +17,12 @@
   "config.server.port.description": "Puerto usado por llama-server.",
   "config.server.jinja.description": "Indica si se debe habilitar la bandera --jinja.",
   "config.server.tools.description": "Valor enviado a --tools.",
+  "config.rag.title": "Asistente de Chat Llama › RAG",
+  "config.rag.chromaUrl.description": "URL base usada para conectarse a ChromaDB.",
+  "config.rag.chromaPort.description": "Puerto usado para conectarse a ChromaDB.",
+  "config.rag.queryMode.description": "Modo de recuperación usado para consultas de contexto del repositorio.",
+  "config.rag.queryMode.semantic.description": "Recuperación semántica usando similitud vectorial sobre chunks indexados.",
+  "config.rag.queryMode.lexical.description": "Recuperación léxica usando coincidencia de tokens en nombres y rutas.",
 
   "command.openSettings.title": "Llama Chat: Configurar",
 

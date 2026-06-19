@@ -111,6 +111,19 @@
             "minimum": 1,
             "maximum": 65535,
             "description": "%config.rag.chromaPort.description%"
+          },
+          "llamaChat.rag.queryMode": {
+            "type": "string",
+            "default": "semantic",
+            "enum": [
+              "semantic",
+              "lexical"
+            ],
+            "markdownEnumDescriptions": [
+              "%config.rag.queryMode.semantic.description%",
+              "%config.rag.queryMode.lexical.description%"
+            ],
+            "description": "%config.rag.queryMode.description%"
           }
         }
       }

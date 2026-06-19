@@ -20,6 +20,9 @@
   "config.rag.title": "Llama Chat Assistant › RAG",
   "config.rag.chromaUrl.description": "Base URL used to connect to ChromaDB.",
   "config.rag.chromaPort.description": "Port used to connect to ChromaDB.",
+  "config.rag.queryMode.description": "Retrieval mode used for repository context queries.",
+  "config.rag.queryMode.semantic.description": "Semantic retrieval using vector similarity over indexed chunks.",
+  "config.rag.queryMode.lexical.description": "Lexical retrieval using filename/path token matching.",
 
   "command.openSettings.title": "Llama Chat: Configure",
 
