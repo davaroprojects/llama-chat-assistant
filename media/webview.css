@@ -234,13 +234,23 @@ body {
     width: 100%;
 }
 
-.assistant .message.loading-bubble {
-    background: var(--vscode-editor-background, #ffffff);
-    border: 1px solid var(--vscode-panel-border);
-    border-radius: 2px 16px 16px 16px;
-    padding: 10px 12px;
+.assistant .message.assistant-streaming {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+    background: transparent;
+    border: none;
+}
+
+.assistant-streaming-status {
+    display: inline-flex;
+    align-items: center;
     width: fit-content;
-    max-width: 85%;
+    padding: 0;
+    margin: 0;
+    opacity: 0.8;
 }
 
 .assistant .message > div {

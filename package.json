@@ -15,87 +15,104 @@
   "contributes": {
     "configuration": [
       {
-      "title": "%config.chat.title%",
-      "properties": {
-        "llamaChat.temperature": {
-          "type": "number",
-          "default": 0.2,
-          "minimum": 0,
-          "maximum": 2,
-          "description": "%config.temperature.description%"
-        },
-        "llamaChat.systemPrompt": {
-          "type": "string",
-          "default": "Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
-          "description": "%config.systemPrompt.description%",
-          "editPresentation": "multilineText" 
-        },
-        "llamaChat.debug": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.debug.description%"
-        },
-        "llamaChat.maxAttachedFileSizeKb": {
-          "type": "number",
-          "default": 256,
-          "minimum": 1,
-          "maximum": 4096,
-          "description": "%config.maxAttachedFileSizeKb.description%"
+        "title": "%config.chat.title%",
+        "properties": {
+          "llamaChat.temperature": {
+            "type": "number",
+            "default": 0.2,
+            "minimum": 0,
+            "maximum": 2,
+            "description": "%config.temperature.description%"
+          },
+          "llamaChat.systemPrompt": {
+            "type": "string",
+            "default": "Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
+            "description": "%config.systemPrompt.description%",
+            "editPresentation": "multilineText"
+          },
+          "llamaChat.debug": {
+            "type": "boolean",
+            "default": false,
+            "description": "%config.debug.description%"
+          },
+          "llamaChat.maxAttachedFileSizeKb": {
+            "type": "number",
+            "default": 256,
+            "minimum": 1,
+            "maximum": 4096,
+            "description": "%config.maxAttachedFileSizeKb.description%"
+          }
         }
-      }
       },
       {
-      "title": "%config.server.title%",
-      "properties": {
-        "llamaChat.server.executablePath": {
-          "type": "string",
-          "default": "./build/bin/llama-server",
-          "description": "%config.server.executablePath.description%"
-        },
-        "llamaChat.server.modelPath": {
-          "type": "string",
-          "default": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
-          "description": "%config.server.modelPath.description%"
-        },
-        "llamaChat.server.gpuLayers": {
-          "type": "number",
-          "default": 99,
-          "description": "%config.server.gpuLayers.description%"
-        },
-        "llamaChat.server.contextSize": {
-          "type": "number",
-          "default": 16384,
-          "minimum": 1,
-          "description": "%config.server.contextSize.description%"
-        },
-        "llamaChat.server.flashAttention": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.server.flashAttention.description%"
-        },
-        "llamaChat.server.host": {
-          "type": "string",
-          "default": "127.0.0.1",
-          "description": "%config.server.host.description%"
-        },
-        "llamaChat.server.port": {
-          "type": "number",
-          "default": 8033,
-          "minimum": 1,
-          "maximum": 65535,
-          "description": "%config.server.port.description%"
-        },
-        "llamaChat.server.jinja": {
-          "type": "boolean",
-          "default": true,
-          "description": "%config.server.jinja.description%"
-        },
-        "llamaChat.server.tools": {
-          "type": "string",
-          "default": "all",
-          "description": "%config.server.tools.description%"
+        "title": "%config.server.title%",
+        "properties": {
+          "llamaChat.server.executablePath": {
+            "type": "string",
+            "default": "./build/bin/llama-server",
+            "description": "%config.server.executablePath.description%"
+          },
+          "llamaChat.server.modelPath": {
+            "type": "string",
+            "default": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+            "description": "%config.server.modelPath.description%"
+          },
+          "llamaChat.server.gpuLayers": {
+            "type": "number",
+            "default": 99,
+            "description": "%config.server.gpuLayers.description%"
+          },
+          "llamaChat.server.contextSize": {
+            "type": "number",
+            "default": 16384,
+            "minimum": 1,
+            "description": "%config.server.contextSize.description%"
+          },
+          "llamaChat.server.flashAttention": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.server.flashAttention.description%"
+          },
+          "llamaChat.server.host": {
+            "type": "string",
+            "default": "127.0.0.1",
+            "description": "%config.server.host.description%"
+          },
+          "llamaChat.server.port": {
+            "type": "number",
+            "default": 8033,
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "%config.server.port.description%"
+          },
+          "llamaChat.server.jinja": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.server.jinja.description%"
+          },
+          "llamaChat.server.tools": {
+            "type": "string",
+            "default": "all",
+            "description": "%config.server.tools.description%"
+          }
         }
-      }
+        },
+        {
+        "title": "%config.rag.title%",
+        "properties": {
+          "llamaChat.rag.chromaUrl": {
+            "type": "string",
+            "default": "http://127.0.0.1",
+            "description": "%config.rag.chromaUrl.description%"
+          },
+          "llamaChat.rag.chromaPort": {
+            "type": "number",
+            "default": 8000,
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "%config.rag.chromaPort.description%"
+          }
+        }
       }
     ],
     "commands": [
@@ -149,15 +166,19 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.120.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.56.1",
-    "eslint": "^9.39.3",
+    "@types/vscode": "^1.120.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
     "esbuild": "^0.27.3",
+    "eslint": "^9.39.3",
     "npm-run-all": "^4.1.5",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.56.1"
+  },
+  "dependencies": {
+    "@hey-api/client-fetch": "^0.13.1",
+    "chromadb": "^3.4.3"
   }
 }

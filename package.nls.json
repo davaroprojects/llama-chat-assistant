@@ -17,6 +17,9 @@
   "config.server.port.description": "Port used by llama-server.",
   "config.server.jinja.description": "Whether to enable the --jinja flag.",
   "config.server.tools.description": "Value passed to --tools.",
+  "config.rag.title": "Llama Chat Assistant › RAG",
+  "config.rag.chromaUrl.description": "Base URL used to connect to ChromaDB.",
+  "config.rag.chromaPort.description": "Port used to connect to ChromaDB.",
 
   "command.openSettings.title": "Llama Chat: Configure",
 

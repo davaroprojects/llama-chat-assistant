@@ -18,7 +18,14 @@ import {
 import { sendActiveEditorContext } from './webview/editorContext';
 import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
-import { indexAll } from './rag/indexAll';
+import {
+    ChromaDbConnectionConfig,
+    indexAllWithChromaDb,
+    isChromaDbAvailable,
+    queryRelevantContextFromChromaDb
+} from './rag/chromaDbIndexer';
+import { buildPromptContext, RagContextSnippet } from './chat/promptContextBuilder';
+import { LlamaMessageBuilder } from './chat/llamaMessageBuilder';
 
 interface BaseWebviewMessage {
     type: string;
@@ -89,7 +96,9 @@ function isFileMetadataArray(value: unknown): value is FileMetadata[] {
             && typeof item.content === 'string'
             && item.name.length > 0
             && item.name.length <= 1024
-            && item.content.length <= 2_000_000;
+            && item.content.length <= 2_000_000
+            && (item.isAutomatic === undefined || typeof item.isAutomatic === 'boolean')
+            && (item.isRepository === undefined || typeof item.isRepository === 'boolean');
     });
 }
 
@@ -135,6 +144,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     private serverProps: LlamaServerProps | null = null;
     private wasServerStartedByPlugin = false;
     private isRagIndexing = false;
+    private isChromaAvailable = false;
     private readonly metrics: RuntimeMetrics = {
         totalRequests: 0,
         totalErrors: 0,
@@ -227,6 +237,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         this._view = webviewView;
         // Detect if server is already running (don't claim ownership)
         await this.refreshServerProps();
+        await this.refreshChromaAvailability();
         const initialSessions = this.sessionManager.getAllSessions();
         const uiState = this.sessionManager.getUiState();
         const activeSession = this.sessionManager.getCurrentSession();
@@ -466,6 +477,13 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             return;
         }
 
+        const chromaConfig = this.getChromaDbConfig();
+        this.isChromaAvailable = await isChromaDbAvailable(chromaConfig);
+        if (!this.isChromaAvailable) {
+            this.postRagState(webviewView);
+            return;
+        }
+
         this.isRagIndexing = true;
         const previousState = this.sessionManager.getRagIndexState();
         this.sessionManager.setRagIndexState({
@@ -475,7 +493,14 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         this.postRagState(webviewView);
 
         try {
-            const result = await indexAll();
+            const workspaceRoot = this.getWorkspaceRoot();
+            if (!workspaceRoot) {
+                throw new Error(this.isSpanishLocale()
+                    ? 'No hay una carpeta de trabajo abierta.'
+                    : 'No workspace folder is open.');
+            }
+
+            const result = await indexAllWithChromaDb(workspaceRoot, chromaConfig);
             this.sessionManager.setRagIndexState({
                 status: result.status,
                 indexedAt: result.indexedAt,
@@ -483,6 +508,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             });
         } catch (error) {
             console.error('[llama-chat] RAG indexing failed:', error);
+            const message = error instanceof Error ? error.message : 'Unknown indexing error';
+            vscode.window.showErrorMessage(`RAG indexing failed: ${message}`);
             this.sessionManager.setRagIndexState({
                 ...previousState,
                 status: 'idle'
@@ -500,18 +527,23 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     ): Promise<void> {
         try {
             this.currentAbortController = new AbortController();
+            const abortSignal = this.currentAbortController.signal;
 
             const config = this.getLlamaConfig();
-            const contextPrompt = SessionPayloadBuilder.buildLlamaContextPrompt(
+            const ragSnippets = await this.resolveRagContext(userPrompt, filesMetadata, abortSignal);
+            this.throwIfAborted(abortSignal);
+            const contextPrompt = buildPromptContext({
                 userPrompt,
-                filesMetadata
-            );
+                attachedFiles: filesMetadata,
+                ragSnippets
+            });
+            this.throwIfAborted(abortSignal);
 
             const startTime = performance.now();
             const session = this.sessionManager.getCurrentSession();
             const baseMessages = session ? [...session.messages] : [];
 
-            const messagesForLlama = LlamaService.prepareMessagesForLlama(
+            const messagesForLlama = LlamaMessageBuilder.prepareMessagesForLlama(
                 baseMessages as ChatMessage[],
                 contextPrompt,
                 config.systemPrompt
@@ -526,7 +558,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                         text: token
                     });
                 },
-                this.currentAbortController.signal
+                abortSignal
             );
 
             // Save assistant response to session
@@ -612,6 +644,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             }
 
             await this.refreshServerProps();
+            await this.refreshChromaAvailability();
             this.postRuntimeState();
         });
         this.context.subscriptions.push(configurationListener);
@@ -679,6 +712,14 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || this._extensionUri.fsPath;
     }
 
+    private getChromaDbConfig(): ChromaDbConnectionConfig {
+        const config = vscode.workspace.getConfiguration('llamaChat');
+        return {
+            url: config.get<string>('rag.chromaUrl') || 'http://127.0.0.1',
+            port: config.get<number>('rag.chromaPort') ?? 8000
+        };
+    }
+
     private async refreshServerProps(retries = 1, delayMs = 0): Promise<void> {
         const config = this.getLlamaConfig();
 
@@ -691,6 +732,53 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             if (attempt < retries - 1 && delayMs > 0) {
                 await new Promise(resolve => setTimeout(resolve, delayMs));
             }
+        }
+    }
+
+    private async refreshChromaAvailability(): Promise<void> {
+        const chromaConfig = this.getChromaDbConfig();
+        this.isChromaAvailable = await isChromaDbAvailable(chromaConfig);
+    }
+
+    private async resolveRagContext(
+        userPrompt: string,
+        filesMetadata: FileMetadata[],
+        abortSignal?: AbortSignal
+    ): Promise<RagContextSnippet[]> {
+        const hasRepositoryAttachment = filesMetadata.some((file) => file.isRepository);
+        if (!hasRepositoryAttachment) {
+            return [];
+        }
+
+        this.throwIfAborted(abortSignal);
+
+        const chromaConfig = this.getChromaDbConfig();
+        const isAvailable = await isChromaDbAvailable(chromaConfig);
+        this.isChromaAvailable = isAvailable;
+        this.postRuntimeState();
+
+        if (!isAvailable) {
+            return [];
+        }
+
+        try {
+            this.throwIfAborted(abortSignal);
+            const results = await queryRelevantContextFromChromaDb(userPrompt, chromaConfig, 12, abortSignal);
+            this.throwIfAborted(abortSignal);
+            return results.map((result) => ({
+                path: result.path,
+                content: result.content,
+                distance: result.distance
+            }));
+        } catch (error) {
+            console.error('[llama-chat] RAG query failed:', error);
+            return [];
+        }
+    }
+
+    private throwIfAborted(abortSignal?: AbortSignal): void {
+        if (abortSignal?.aborted) {
+            throw new DOMException('Aborted', 'AbortError');
         }
     }
 
@@ -720,12 +808,16 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
 
     private postRagState(webviewView: vscode.WebviewView): void {
         const ragState = this.sessionManager.getRagIndexState();
+        const chromaConfig = this.getChromaDbConfig();
         webviewView.webview.postMessage({
             type: 'updateRagState',
             isIndexing: this.isRagIndexing || ragState.status === 'indexing',
+            chromaAvailable: this.isChromaAvailable,
             status: ragState.status,
             indexedAt: ragState.indexedAt,
-            indexedFiles: ragState.indexedFiles
+            indexedFiles: ragState.indexedFiles,
+            chromaUrl: chromaConfig.url,
+            chromaPort: chromaConfig.port
         });
     }
 

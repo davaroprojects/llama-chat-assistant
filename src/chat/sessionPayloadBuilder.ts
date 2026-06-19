@@ -2,6 +2,7 @@ export interface FileMetadata {
     name: string;
     content: string;
     isAutomatic?: boolean;
+    isRepository?: boolean;
 }
 
 export interface UserMessagePayload {
@@ -40,28 +41,16 @@ export class SessionPayloadBuilder {
         };
     }
 
-    static buildLlamaContextPrompt(
-        userPrompt: string,
-        attachedFiles: FileMetadata[]
-    ): string {
-        let context = "";
-
-        attachedFiles.forEach((file) => {
-            context += `--- ATTACHED FILE: ${file.name} ---\n`;
-            context += `${file.content}\n`;
-            context += `--- END FILE ---\n\n`;
-        });
-
-        context += `User instruction:\n${userPrompt}`;
-
-        return context;
-    }
-
     static collectFilesMetadata(attachedFiles: FileMetadata[]): FileMetadata[] {
         // Deduplicate by name, last occurrence wins
         const byName = new Map<string, FileMetadata>();
         (attachedFiles || []).forEach(file => {
-            byName.set(file.name, { name: file.name, content: file.content, isAutomatic: file.isAutomatic ?? false });
+            byName.set(file.name, {
+                name: file.name,
+                content: file.content,
+                isAutomatic: file.isAutomatic ?? false,
+                isRepository: file.isRepository ?? false
+            });
         });
         return Array.from(byName.values());
     }

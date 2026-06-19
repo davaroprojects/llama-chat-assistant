@@ -95,6 +95,8 @@ const elements = {
     ragStateValue: document.getElementById('rag-state-value'),
     ragIndexedAtValue: document.getElementById('rag-indexed-at-value'),
     ragIndexedFilesValue: document.getElementById('rag-indexed-files-value'),
+    ragChromaUrlValue: document.getElementById('rag-chroma-url-value'),
+    ragChromaPortValue: document.getElementById('rag-chroma-port-value'),
     chat: document.getElementById('chat'),
     prompt: document.getElementById('prompt'),
     sessionsContainer: document.getElementById('sessions-container'),
@@ -134,7 +136,10 @@ const labels = {
     ragIdleLabel: document.body.dataset.ragIdleLabel || 'Idle',
     ragIndexingLabel: document.body.dataset.ragIndexingLabel || 'Indexing',
     ragIndexedLabel: document.body.dataset.ragIndexedLabel || 'Indexed',
-    ragNeverIndexedLabel: document.body.dataset.ragNeverIndexedLabel || 'Never'
+    ragNeverIndexedLabel: document.body.dataset.ragNeverIndexedLabel || 'Never',
+    ragChromaUrlLabel: document.body.dataset.ragChromaUrlLabel || 'ChromaDB URL',
+    ragChromaPortLabel: document.body.dataset.ragChromaPortLabel || 'ChromaDB port',
+    ragChromaUnavailableLabel: document.body.dataset.ragChromaUnavailableLabel || 'ChromaDB server is not active'
 };
 
 const BLOCKED_HTML_TAGS = new Set([
@@ -216,9 +221,15 @@ let isServerRunning = false;
 let wasServerStartedByPlugin = false;
 let currentSessions = [];
 let pendingServerAction = null;
-let pendingRagAction = false;
+let isRagIndexing = false;
+let isChromaAvailable = false;
 let hasActiveSession = false;
 let currentSessionTokens = 0;
+
+function setRagIndexingState(value) {
+    isRagIndexing = !!value;
+    updateRagActionButton();
+}
 
 function createAutoContextKey(name, content) {
     return `${name}::${content}`;
@@ -337,11 +348,10 @@ elements.serverStopBtn?.addEventListener('click', () => {
     elements.vscode.postMessage({ type: 'stopServer' });
 });
 elements.ragIndexBtn?.addEventListener('click', () => {
-    if (pendingRagAction) {
+    if (isRagIndexing || !isChromaAvailable) {
         return;
     }
-    pendingRagAction = true;
-    updateRagActionButton();
+    setRagIndexingState(true);
     elements.ragIndexBtn.blur();
     elements.vscode.postMessage({ type: 'indexAll' });
 });
@@ -481,18 +491,24 @@ function updateRagActionButton() {
         return;
     }
 
-    elements.ragIndexBtn.disabled = pendingRagAction;
-    elements.ragIndexBtn.classList.toggle('is-pending', pendingRagAction);
+    const isUnavailable = !isChromaAvailable;
+    elements.ragIndexBtn.disabled = isRagIndexing || isUnavailable;
+    elements.ragIndexBtn.classList.toggle('is-pending', isRagIndexing);
+    elements.ragIndexBtn.classList.toggle('is-disabled', isUnavailable);
+    elements.ragIndexBtn.title = isUnavailable
+        ? labels.ragChromaUnavailableLabel
+        : (elements.ragIndexBtn.dataset.label || labels.ragIndexedLabel);
 
-    const label = pendingRagAction
+    const label = isRagIndexing
         ? (elements.ragIndexBtn.dataset.loadingLabel || labels.ragIndexingLabel)
         : (elements.ragIndexBtn.dataset.label || labels.ragIndexedLabel);
 
-    setServerButtonContent(elements.ragIndexBtn, label, 'start', pendingRagAction);
+    setServerButtonContent(elements.ragIndexBtn, label, 'start', isRagIndexing);
 }
 
 function renderRagState(message) {
-    pendingRagAction = !!message.isIndexing;
+    setRagIndexingState(!!message.isIndexing);
+    isChromaAvailable = !!message.chromaAvailable;
     updateRagActionButton();
 
     if (elements.ragStateValue) {
@@ -505,6 +521,16 @@ function renderRagState(message) {
 
     if (elements.ragIndexedFilesValue) {
         elements.ragIndexedFilesValue.textContent = String(Number(message.indexedFiles) || 0);
+    }
+
+    if (elements.ragChromaUrlValue) {
+        elements.ragChromaUrlValue.textContent = typeof message.chromaUrl === 'string' && message.chromaUrl
+            ? message.chromaUrl
+            : 'http://127.0.0.1';
+    }
+
+    if (elements.ragChromaPortValue) {
+        elements.ragChromaPortValue.textContent = String(Number(message.chromaPort) || 8000);
     }
 }
 
@@ -634,15 +660,18 @@ function handleStartStreaming() {
     const container = document.createElement('div');
     container.className = 'message-container assistant';
     const msgBubble = document.createElement('div');
-    msgBubble.className = 'message loading-bubble';
+    msgBubble.className = 'message assistant-streaming';
+
+    const statusRow = document.createElement('div');
+    statusRow.className = 'assistant-streaming-status';
+    statusRow.appendChild(createTypingIndicator());
+    msgBubble.appendChild(statusRow);
 
     currentAssistantBubble = document.createElement('div');
     currentAssistantBubble.className = 'markdown-content';
     msgBubble.appendChild(currentAssistantBubble);
 
     streamingBlocksContainer = currentAssistantBubble;
-
-    msgBubble.appendChild(createTypingIndicator());
 
     container.appendChild(msgBubble);
     elements.chat.appendChild(container);
@@ -662,8 +691,7 @@ function handleAppendToken(message) {
 
     const bubbleNode = currentAssistantBubble.closest('.message');
     if (bubbleNode) {
-        bubbleNode.classList.remove('loading-bubble');
-        const indicator = bubbleNode.querySelector('.typing-indicator');
+        const indicator = bubbleNode.querySelector('.assistant-streaming-status');
         if (indicator) {
             indicator.remove();
         }

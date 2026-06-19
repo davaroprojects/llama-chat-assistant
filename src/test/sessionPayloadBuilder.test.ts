@@ -15,15 +15,13 @@ suite('SessionPayloadBuilder', () => {
         assert.strictEqual(aFile?.content, 'const a = 2;');
     });
 
-    test('Builds prompt with neutral attachment labels', () => {
-        const prompt = SessionPayloadBuilder.buildLlamaContextPrompt('haz cambios', [
-            { name: 'main.ts:8-10', content: 'const x = 1;', isAutomatic: true },
-            { name: 'utils.ts', content: 'export const y = 2;', isAutomatic: false }
+    test('Preserves repository metadata in deduplicated attachments', () => {
+        const files = SessionPayloadBuilder.collectFilesMetadata([
+            { name: 'Repository', content: 'repo-index', isAutomatic: false, isRepository: true }
         ]);
 
-        assert.ok(prompt.includes('--- ARCHIVO ADJUNTO: main.ts:8-10 ---'));
-        assert.ok(prompt.includes('--- ARCHIVO ADJUNTO: utils.ts ---'));
-        assert.ok(!prompt.includes('MANUAL'));
+        assert.strictEqual(files.length, 1);
+        assert.strictEqual(files[0].isRepository, true);
     });
 });
 

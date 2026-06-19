@@ -1,9 +1,10 @@
 import * as assert from 'assert';
 import { LlamaService } from '../chat/llamaService';
+import { LlamaMessageBuilder } from '../chat/llamaMessageBuilder';
 
 const BASE_CONFIG = { apiUrl: '', temperature: 0.2, systemPrompt: 'sys', debug: false };
 
-suite('LlamaService - prepareMessagesForLlama', () => {
+suite('LlamaMessageBuilder - prepareMessagesForLlama', () => {
     test('Strips older file version from history, keeps latest', () => {
         const messages = [
             {
@@ -26,7 +27,7 @@ suite('LlamaService - prepareMessagesForLlama', () => {
             }
         ];
 
-        const prepared = LlamaService.prepareMessagesForLlama(
+        const prepared = LlamaMessageBuilder.prepareMessagesForLlama(
             messages as any,
             '--- ARCHIVO ADJUNTO: app.ts ---\nv2 content\n--- FIN ARCHIVO ---\n\nIndicación del usuario:\nSecond question',
             BASE_CONFIG.systemPrompt
@@ -64,7 +65,7 @@ suite('LlamaService - prepareMessagesForLlama', () => {
             }
         ];
 
-        const prepared = LlamaService.prepareMessagesForLlama(
+        const prepared = LlamaMessageBuilder.prepareMessagesForLlama(
             messages as any,
             'Indicación del usuario:\nNow about app',
             BASE_CONFIG.systemPrompt

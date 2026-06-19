@@ -15,10 +15,13 @@ export interface WebviewLabels {
     ragStateLabel: string;
     ragIndexedAtLabel: string;
     ragIndexedFilesLabel: string;
+    ragChromaUrlLabel: string;
+    ragChromaPortLabel: string;
     ragIdleLabel: string;
     ragIndexingLabel: string;
     ragIndexedLabel: string;
     ragNeverIndexedLabel: string;
+    ragChromaUnavailableLabel: string;
     serverParametersTitle: string;
     propertyLabel: string;
     valueLabel: string;
@@ -59,10 +62,13 @@ export function getWebviewLabels(language: string): WebviewLabels {
             ragStateLabel: 'Estado',
             ragIndexedAtLabel: 'Fecha de indexación',
             ragIndexedFilesLabel: 'Archivos indexados',
+            ragChromaUrlLabel: 'URL ChromaDB',
+            ragChromaPortLabel: 'Puerto ChromaDB',
             ragIdleLabel: 'Inactivo',
             ragIndexingLabel: 'Indexando',
             ragIndexedLabel: 'Indexado',
             ragNeverIndexedLabel: 'Nunca',
+            ragChromaUnavailableLabel: 'Servidor ChromaDB no activo',
             serverParametersTitle: 'Parámetros',
             propertyLabel: 'Propiedad',
             valueLabel: 'Valor',
@@ -101,10 +107,13 @@ export function getWebviewLabels(language: string): WebviewLabels {
         ragStateLabel: 'State',
         ragIndexedAtLabel: 'Indexed at',
         ragIndexedFilesLabel: 'Indexed files',
+        ragChromaUrlLabel: 'ChromaDB URL',
+        ragChromaPortLabel: 'ChromaDB port',
         ragIdleLabel: 'Idle',
         ragIndexingLabel: 'Indexing',
         ragIndexedLabel: 'Indexed',
         ragNeverIndexedLabel: 'Never',
+        ragChromaUnavailableLabel: 'ChromaDB server is not active',
         serverParametersTitle: 'Parameters',
         propertyLabel: 'Property',
         valueLabel: 'Value',
