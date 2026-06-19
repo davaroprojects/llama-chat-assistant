@@ -11,6 +11,15 @@ export interface RagIndexResult {
 export interface ChromaDbConnectionConfig {
     url: string;
     port: number;
+    collectionPrefix: string;
+    excludeDirs: string[];
+    excludeFileGlobs: string[];
+    maxFileSizeKb: number;
+    maxIndexedFiles: number;
+    chunkSizeChars: number;
+    chunkOverlapChars: number;
+    vectorCandidatePool: number;
+    maxQueryResults: number;
 }
 
 export interface ChromaSearchResult {
@@ -21,14 +30,7 @@ export interface ChromaSearchResult {
 
 export type ChromaQueryMode = 'semantic' | 'lexical';
 
-const COLLECTION_PREFIX = 'llama-chat-ephemeral';
-const IGNORED_DIRS = new Set(['.git', '.gradle', '.idea', 'node_modules', 'dist', 'out', 'build', 'coverage', 'target', '.vscode']);
-const MAX_FILE_SIZE_BYTES = 512 * 1024;
-const MAX_INDEXED_FILES = 2000;
 const EMBEDDING_DIM = 64;
-const CHUNK_SIZE_CHARS = 2000;
-const CHUNK_OVERLAP_CHARS = 300;
-const VECTOR_CANDIDATE_POOL = 50;
 
 interface IndexedChunk {
     id: string;
@@ -114,7 +116,11 @@ function detectLanguage(fileName: string): string {
     return languageByExtension[extension] || 'text';
 }
 
-function chunkContent(content: string): Array<{ text: string; start: number; end: number }> {
+function chunkContent(
+    content: string,
+    chunkSizeChars: number,
+    chunkOverlapChars: number
+): Array<{ text: string; start: number; end: number }> {
     if (!content) {
         return [];
     }
@@ -123,7 +129,7 @@ function chunkContent(content: string): Array<{ text: string; start: number; end
     let start = 0;
 
     while (start < content.length) {
-        const end = Math.min(content.length, start + CHUNK_SIZE_CHARS);
+        const end = Math.min(content.length, start + chunkSizeChars);
         const text = content.slice(start, end);
         chunks.push({ text, start, end });
 
@@ -131,7 +137,7 @@ function chunkContent(content: string): Array<{ text: string; start: number; end
             break;
         }
 
-        start = Math.max(end - CHUNK_OVERLAP_CHARS, start + 1);
+        start = Math.max(end - chunkOverlapChars, start + 1);
     }
 
     return chunks;
@@ -214,11 +220,38 @@ function looksBinaryContent(content: string): boolean {
     return controlCount / Math.max(sample.length, 1) > 0.08;
 }
 
-async function listTextFiles(workspaceRoot: string): Promise<IndexedChunk[]> {
+function escapeRegex(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function globToRegExp(pattern: string): RegExp {
+    const normalized = pattern.split('\\').join('/');
+    const escaped = escapeRegex(normalized)
+        .replace(/\\\*\\\*/g, '::DOUBLE_STAR::')
+        .replace(/\\\*/g, '[^/]*')
+        .replace(/::DOUBLE_STAR::/g, '.*');
+
+    return new RegExp(`^${escaped}$`, 'i');
+}
+
+function shouldExcludeFile(relativePath: string, excludeRegexes: RegExp[]): boolean {
+    return excludeRegexes.some((regex) => regex.test(relativePath));
+}
+
+async function listTextFiles(workspaceRoot: string, config: ChromaDbConnectionConfig): Promise<IndexedChunk[]> {
     const indexed: IndexedChunk[] = [];
+    const ignoredDirs = new Set((config.excludeDirs || []).map((dir) => dir.trim()).filter(Boolean));
+    const excludeRegexes = (config.excludeFileGlobs || [])
+        .map((pattern) => pattern.trim())
+        .filter(Boolean)
+        .map((pattern) => globToRegExp(pattern));
+    const maxFileSizeBytes = Math.max(1, config.maxFileSizeKb) * 1024;
+    const maxIndexedFiles = Math.max(1, config.maxIndexedFiles);
+    const chunkSizeChars = Math.max(200, config.chunkSizeChars);
+    const chunkOverlapChars = Math.max(0, Math.min(config.chunkOverlapChars, chunkSizeChars - 1));
 
     async function walk(currentDir: string): Promise<void> {
-        if (indexed.length >= MAX_INDEXED_FILES) {
+        if (indexed.length >= maxIndexedFiles) {
             return;
         }
 
@@ -230,13 +263,13 @@ async function listTextFiles(workspaceRoot: string): Promise<IndexedChunk[]> {
         }
 
         for (const entry of entries) {
-            if (indexed.length >= MAX_INDEXED_FILES) {
+            if (indexed.length >= maxIndexedFiles) {
                 return;
             }
 
             const absolutePath = path.join(currentDir, entry.name);
             if (entry.isDirectory()) {
-                if (!IGNORED_DIRS.has(entry.name)) {
+                if (!ignoredDirs.has(entry.name)) {
                     await walk(absolutePath);
                 }
                 continue;
@@ -248,7 +281,7 @@ async function listTextFiles(workspaceRoot: string): Promise<IndexedChunk[]> {
 
             try {
                 const stat = await fs.stat(absolutePath);
-                if (stat.size > MAX_FILE_SIZE_BYTES) {
+                if (stat.size > maxFileSizeBytes) {
                     continue;
                 }
 
@@ -262,11 +295,14 @@ async function listTextFiles(workspaceRoot: string): Promise<IndexedChunk[]> {
                 }
 
                 const relativePath = path.relative(workspaceRoot, absolutePath).split(path.sep).join('/');
+                if (shouldExcludeFile(relativePath, excludeRegexes)) {
+                    continue;
+                }
                 const fileName = path.basename(relativePath);
                 const extension = normalizeExtension(fileName);
                 const folder = path.dirname(relativePath).split(path.sep).join('/');
                 const language = detectLanguage(fileName);
-                const chunks = chunkContent(content);
+                const chunks = chunkContent(content, chunkSizeChars, chunkOverlapChars);
 
                 chunks.forEach((chunk, index) => {
                     indexed.push({
@@ -293,11 +329,11 @@ async function listTextFiles(workspaceRoot: string): Promise<IndexedChunk[]> {
     return indexed;
 }
 
-async function cleanupEphemeralCollections(client: ChromaClient): Promise<void> {
+async function cleanupEphemeralCollections(client: ChromaClient, collectionPrefix: string): Promise<void> {
     try {
         const collections = await client.listCollections({ limit: 500, offset: 0 });
         for (const collection of collections) {
-            if (collection.name.startsWith(COLLECTION_PREFIX)) {
+            if (collection.name.startsWith(collectionPrefix)) {
                 try {
                     await client.deleteCollection({ name: collection.name });
                 } catch {
@@ -310,19 +346,19 @@ async function cleanupEphemeralCollections(client: ChromaClient): Promise<void> 
     }
 }
 
-async function getLatestEphemeralCollectionName(client: ChromaClient): Promise<string | null> {
+async function getLatestEphemeralCollectionName(client: ChromaClient, collectionPrefix: string): Promise<string | null> {
     const collections = await client.listCollections({ limit: 500, offset: 0 });
     const ephemeralCollectionNames = collections
         .map((collection) => collection.name)
-        .filter((name) => name.startsWith(`${COLLECTION_PREFIX}-`));
+        .filter((name) => name.startsWith(`${collectionPrefix}-`));
 
     if (ephemeralCollectionNames.length === 0) {
         return null;
     }
 
     ephemeralCollectionNames.sort((a, b) => {
-        const aStamp = Number(a.slice(COLLECTION_PREFIX.length + 1));
-        const bStamp = Number(b.slice(COLLECTION_PREFIX.length + 1));
+        const aStamp = Number(a.slice(collectionPrefix.length + 1));
+        const bStamp = Number(b.slice(collectionPrefix.length + 1));
         return bStamp - aStamp;
     });
 
@@ -346,12 +382,12 @@ export async function indexAllWithChromaDb(
     const indexedAt = Date.now();
     const client = getClient(config);
 
-    await cleanupEphemeralCollections(client);
+    await cleanupEphemeralCollections(client, config.collectionPrefix);
 
-    const collectionName = `${COLLECTION_PREFIX}-${indexedAt}`;
+    const collectionName = `${config.collectionPrefix}-${indexedAt}`;
     const collection = await client.createCollection({ name: collectionName });
 
-    const files = await listTextFiles(workspaceRoot);
+    const files = await listTextFiles(workspaceRoot, config);
     const batchSize = 64;
 
     for (let i = 0; i < files.length; i += batchSize) {
@@ -384,7 +420,7 @@ export async function indexAllWithChromaDb(
 export async function queryRelevantContextFromChromaDb(
     queryText: string,
     config: ChromaDbConnectionConfig,
-    maxResults = 12,
+    maxResults = config.maxQueryResults,
     mode: ChromaQueryMode = 'semantic',
     signal?: AbortSignal
 ): Promise<ChromaSearchResult[]> {
@@ -398,7 +434,7 @@ export async function queryRelevantContextFromChromaDb(
 export async function queryRelevantContextFromChromaDbSemantic(
     queryText: string,
     config: ChromaDbConnectionConfig,
-    maxResults = 12,
+    maxResults = config.maxQueryResults,
     signal?: AbortSignal
 ): Promise<ChromaSearchResult[]> {
     if (!queryText.trim()) {
@@ -410,7 +446,7 @@ export async function queryRelevantContextFromChromaDbSemantic(
     }
 
     const client = getClient(config, signal);
-    const collectionName = await getLatestEphemeralCollectionName(client);
+    const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
     if (!collectionName) {
         return [];
     }
@@ -422,7 +458,7 @@ export async function queryRelevantContextFromChromaDbSemantic(
     const collection = await client.getCollection({ name: collectionName });
     const queryResult = await collection.query({
         queryEmbeddings: [computeEmbedding(queryText)],
-        nResults: Math.max(maxResults, VECTOR_CANDIDATE_POOL),
+        nResults: Math.max(maxResults, config.vectorCandidatePool),
         include: ['documents', 'metadatas', 'distances']
     } as any);
 
@@ -466,7 +502,7 @@ export async function queryRelevantContextFromChromaDbSemantic(
 export async function queryRelevantContextFromChromaDbLexical(
     queryText: string,
     config: ChromaDbConnectionConfig,
-    maxResults = 12,
+    maxResults = config.maxQueryResults,
     signal?: AbortSignal
 ): Promise<ChromaSearchResult[]> {
     if (!queryText.trim()) {
@@ -478,7 +514,7 @@ export async function queryRelevantContextFromChromaDbLexical(
     }
 
     const client = getClient(config, signal);
-    const collectionName = await getLatestEphemeralCollectionName(client);
+    const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
     if (!collectionName) {
         return [];
     }

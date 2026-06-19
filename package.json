@@ -24,6 +24,18 @@
             "maximum": 2,
             "description": "%config.temperature.description%"
           },
+          "llamaChat.model": {
+            "type": "string",
+            "default": "local",
+            "description": "%config.model.description%"
+          },
+          "llamaChat.maxTokens": {
+            "type": "number",
+            "default": 2048,
+            "minimum": 1,
+            "maximum": 16384,
+            "description": "%config.maxTokens.description%"
+          },
           "llamaChat.systemPrompt": {
             "type": "string",
             "default": "Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
@@ -85,6 +97,11 @@
             "maximum": 65535,
             "description": "%config.server.port.description%"
           },
+          "llamaChat.server.chatCompletionsPath": {
+            "type": "string",
+            "default": "/v1/chat/completions",
+            "description": "%config.server.chatCompletionsPath.description%"
+          },
           "llamaChat.server.jinja": {
             "type": "boolean",
             "default": true,
@@ -111,6 +128,79 @@
             "minimum": 1,
             "maximum": 65535,
             "description": "%config.rag.chromaPort.description%"
+          },
+          "llamaChat.rag.collectionPrefix": {
+            "type": "string",
+            "default": "llama-chat-ephemeral",
+            "description": "%config.rag.collectionPrefix.description%"
+          },
+          "llamaChat.rag.excludeDirs": {
+            "type": "array",
+            "default": [
+              ".git",
+              ".gradle",
+              ".idea",
+              "node_modules",
+              "dist",
+              "out",
+              "build",
+              "coverage",
+              "target",
+              ".vscode"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "%config.rag.excludeDirs.description%"
+          },
+          "llamaChat.rag.excludeFileGlobs": {
+            "type": "array",
+            "default": [
+              "**/*.bin",
+              "**/*.class",
+              "**/*.jar",
+              "**/*.lock"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "%config.rag.excludeFileGlobs.description%"
+          },
+          "llamaChat.rag.maxFileSizeKb": {
+            "type": "number",
+            "default": 512,
+            "minimum": 1,
+            "description": "%config.rag.maxFileSizeKb.description%"
+          },
+          "llamaChat.rag.maxIndexedFiles": {
+            "type": "number",
+            "default": 2000,
+            "minimum": 1,
+            "description": "%config.rag.maxIndexedFiles.description%"
+          },
+          "llamaChat.rag.chunkSizeChars": {
+            "type": "number",
+            "default": 2000,
+            "minimum": 200,
+            "description": "%config.rag.chunkSizeChars.description%"
+          },
+          "llamaChat.rag.chunkOverlapChars": {
+            "type": "number",
+            "default": 300,
+            "minimum": 0,
+            "description": "%config.rag.chunkOverlapChars.description%"
+          },
+          "llamaChat.rag.vectorCandidatePool": {
+            "type": "number",
+            "default": 50,
+            "minimum": 1,
+            "description": "%config.rag.vectorCandidatePool.description%"
+          },
+          "llamaChat.rag.maxQueryResults": {
+            "type": "number",
+            "default": 12,
+            "minimum": 1,
+            "description": "%config.rag.maxQueryResults.description%"
           },
           "llamaChat.rag.queryMode": {
             "type": "string",

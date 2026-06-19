@@ -538,6 +538,9 @@ textarea {
     font-size: calc(var(--vscode-editor-font-size) * 0.88); 
     outline: none;
     margin-bottom: 4px;
+    min-height: 48px;
+    max-height: 240px;
+    overflow-y: hidden;
 }
 
 /* Acciones inferiores de la caja de entrada */

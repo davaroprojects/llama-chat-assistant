@@ -1,10 +1,12 @@
 {
-  "ext.displayName": "Llama Chat Assistant",
-  "ext.description": "Chat with a local OpenAI-compatible server from the VS Code sidebar.",
+  "ext.displayName": "prrrrr",
+  "ext.description": "prrrrr local chat and RAG assistant for VS Code.",
 
-  "config.chat.title": "Llama Chat Assistant › Chat",
-  "config.server.title": "Llama Chat Assistant › Server",
+  "config.chat.title": "prrrrr › Chat",
+  "config.server.title": "prrrrr › Server",
   "config.temperature.description": "The generation temperature for the model.",
+  "config.model.description": "Model name sent in OpenAI-compatible chat requests.",
+  "config.maxTokens.description": "Maximum tokens requested per completion.",
   "config.systemPrompt.description": "The system prompt used for the model.",
   "config.debug.description": "Enable verbose logs and basic runtime metrics in the extension output.",
   "config.maxAttachedFileSizeKb.description": "Maximum size in KB for manually attached files.",
@@ -15,17 +17,27 @@
   "config.server.flashAttention.description": "Whether to pass --flash-attn on to llama-server.",
   "config.server.host.description": "Host used by llama-server.",
   "config.server.port.description": "Port used by llama-server.",
+  "config.server.chatCompletionsPath.description": "HTTP path used for chat completions endpoint.",
   "config.server.jinja.description": "Whether to enable the --jinja flag.",
   "config.server.tools.description": "Value passed to --tools.",
-  "config.rag.title": "Llama Chat Assistant › RAG",
+  "config.rag.title": "prrrrr › RAG",
   "config.rag.chromaUrl.description": "Base URL used to connect to ChromaDB.",
   "config.rag.chromaPort.description": "Port used to connect to ChromaDB.",
+  "config.rag.collectionPrefix.description": "Collection prefix used for repository indexes.",
+  "config.rag.excludeDirs.description": "Directory names excluded during indexing.",
+  "config.rag.excludeFileGlobs.description": "Glob patterns of files excluded during indexing.",
+  "config.rag.maxFileSizeKb.description": "Maximum indexed file size in KB.",
+  "config.rag.maxIndexedFiles.description": "Maximum number of indexed chunks/files in a run.",
+  "config.rag.chunkSizeChars.description": "Chunk size in characters for index segmentation.",
+  "config.rag.chunkOverlapChars.description": "Chunk overlap in characters between consecutive chunks.",
+  "config.rag.vectorCandidatePool.description": "Semantic candidate pool size before final ranking.",
+  "config.rag.maxQueryResults.description": "Maximum retrieved context blocks per query.",
   "config.rag.queryMode.description": "Retrieval mode used for repository context queries.",
   "config.rag.queryMode.semantic.description": "Semantic retrieval using vector similarity over indexed chunks.",
   "config.rag.queryMode.lexical.description": "Lexical retrieval using filename/path token matching.",
 
-  "command.openSettings.title": "Llama Chat: Configure",
+  "command.openSettings.title": "prrrrr: Configure",
 
-  "views.container.title": "Llama Chat",
-  "views.chat.name": "Chat with Llama.cpp"
+  "views.container.title": "prrrrr",
+  "views.chat.name": "prrrrr"
 }

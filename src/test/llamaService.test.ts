@@ -2,7 +2,14 @@ import * as assert from 'assert';
 import { LlamaService } from '../chat/llamaService';
 import { LlamaMessageBuilder } from '../chat/llamaMessageBuilder';
 
-const BASE_CONFIG = { apiUrl: '', temperature: 0.2, systemPrompt: 'sys', debug: false };
+const BASE_CONFIG = {
+    apiUrl: '',
+    model: 'local',
+    maxTokens: 2048,
+    temperature: 0.2,
+    systemPrompt: 'sys',
+    debug: false
+};
 
 suite('LlamaMessageBuilder - prepareMessagesForLlama', () => {
     test('Strips older file version from history, keeps latest', () => {

@@ -97,6 +97,20 @@ const elements = {
     ragIndexedFilesValue: document.getElementById('rag-indexed-files-value'),
     ragChromaUrlValue: document.getElementById('rag-chroma-url-value'),
     ragChromaPortValue: document.getElementById('rag-chroma-port-value'),
+    ragChromaCollectionPrefixValue: document.getElementById('rag-chroma-collection-prefix-value'),
+    ragChromaExcludeDirsValue: document.getElementById('rag-chroma-exclude-dirs-value'),
+    ragChromaExcludeFileGlobsValue: document.getElementById('rag-chroma-exclude-file-globs-value'),
+    ragChromaMaxFileSizeKbValue: document.getElementById('rag-chroma-max-file-size-kb-value'),
+    ragChromaMaxIndexedFilesValue: document.getElementById('rag-chroma-max-indexed-files-value'),
+    ragChromaChunkSizeCharsValue: document.getElementById('rag-chroma-chunk-size-chars-value'),
+    ragChromaChunkOverlapCharsValue: document.getElementById('rag-chroma-chunk-overlap-chars-value'),
+    ragChromaVectorCandidatePoolValue: document.getElementById('rag-chroma-vector-candidate-pool-value'),
+    ragChromaMaxQueryResultsValue: document.getElementById('rag-chroma-max-query-results-value'),
+    ragChromaQueryModeValue: document.getElementById('rag-chroma-query-mode-value'),
+    ragLlamaApiUrlValue: document.getElementById('rag-llama-api-url-value'),
+    ragLlamaModelValue: document.getElementById('rag-llama-model-value'),
+    ragLlamaMaxTokensValue: document.getElementById('rag-llama-max-tokens-value'),
+    ragLlamaTemperatureValue: document.getElementById('rag-llama-temperature-value'),
     chat: document.getElementById('chat'),
     prompt: document.getElementById('prompt'),
     sessionsContainer: document.getElementById('sessions-container'),
@@ -279,6 +293,15 @@ function canStopGeneration() {
     return isServerRunning && isInTransaction;
 }
 
+function autoResizePrompt() {
+    const minHeight = 48;
+    const maxHeight = 240;
+    elements.prompt.style.height = 'auto';
+    const nextHeight = Math.min(maxHeight, Math.max(minHeight, elements.prompt.scrollHeight));
+    elements.prompt.style.height = `${nextHeight}px`;
+    elements.prompt.style.overflowY = elements.prompt.scrollHeight > maxHeight ? 'auto' : 'hidden';
+}
+
 function syncTokenUsageVisibility() {
     if (!elements.tokenUsageContainer) {
         return;
@@ -403,6 +426,7 @@ elements.attachBtn.addEventListener('click', () => {
     elements.vscode.postMessage({ type: 'openFilePicker' });
 });
 elements.prompt.addEventListener('keydown', handlePromptKeyDown);
+elements.prompt.addEventListener('input', autoResizePrompt);
 window.addEventListener('message', handleExtensionMessage);
 elements.modelMenuTrigger?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -575,6 +599,62 @@ function renderRagState(message) {
 
     if (elements.ragChromaPortValue) {
         elements.ragChromaPortValue.textContent = String(Number(message.chromaPort) || 8000);
+    }
+
+    if (elements.ragChromaCollectionPrefixValue) {
+        elements.ragChromaCollectionPrefixValue.textContent = String(message.chromaCollectionPrefix || '-');
+    }
+
+    if (elements.ragChromaExcludeDirsValue) {
+        elements.ragChromaExcludeDirsValue.textContent = String(message.chromaExcludeDirs || '-');
+    }
+
+    if (elements.ragChromaExcludeFileGlobsValue) {
+        elements.ragChromaExcludeFileGlobsValue.textContent = String(message.chromaExcludeFileGlobs || '-');
+    }
+
+    if (elements.ragChromaMaxFileSizeKbValue) {
+        elements.ragChromaMaxFileSizeKbValue.textContent = String(Number(message.chromaMaxFileSizeKb) || 0);
+    }
+
+    if (elements.ragChromaMaxIndexedFilesValue) {
+        elements.ragChromaMaxIndexedFilesValue.textContent = String(Number(message.chromaMaxIndexedFiles) || 0);
+    }
+
+    if (elements.ragChromaChunkSizeCharsValue) {
+        elements.ragChromaChunkSizeCharsValue.textContent = String(Number(message.chromaChunkSizeChars) || 0);
+    }
+
+    if (elements.ragChromaChunkOverlapCharsValue) {
+        elements.ragChromaChunkOverlapCharsValue.textContent = String(Number(message.chromaChunkOverlapChars) || 0);
+    }
+
+    if (elements.ragChromaVectorCandidatePoolValue) {
+        elements.ragChromaVectorCandidatePoolValue.textContent = String(Number(message.chromaVectorCandidatePool) || 0);
+    }
+
+    if (elements.ragChromaMaxQueryResultsValue) {
+        elements.ragChromaMaxQueryResultsValue.textContent = String(Number(message.chromaMaxQueryResults) || 0);
+    }
+
+    if (elements.ragChromaQueryModeValue) {
+        elements.ragChromaQueryModeValue.textContent = String(message.chromaQueryMode || 'semantic');
+    }
+
+    if (elements.ragLlamaApiUrlValue) {
+        elements.ragLlamaApiUrlValue.textContent = String(message.llamaApiUrl || '-');
+    }
+
+    if (elements.ragLlamaModelValue) {
+        elements.ragLlamaModelValue.textContent = String(message.llamaModel || '-');
+    }
+
+    if (elements.ragLlamaMaxTokensValue) {
+        elements.ragLlamaMaxTokensValue.textContent = String(Number(message.llamaMaxTokens) || 0);
+    }
+
+    if (elements.ragLlamaTemperatureValue) {
+        elements.ragLlamaTemperatureValue.textContent = String(Number(message.llamaTemperature) || 0);
     }
 }
 
@@ -1656,7 +1736,7 @@ function sendMessage() {
     if (text || hasManualFiles) {
         elements.vscode.postMessage({ type: 'askLlama', value: text, attachedFiles: currentAttachedFiles });
         elements.prompt.value = '';
-        elements.prompt.rows = 2;
+        autoResizePrompt();
         setTimeout(() => {
             currentAttachedFiles = currentAttachedFiles.filter(file => file.isAutomatic);
             renderAllBadges();
@@ -1675,5 +1755,6 @@ updateTokenCounter(0, 0, currentModelName);
 updateServerActionButtons();
 updateRagActionButton();
 switchTab(activeTab, false);
+autoResizePrompt();
 applyControlState();
 elements.vscode.postMessage({ type: 'webviewReady' });

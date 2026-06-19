@@ -8,6 +8,7 @@ export interface LlamaServerLaunchConfig {
     flashAttention: boolean;
     host: string;
     port: number;
+    chatCompletionsPath: string;
     jinja: boolean;
     tools: string;
 }
@@ -63,5 +64,8 @@ export function buildServerParameterRows(config: LlamaServerLaunchConfig): Serve
 }
 
 export function buildChatApiUrl(config: LlamaServerLaunchConfig): string {
-    return `http://${config.host}:${config.port}/v1/chat/completions`;
+    const normalizedPath = config.chatCompletionsPath.startsWith('/')
+        ? config.chatCompletionsPath
+        : `/${config.chatCompletionsPath}`;
+    return `http://${config.host}:${config.port}${normalizedPath}`;
 }

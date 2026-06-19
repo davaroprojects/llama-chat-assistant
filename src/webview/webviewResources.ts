@@ -17,6 +17,20 @@ export interface WebviewLabels {
     ragIndexedFilesLabel: string;
     ragChromaUrlLabel: string;
     ragChromaPortLabel: string;
+    ragChromaCollectionPrefixLabel: string;
+    ragChromaExcludeDirsLabel: string;
+    ragChromaExcludeFileGlobsLabel: string;
+    ragChromaMaxFileSizeKbLabel: string;
+    ragChromaMaxIndexedFilesLabel: string;
+    ragChromaChunkSizeCharsLabel: string;
+    ragChromaChunkOverlapCharsLabel: string;
+    ragChromaVectorCandidatePoolLabel: string;
+    ragChromaMaxQueryResultsLabel: string;
+    ragChromaQueryModeLabel: string;
+    ragLlamaApiUrlLabel: string;
+    ragLlamaModelLabel: string;
+    ragLlamaMaxTokensLabel: string;
+    ragLlamaTemperatureLabel: string;
     ragIdleLabel: string;
     ragIndexingLabel: string;
     ragIndexedLabel: string;
@@ -64,6 +78,20 @@ export function getWebviewLabels(language: string): WebviewLabels {
             ragIndexedFilesLabel: 'Archivos indexados',
             ragChromaUrlLabel: 'URL ChromaDB',
             ragChromaPortLabel: 'Puerto ChromaDB',
+            ragChromaCollectionPrefixLabel: 'Prefijo colección ChromaDB',
+            ragChromaExcludeDirsLabel: 'Exclusión de carpetas',
+            ragChromaExcludeFileGlobsLabel: 'Exclusión de archivos (glob)',
+            ragChromaMaxFileSizeKbLabel: 'Tamaño máx. archivo (KB)',
+            ragChromaMaxIndexedFilesLabel: 'Máx. archivos/chunks indexados',
+            ragChromaChunkSizeCharsLabel: 'Tamaño chunk (chars)',
+            ragChromaChunkOverlapCharsLabel: 'Solapamiento chunk (chars)',
+            ragChromaVectorCandidatePoolLabel: 'Pool candidato vectorial',
+            ragChromaMaxQueryResultsLabel: 'Máx. resultados por consulta',
+            ragChromaQueryModeLabel: 'Modo de consulta ChromaDB',
+            ragLlamaApiUrlLabel: 'URL API llama.cpp',
+            ragLlamaModelLabel: 'Modelo llama.cpp',
+            ragLlamaMaxTokensLabel: 'Máx. tokens llama.cpp',
+            ragLlamaTemperatureLabel: 'Temperatura llama.cpp',
             ragIdleLabel: 'Inactivo',
             ragIndexingLabel: 'Indexando',
             ragIndexedLabel: 'Indexado',
@@ -109,6 +137,20 @@ export function getWebviewLabels(language: string): WebviewLabels {
         ragIndexedFilesLabel: 'Indexed files',
         ragChromaUrlLabel: 'ChromaDB URL',
         ragChromaPortLabel: 'ChromaDB port',
+        ragChromaCollectionPrefixLabel: 'ChromaDB collection prefix',
+        ragChromaExcludeDirsLabel: 'Excluded folders',
+        ragChromaExcludeFileGlobsLabel: 'Excluded files (glob)',
+        ragChromaMaxFileSizeKbLabel: 'Max file size (KB)',
+        ragChromaMaxIndexedFilesLabel: 'Max indexed files/chunks',
+        ragChromaChunkSizeCharsLabel: 'Chunk size (chars)',
+        ragChromaChunkOverlapCharsLabel: 'Chunk overlap (chars)',
+        ragChromaVectorCandidatePoolLabel: 'Vector candidate pool',
+        ragChromaMaxQueryResultsLabel: 'Max query results',
+        ragChromaQueryModeLabel: 'ChromaDB query mode',
+        ragLlamaApiUrlLabel: 'llama.cpp API URL',
+        ragLlamaModelLabel: 'llama.cpp model',
+        ragLlamaMaxTokensLabel: 'llama.cpp max tokens',
+        ragLlamaTemperatureLabel: 'llama.cpp temperature',
         ragIdleLabel: 'Idle',
         ragIndexingLabel: 'Indexing',
         ragIndexedLabel: 'Indexed',

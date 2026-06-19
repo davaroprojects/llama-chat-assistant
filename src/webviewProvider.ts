@@ -689,24 +689,27 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         const serverConfig = this.getServerLaunchConfig();
         return {
             apiUrl: buildChatApiUrl(serverConfig),
-            temperature: config.get<number>('temperature') ?? 0.2,
-            systemPrompt: config.get<string>('systemPrompt') || '',
-            debug: config.get<boolean>('debug') ?? false
+            model: config.get<string>('model')!,
+            maxTokens: config.get<number>('maxTokens')!,
+            temperature: config.get<number>('temperature')!,
+            systemPrompt: config.get<string>('systemPrompt')!,
+            debug: config.get<boolean>('debug')!
         };
     }
 
     private getServerLaunchConfig(): LlamaServerLaunchConfig {
         const config = vscode.workspace.getConfiguration('llamaChat');
         return {
-            executablePath: config.get<string>('server.executablePath') || './build/bin/llama-server',
-            modelPath: config.get<string>('server.modelPath') || './models/qwen2.5-coder-7b-instruct-q4_k_m.gguf',
-            gpuLayers: config.get<number>('server.gpuLayers') ?? 99,
-            contextSize: config.get<number>('server.contextSize') ?? 16384,
-            flashAttention: config.get<boolean>('server.flashAttention') ?? true,
-            host: config.get<string>('server.host') || '127.0.0.1',
-            port: config.get<number>('server.port') ?? 8033,
-            jinja: config.get<boolean>('server.jinja') ?? true,
-            tools: config.get<string>('server.tools') || 'all'
+            executablePath: config.get<string>('server.executablePath')!,
+            modelPath: config.get<string>('server.modelPath')!,
+            gpuLayers: config.get<number>('server.gpuLayers')!,
+            contextSize: config.get<number>('server.contextSize')!,
+            flashAttention: config.get<boolean>('server.flashAttention')!,
+            host: config.get<string>('server.host')!,
+            port: config.get<number>('server.port')!,
+            chatCompletionsPath: config.get<string>('server.chatCompletionsPath')!,
+            jinja: config.get<boolean>('server.jinja')!,
+            tools: config.get<string>('server.tools')!
         };
     }
 
@@ -717,8 +720,17 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     private getChromaDbConfig(): ChromaDbConnectionConfig {
         const config = vscode.workspace.getConfiguration('llamaChat');
         return {
-            url: config.get<string>('rag.chromaUrl') || 'http://127.0.0.1',
-            port: config.get<number>('rag.chromaPort') ?? 8000
+            url: config.get<string>('rag.chromaUrl')!,
+            port: config.get<number>('rag.chromaPort')!,
+            collectionPrefix: config.get<string>('rag.collectionPrefix')!,
+            excludeDirs: config.get<string[]>('rag.excludeDirs')!,
+            excludeFileGlobs: config.get<string[]>('rag.excludeFileGlobs')!,
+            maxFileSizeKb: config.get<number>('rag.maxFileSizeKb')!,
+            maxIndexedFiles: config.get<number>('rag.maxIndexedFiles')!,
+            chunkSizeChars: config.get<number>('rag.chunkSizeChars')!,
+            chunkOverlapChars: config.get<number>('rag.chunkOverlapChars')!,
+            vectorCandidatePool: config.get<number>('rag.vectorCandidatePool')!,
+            maxQueryResults: config.get<number>('rag.maxQueryResults')!
         };
     }
 
@@ -772,7 +784,13 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         try {
             this.throwIfAborted(abortSignal);
             const queryMode = this.getChromaQueryMode();
-            const results = await queryRelevantContextFromChromaDb(userPrompt, chromaConfig, 12, queryMode, abortSignal);
+            const results = await queryRelevantContextFromChromaDb(
+                userPrompt,
+                chromaConfig,
+                chromaConfig.maxQueryResults,
+                queryMode,
+                abortSignal
+            );
             this.throwIfAborted(abortSignal);
             return results.map((result) => ({
                 path: result.path,
@@ -818,6 +836,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     private postRagState(webviewView: vscode.WebviewView): void {
         const ragState = this.sessionManager.getRagIndexState();
         const chromaConfig = this.getChromaDbConfig();
+        const llamaConfig = this.getLlamaConfig();
+        const queryMode = this.getChromaQueryMode();
         webviewView.webview.postMessage({
             type: 'updateRagState',
             isIndexing: this.isRagIndexing || ragState.status === 'indexing',
@@ -826,7 +846,21 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             indexedAt: ragState.indexedAt,
             indexedFiles: ragState.indexedFiles,
             chromaUrl: chromaConfig.url,
-            chromaPort: chromaConfig.port
+            chromaPort: chromaConfig.port,
+            chromaCollectionPrefix: chromaConfig.collectionPrefix,
+            chromaExcludeDirs: chromaConfig.excludeDirs.join(', '),
+            chromaExcludeFileGlobs: chromaConfig.excludeFileGlobs.join(', '),
+            chromaMaxFileSizeKb: chromaConfig.maxFileSizeKb,
+            chromaMaxIndexedFiles: chromaConfig.maxIndexedFiles,
+            chromaChunkSizeChars: chromaConfig.chunkSizeChars,
+            chromaChunkOverlapChars: chromaConfig.chunkOverlapChars,
+            chromaVectorCandidatePool: chromaConfig.vectorCandidatePool,
+            chromaMaxQueryResults: chromaConfig.maxQueryResults,
+            chromaQueryMode: queryMode,
+            llamaApiUrl: llamaConfig.apiUrl,
+            llamaModel: llamaConfig.model,
+            llamaMaxTokens: llamaConfig.maxTokens,
+            llamaTemperature: llamaConfig.temperature
         });
     }
 

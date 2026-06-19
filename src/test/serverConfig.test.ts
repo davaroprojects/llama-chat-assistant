@@ -15,6 +15,7 @@ const SERVER_CONFIG: LlamaServerLaunchConfig = {
     flashAttention: true,
     host: '127.0.0.1',
     port: 8033,
+    chatCompletionsPath: '/v1/chat/completions',
     jinja: true,
     tools: 'all'
 };

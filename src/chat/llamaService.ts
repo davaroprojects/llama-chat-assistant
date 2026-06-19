@@ -5,6 +5,8 @@ export interface ChatMessage {
 
 export interface LlamaConfig {
     apiUrl: string;
+    model: string;
+    maxTokens: number;
     temperature: number;
     systemPrompt: string;
     debug: boolean;
@@ -65,10 +67,10 @@ export class LlamaService {
 
         try {
             const requestPayload = {
-                model: 'local',
+                model: config.model,
                 messages: openAiCompliantMessages,
                 temperature: config.temperature,
-                max_tokens: 2048,
+                max_tokens: config.maxTokens,
                 stream: true
             };
 
