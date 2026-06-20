@@ -10,6 +10,7 @@
 		"sourceMap": true,
 		"rootDir": "src",
 		"strict": true,
-		"types": ["node", "mocha"]   /* Indica a TypeScript que use los tipos de Node.js */
+		"skipLibCheck": true,
+		"types": ["node", "mocha"]
 	}
 }

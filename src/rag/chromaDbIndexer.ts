@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { ChromaClient } from 'chromadb';
+import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 
 export interface RagIndexResult {
     status: 'indexed';
@@ -28,6 +29,12 @@ export interface ChromaSearchResult {
     distance?: number;
 }
 
+export interface ChromaConceptualKnnOptions {
+    topK?: number;
+    minCosineSimilarity?: number;
+    signal?: AbortSignal;
+}
+
 export type ChromaQueryMode = 'semantic' | 'lexical';
 
 const EMBEDDING_DIM = 64;
@@ -39,12 +46,22 @@ interface IndexedChunk {
     extension: string;
     folder: string;
     language: string;
+    fileType: string;
+    className: string;
+    methodName: string;
+    projectType: string;
     chunkIndex: number;
     chunkCount: number;
     chunkStart: number;
     chunkEnd: number;
     content: string;
 }
+
+type ChromaWhereFilter = {
+    file_path: {
+        $in: string[];
+    };
+};
 
 function getClient(config: ChromaDbConnectionConfig, signal?: AbortSignal): ChromaClient {
     const parsedUrl = new URL(config.url);
@@ -109,6 +126,8 @@ function detectLanguage(fileName: string): string {
         yml: 'yaml',
         yaml: 'yaml',
         xml: 'xml',
+        properties: 'properties',
+        env: 'properties',
         sql: 'sql',
         sh: 'shell'
     };
@@ -116,32 +135,149 @@ function detectLanguage(fileName: string): string {
     return languageByExtension[extension] || 'text';
 }
 
-function chunkContent(
-    content: string,
-    chunkSizeChars: number,
-    chunkOverlapChars: number
-): Array<{ text: string; start: number; end: number }> {
-    if (!content) {
-        return [];
+function classifyFileType(fileName: string, language: string): string {
+    const extension = normalizeExtension(fileName).toLowerCase();
+    const configExtensions = new Set(['xml', 'yaml', 'yml', 'properties', 'env', 'json', 'toml', 'ini', 'conf', 'config']);
+    const configKeywords = /(?:config|settings|application|deployment|manifest|pom|gradle|build|docker|k8s|kubernetes)/i;
+
+    if (configExtensions.has(extension) || configKeywords.test(fileName)) {
+        return 'configuration';
     }
 
-    const chunks: Array<{ text: string; start: number; end: number }> = [];
-    let start = 0;
+    return 'source_code';
+}
 
-    while (start < content.length) {
-        const end = Math.min(content.length, start + chunkSizeChars);
-        const text = content.slice(start, end);
-        chunks.push({ text, start, end });
-
-        if (end >= content.length) {
-            break;
+function getEcosystemLanguage(language: string, projectType: string): string {
+    if (projectType === 'java') {
+        if (language === 'xml' || language === 'properties' || language === 'json' || language === 'yaml') {
+            return 'java-ecosystem';
         }
+        return language === 'java' ? 'java' : 'java-ecosystem';
+    }
 
-        start = Math.max(end - chunkOverlapChars, start + 1);
+    if (projectType === 'node') {
+        if (language === 'yaml' || language === 'json' || language === 'properties') {
+            return 'node-ecosystem';
+        }
+        return language === 'javascript' || language === 'typescript' ? language : 'node-ecosystem';
+    }
+
+    if (projectType === 'python') {
+        if (language === 'yaml' || language === 'properties' || language === 'text') {
+            return 'python-ecosystem';
+        }
+        return language === 'python' ? 'python' : 'python-ecosystem';
+    }
+
+    return language;
+}
+
+interface TextChunk {
+    text: string;
+    start: number;
+    end: number;
+}
+
+/**
+ * Dynamic factory that returns the optimized splitter based on file extension.
+ * Uses LangChain's RecursiveCharacterTextSplitter with language-specific separators.
+ */
+function getSplitterForFile(fileName: string): RecursiveCharacterTextSplitter {
+    const extension = path.extname(fileName).toLowerCase();
+
+    switch (extension) {
+        case '.java':
+            return new RecursiveCharacterTextSplitter({
+                chunkSize: 1000,
+                chunkOverlap: 150,
+                separators: [
+                    '\n\n',
+                    '\npublic\n',
+                    '\nprotected\n',
+                    '\nprivate\n',
+                    '\nclass ',
+                    '\ninterface ',
+                    '\n}',
+                    '\n'
+                ]
+            });
+
+        case '.py':
+            return new RecursiveCharacterTextSplitter({
+                chunkSize: 800,
+                chunkOverlap: 100,
+                separators: ['\n\n', '\ndef ', '\nclass ', '\n', ' ']
+            });
+
+        case '.xml':
+            return new RecursiveCharacterTextSplitter({
+                chunkSize: 600,
+                chunkOverlap: 50,
+                separators: ['</bean>', '</dependency>', '</plugin>', '\n\n', '\n']
+            });
+
+        case '.yaml':
+        case '.yml':
+            return new RecursiveCharacterTextSplitter({
+                chunkSize: 500,
+                chunkOverlap: 50,
+                separators: ['\n\n', '\n-', '\n  ', '\n']
+            });
+
+        case '.properties':
+        case '.env':
+        case '.conf':
+            return new RecursiveCharacterTextSplitter({
+                chunkSize: 400,
+                chunkOverlap: 0,
+                separators: ['\n\n', '\n']
+            });
+
+        default:
+            return new RecursiveCharacterTextSplitter({
+                chunkSize: 800,
+                chunkOverlap: 100,
+                separators: ['\n\n', '\n', ' ']
+            });
+    }
+}
+
+/**
+ * Process and chunk a file using LangChain's language-aware splitter.
+ * Returns TextChunk array with start/end position tracking.
+ */
+async function processAndChunkFile(filePath: string, content: string): Promise<TextChunk[]> {
+    const fileName = path.basename(filePath);
+    const splitter = getSplitterForFile(fileName);
+
+    // LangChain's splitter returns an array of chunk text strings
+    const chunkTexts = await splitter.splitText(content);
+
+    // Convert text chunks to TextChunk objects with position tracking
+    const chunks: TextChunk[] = [];
+    let currentPos = 0;
+
+    for (const chunkText of chunkTexts) {
+        // Find where this chunk starts in the original content
+        const startPos = content.indexOf(chunkText, currentPos);
+        const start = startPos >= 0 ? startPos : currentPos;
+        const end = start + chunkText.length;
+
+        chunks.push({
+            text: chunkText,
+            start,
+            end
+        });
+
+        currentPos = end;
     }
 
     return chunks;
 }
+
+// Backward-compatible aliases for existing imports/tests.
+const obtenerSplitterPorArchivo = getSplitterForFile;
+const procesarYChunkearArchivo = processAndChunkFile;
 
 function buildEmbeddingInput(chunk: IndexedChunk): string {
     return [
@@ -150,8 +286,48 @@ function buildEmbeddingInput(chunk: IndexedChunk): string {
         chunk.extension,
         chunk.folder,
         chunk.language,
+        chunk.fileType,
+        chunk.className,
+        chunk.methodName,
+        chunk.projectType,
         chunk.content
     ].join('\n');
+}
+
+function buildEmbeddingInputFromDocument(content: string, metadata: Record<string, unknown> | undefined): string {
+    return [
+        getMetadataString(metadata, 'path'),
+        getMetadataString(metadata, 'fileName'),
+        getMetadataString(metadata, 'extension'),
+        getMetadataString(metadata, 'folder'),
+        getMetadataString(metadata, 'language'),
+        getMetadataString(metadata, 'file_type'),
+        getMetadataString(metadata, 'class_name'),
+        getMetadataString(metadata, 'method_name'),
+        getMetadataString(metadata, 'project_type'),
+        content
+    ].join('\n');
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length || a.length === 0) {
+        return 0;
+    }
+
+    let dot = 0;
+    let normA = 0;
+    let normB = 0;
+    for (let i = 0; i < a.length; i += 1) {
+        dot += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+    }
+
+    if (normA <= 0 || normB <= 0) {
+        return 0;
+    }
+
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 function tokenizeText(value: string): string[] {
@@ -198,6 +374,51 @@ function getMetadataString(metadata: Record<string, unknown> | undefined, key: s
     return typeof value === 'string' ? value : fallback;
 }
 
+function normalizeFilePathFilter(filePaths?: string[]): string[] {
+    if (!filePaths || filePaths.length === 0) {
+        return [];
+    }
+
+    const normalized = new Set<string>();
+    filePaths.forEach((filePath) => {
+        const trimmed = filePath.trim();
+        if (!trimmed) {
+            return;
+        }
+
+        const candidate = trimmed.split('\\').join('/');
+        const segments = candidate.split('/');
+        if (segments.some((segment) => segment === '.' || segment === '..')) {
+            return;
+        }
+
+        if (candidate.startsWith('/')) {
+            return;
+        }
+
+        if (!/^[A-Za-z0-9_./-]+$/.test(candidate)) {
+            return;
+        }
+
+        normalized.add(candidate);
+    });
+
+    return Array.from(normalized);
+}
+
+function buildWhereFilter(filePaths?: string[]): ChromaWhereFilter | undefined {
+    const normalizedPaths = normalizeFilePathFilter(filePaths);
+    if (normalizedPaths.length === 0) {
+        return undefined;
+    }
+
+    return {
+        file_path: {
+            $in: normalizedPaths
+        }
+    };
+}
+
 function looksBinaryContent(content: string): boolean {
     if (!content) {
         return false;
@@ -238,7 +459,67 @@ function shouldExcludeFile(relativePath: string, excludeRegexes: RegExp[]): bool
     return excludeRegexes.some((regex) => regex.test(relativePath));
 }
 
-async function listTextFiles(workspaceRoot: string, config: ChromaDbConnectionConfig): Promise<IndexedChunk[]> {
+function extractJavaSymbolMetadata(content: string, chunkEnd: number): { className: string; methodName: string } {
+    const scope = content.slice(0, chunkEnd);
+    const classRegex = /\b(?:class|interface|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
+    const methodRegex = /\b(?:public|protected|private|static|final|synchronized|abstract|native|default|strictfp|\s)*[A-Za-z_][A-Za-z0-9_<>,\[\]\s?]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;{}]*\)\s*\{/g;
+    const ignoredMethodNames = new Set(['if', 'for', 'while', 'switch', 'catch', 'try', 'return', 'new']);
+
+    let className = '';
+    let match: RegExpExecArray | null;
+    while ((match = classRegex.exec(scope)) !== null) {
+        className = match[1] || className;
+    }
+
+    let methodName = '';
+    while ((match = methodRegex.exec(scope)) !== null) {
+        const candidate = match[1] || '';
+        if (!ignoredMethodNames.has(candidate)) {
+            methodName = candidate;
+        }
+    }
+
+    return { className, methodName };
+}
+
+async function exists(absolutePath: string): Promise<boolean> {
+    try {
+        await fs.access(absolutePath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function detectProjectType(workspaceRoot: string): Promise<string> {
+    if (await exists(path.join(workspaceRoot, 'pom.xml')) || await exists(path.join(workspaceRoot, 'build.gradle'))) {
+        return 'java';
+    }
+
+    if (await exists(path.join(workspaceRoot, 'package.json'))) {
+        return 'node';
+    }
+
+    if (await exists(path.join(workspaceRoot, 'pyproject.toml')) || await exists(path.join(workspaceRoot, 'requirements.txt'))) {
+        return 'python';
+    }
+
+    if (await exists(path.join(workspaceRoot, 'Cargo.toml'))) {
+        return 'rust';
+    }
+
+    if (await exists(path.join(workspaceRoot, 'go.mod'))) {
+        return 'go';
+    }
+
+    return 'generic';
+}
+
+async function listTextFiles(
+    workspaceRoot: string,
+    config: ChromaDbConnectionConfig,
+    projectType: string
+): Promise<IndexedChunk[]> {
     const indexed: IndexedChunk[] = [];
     const ignoredDirs = new Set((config.excludeDirs || []).map((dir) => dir.trim()).filter(Boolean));
     const excludeRegexes = (config.excludeFileGlobs || [])
@@ -248,7 +529,6 @@ async function listTextFiles(workspaceRoot: string, config: ChromaDbConnectionCo
     const maxFileSizeBytes = Math.max(1, config.maxFileSizeKb) * 1024;
     const maxIndexedFiles = Math.max(1, config.maxIndexedFiles);
     const chunkSizeChars = Math.max(200, config.chunkSizeChars);
-    const chunkOverlapChars = Math.max(0, Math.min(config.chunkOverlapChars, chunkSizeChars - 1));
 
     async function walk(currentDir: string): Promise<void> {
         if (indexed.length >= maxIndexedFiles) {
@@ -302,16 +582,26 @@ async function listTextFiles(workspaceRoot: string, config: ChromaDbConnectionCo
                 const extension = normalizeExtension(fileName);
                 const folder = path.dirname(relativePath).split(path.sep).join('/');
                 const language = detectLanguage(fileName);
-                const chunks = chunkContent(content, chunkSizeChars, chunkOverlapChars);
+                const fileType = classifyFileType(fileName, language);
+                const ecosystemLanguage = getEcosystemLanguage(language, projectType);
+                const chunks = await procesarYChunkearArchivo(relativePath, content);
 
                 chunks.forEach((chunk, index) => {
+                    const javaMetadata = language === 'java'
+                        ? extractJavaSymbolMetadata(content, chunk.end)
+                        : { className: '', methodName: '' };
+
                     indexed.push({
                         id: `${relativePath}::chunk-${index}`,
                         relativePath,
                         fileName,
                         extension,
                         folder: folder === '.' ? '' : folder,
-                        language,
+                        language: ecosystemLanguage,
+                        fileType,
+                        className: javaMetadata.className,
+                        methodName: javaMetadata.methodName,
+                        projectType,
                         chunkIndex: index,
                         chunkCount: chunks.length,
                         chunkStart: chunk.start,
@@ -319,7 +609,7 @@ async function listTextFiles(workspaceRoot: string, config: ChromaDbConnectionCo
                         content: chunk.text
                     });
                 });
-            } catch {
+            } catch (error) {
                 // Skip unreadable/binary files.
             }
         }
@@ -387,7 +677,8 @@ export async function indexAllWithChromaDb(
     const collectionName = `${config.collectionPrefix}-${indexedAt}`;
     const collection = await client.createCollection({ name: collectionName });
 
-    const files = await listTextFiles(workspaceRoot, config);
+    const projectType = await detectProjectType(workspaceRoot);
+    const files = await listTextFiles(workspaceRoot, config, projectType);
     const batchSize = 64;
 
     for (let i = 0; i < files.length; i += batchSize) {
@@ -398,10 +689,15 @@ export async function indexAllWithChromaDb(
             embeddings: chunk.map((item) => computeEmbedding(buildEmbeddingInput(item))),
             metadatas: chunk.map((item) => ({
                 path: item.relativePath,
-                fileName: item.fileName,
+                file_path: item.relativePath,
+                file_type: item.fileType,
                 extension: item.extension,
+                fileName: item.fileName,
                 folder: item.folder,
                 language: item.language,
+                class_name: item.className,
+                method_name: item.methodName,
+                project_type: item.projectType,
                 chunkIndex: String(item.chunkIndex),
                 chunkCount: String(item.chunkCount),
                 chunkStart: String(item.chunkStart),
@@ -422,20 +718,22 @@ export async function queryRelevantContextFromChromaDb(
     config: ChromaDbConnectionConfig,
     maxResults = config.maxQueryResults,
     mode: ChromaQueryMode = 'semantic',
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    filePathFilter?: string[]
 ): Promise<ChromaSearchResult[]> {
     if (mode === 'lexical') {
-        return queryRelevantContextFromChromaDbLexical(queryText, config, maxResults, signal);
+        return queryRelevantContextFromChromaDbLexical(queryText, config, maxResults, signal, filePathFilter);
     }
 
-    return queryRelevantContextFromChromaDbSemantic(queryText, config, maxResults, signal);
+    return queryRelevantContextFromChromaDbSemantic(queryText, config, maxResults, signal, filePathFilter);
 }
 
 export async function queryRelevantContextFromChromaDbSemantic(
     queryText: string,
     config: ChromaDbConnectionConfig,
     maxResults = config.maxQueryResults,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    filePathFilter?: string[]
 ): Promise<ChromaSearchResult[]> {
     if (!queryText.trim()) {
         return [];
@@ -456,10 +754,12 @@ export async function queryRelevantContextFromChromaDbSemantic(
     }
 
     const collection = await client.getCollection({ name: collectionName });
+    const where = buildWhereFilter(filePathFilter);
     const queryResult = await collection.query({
         queryEmbeddings: [computeEmbedding(queryText)],
         nResults: Math.max(maxResults, config.vectorCandidatePool),
-        include: ['documents', 'metadatas', 'distances']
+        include: ['documents', 'metadatas', 'distances'],
+        where
     } as any);
 
     const documents = queryResult.documents?.[0] ?? [];
@@ -503,7 +803,8 @@ export async function queryRelevantContextFromChromaDbLexical(
     queryText: string,
     config: ChromaDbConnectionConfig,
     maxResults = config.maxQueryResults,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    filePathFilter?: string[]
 ): Promise<ChromaSearchResult[]> {
     if (!queryText.trim()) {
         return [];
@@ -520,6 +821,7 @@ export async function queryRelevantContextFromChromaDbLexical(
     }
 
     const collection = await client.getCollection({ name: collectionName });
+    const where = buildWhereFilter(filePathFilter);
     const pageSize = 500;
     let offset = 0;
     const matches: Array<ChromaSearchResult & { lexicalScore: number }> = [];
@@ -532,7 +834,8 @@ export async function queryRelevantContextFromChromaDbLexical(
         const page = await collection.get({
             limit: pageSize,
             offset,
-            include: ['documents', 'metadatas']
+            include: ['documents', 'metadatas'],
+            where
         } as any);
 
         const ids = page.ids ?? [];
@@ -580,5 +883,96 @@ export async function queryRelevantContextFromChromaDbLexical(
         path: item.path,
         content: item.content,
         distance: undefined
+    }));
+}
+
+export async function queryRelevantContextFromChromaDbConceptualKnn(
+    queryText: string,
+    config: ChromaDbConnectionConfig,
+    options?: ChromaConceptualKnnOptions
+): Promise<ChromaSearchResult[]> {
+    if (!queryText.trim()) {
+        return [];
+    }
+
+    const topK = Math.max(1, options?.topK ?? config.maxQueryResults);
+    const minCosineSimilarity = options?.minCosineSimilarity ?? 0.2;
+    const signal = options?.signal;
+
+    if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+    }
+
+    const client = getClient(config, signal);
+    const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
+    if (!collectionName) {
+        return [];
+    }
+
+    const collection = await client.getCollection({ name: collectionName });
+    const queryEmbedding = computeEmbedding(queryText);
+
+    const pageSize = 500;
+    let offset = 0;
+    const ranked: Array<ChromaSearchResult & { cosineScore: number }> = [];
+
+    while (true) {
+        if (signal?.aborted) {
+            throw new DOMException('Aborted', 'AbortError');
+        }
+
+        const page = await collection.get({
+            limit: pageSize,
+            offset,
+            include: ['documents', 'metadatas']
+        } as any);
+
+        const ids = page.ids ?? [];
+        const documents = page.documents ?? [];
+        const metadatas = page.metadatas ?? [];
+        if (ids.length === 0) {
+            break;
+        }
+
+        for (let i = 0; i < ids.length; i += 1) {
+            const content = documents[i];
+            if (typeof content !== 'string') {
+                continue;
+            }
+
+            const metadata = metadatas[i] as Record<string, unknown> | undefined;
+            const docEmbedding = computeEmbedding(buildEmbeddingInputFromDocument(content, metadata));
+            const cosineScore = cosineSimilarity(queryEmbedding, docEmbedding);
+            if (cosineScore < minCosineSimilarity) {
+                continue;
+            }
+
+            const pathValue = getMetadataString(metadata, 'path', `document-${offset + i + 1}`);
+            const chunkIndex = getMetadataString(metadata, 'chunkIndex');
+            const chunkCount = getMetadataString(metadata, 'chunkCount');
+            const chunkSuffix = chunkIndex && chunkCount
+                ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
+                : '';
+
+            ranked.push({
+                path: `${pathValue}${chunkSuffix}`,
+                content,
+                distance: 1 - cosineScore,
+                cosineScore
+            });
+        }
+
+        if (ids.length < pageSize) {
+            break;
+        }
+
+        offset += pageSize;
+    }
+
+    ranked.sort((a, b) => b.cosineScore - a.cosineScore);
+    return ranked.slice(0, topK).map((item) => ({
+        path: item.path,
+        content: item.content,
+        distance: item.distance
     }));
 }

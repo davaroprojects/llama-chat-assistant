@@ -1,0 +1,32 @@
+{
+  "llamaChat.ragModeTemplate": {
+    "modoEjecucion": {
+      "header": "<modo_ejecucion>",
+      "alcance": "ALCANCE: Análisis Global del Proyecto (RAG).",
+      "instruccion": "Se te proveen múltiples fragmentos independientes recuperados de la base de datos del proyecto. Tu tarea es sintetizar esta información para explicar el concepto solicitado. Identifica las relaciones entre los fragmentos citando las rutas de los archivos."
+    },
+    "contextoRecuperado": {
+      "header": "<contexto_recuperado>",
+      "footer": "</contexto_recuperado>",
+      "fragmentoFormat": "Fragmento {index} | Origen: {path}{distance}\n```\n{content}\n```"
+    },
+    "consulta": {
+      "label": "Consulta General del Usuario: {prompt}"
+    }
+  },
+  "llamaChat.specificFilesModeTemplate": {
+    "modoEjecucion": {
+      "header": "<modo_ejecucion>",
+      "alcance": "ALCANCE: Archivos Específicos Seleccionados.",
+      "instruccion": "Analiza detalladamente el código provisto en las etiquetas <archivos_objetivo> para responder la consulta del usuario. Ignora cualquier suposición externa al código visible."
+    },
+    "archivosObjetivo": {
+      "header": "<archivos_objetivo>",
+      "footer": "</archivos_objetivo>",
+      "archivoFormat": "Archivo: {name}\nTipo: {type}\nExtensión: {extension}\n```\n{content}\n```"
+    },
+    "consulta": {
+      "label": "Consulta del Usuario: {prompt}"
+    }
+  }
+}

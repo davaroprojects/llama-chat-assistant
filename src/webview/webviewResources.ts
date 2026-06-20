@@ -61,68 +61,7 @@ export interface WebviewLabels {
     repositoryBadgeLabel: string;
 }
 
-export function getWebviewLabels(language: string): WebviewLabels {
-    const normalizedLanguage = language.toLowerCase();
-    if (normalizedLanguage.startsWith('es')) {
-        return {
-            htmlLang: 'es',
-            chatTabLabel: 'Chat',
-            serverTabLabel: 'Servidor',
-            ragTabLabel: 'RAG',
-            serverStartLabel: 'Iniciar',
-            serverStopLabel: 'Detener',
-            ragIndexLabel: 'Indexar',
-            ragStatusTitle: 'Estado de indexación',
-            ragStateLabel: 'Estado',
-            ragIndexedAtLabel: 'Fecha de indexación',
-            ragIndexedFilesLabel: 'Archivos indexados',
-            ragChromaUrlLabel: 'URL ChromaDB',
-            ragChromaPortLabel: 'Puerto ChromaDB',
-            ragChromaCollectionPrefixLabel: 'Prefijo colección ChromaDB',
-            ragChromaExcludeDirsLabel: 'Exclusión de carpetas',
-            ragChromaExcludeFileGlobsLabel: 'Exclusión de archivos (glob)',
-            ragChromaMaxFileSizeKbLabel: 'Tamaño máx. archivo (KB)',
-            ragChromaMaxIndexedFilesLabel: 'Máx. archivos/chunks indexados',
-            ragChromaChunkSizeCharsLabel: 'Tamaño chunk (chars)',
-            ragChromaChunkOverlapCharsLabel: 'Solapamiento chunk (chars)',
-            ragChromaVectorCandidatePoolLabel: 'Pool candidato vectorial',
-            ragChromaMaxQueryResultsLabel: 'Máx. resultados por consulta',
-            ragChromaQueryModeLabel: 'Modo de consulta ChromaDB',
-            ragLlamaApiUrlLabel: 'URL API llama.cpp',
-            ragLlamaModelLabel: 'Modelo llama.cpp',
-            ragLlamaMaxTokensLabel: 'Máx. tokens llama.cpp',
-            ragLlamaTemperatureLabel: 'Temperatura llama.cpp',
-            ragIdleLabel: 'Inactivo',
-            ragIndexingLabel: 'Indexando',
-            ragIndexedLabel: 'Indexado',
-            ragNeverIndexedLabel: 'Nunca',
-            ragChromaUnavailableLabel: 'Servidor ChromaDB no activo',
-            serverParametersTitle: 'Parámetros',
-            propertyLabel: 'Propiedad',
-            valueLabel: 'Valor',
-            emptyChatReadyLabel: 'Inicie una nueva sesion desde el chat',
-            emptyServerStoppedLabel: 'Inicie el servidor para iniciar',
-            deleteSessionLabel: 'Eliminar sesión permanentemente',
-            sessionUnavailableLabel: 'No disponible mientras el servidor está detenido',
-            generationCanceledLabel: 'Generación cancelada',
-            backToSessionsTitle: 'Volver a las sesiones',
-            sessionsMainTitle: 'Sesiones',
-            promptPlaceholder: 'Pregúntale a tu Llama local o pide cambios...',
-            attachFileTitle: 'Agregar archivo al contexto',
-            sendMessageTitle: 'Enviar mensaje',
-            stopGenerationTitle: 'Detener generación',
-            modelMenuTitle: 'Ver modelo actual',
-            modelLabel: 'Modelo',
-            removeFileTitle: 'Quitar archivo',
-            unavailableShortLabel: 'No disponible',
-            copyCodeTitle: 'Copiar código',
-            copyClipboardTitle: 'Copiar al portapapeles',
-            newSessionLabel: 'Nueva Sesión',
-            externalServerBlockedLabel: 'Servidor iniciado externamente. No se puede detener desde aquí.',
-            repositoryBadgeLabel: 'Repositorio'
-        };
-    }
-
+export function getWebviewLabels(_language?: string): WebviewLabels {
     return {
         htmlLang: 'en',
         chatTabLabel: 'Chat',
@@ -194,7 +133,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     }
 
     let htmlContent = fs.readFileSync(htmlPath, 'utf8');
-    const labels = getWebviewLabels(vscode.env.language);
+    const labels = getWebviewLabels();
     const cssUri = webview.asWebviewUri(vscode.Uri.file(cssPath));
     const jsUri = webview.asWebviewUri(vscode.Uri.file(jsPath));
     const prismJsUri = webview.asWebviewUri(vscode.Uri.file(prismJsPath));
@@ -203,10 +142,15 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
 
     const csp = [
         "default-src 'none'",
-        `img-src ${webview.cspSource}`,
+        `img-src ${webview.cspSource} data:`,
         `style-src ${webview.cspSource}`,
         `font-src ${webview.cspSource}`,
-        `script-src ${webview.cspSource} 'nonce-${nonce}'`
+        `script-src ${webview.cspSource} 'nonce-${nonce}'`,
+        "object-src 'none'",
+        "base-uri 'none'",
+        "frame-src 'none'",
+        "worker-src 'none'",
+        "form-action 'none'"
     ].join('; ');
 
     const styleLink = `<link rel="stylesheet" type="text/css" href="${cssUri}">`;

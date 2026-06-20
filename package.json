@@ -38,7 +38,7 @@
           },
           "llamaChat.systemPrompt": {
             "type": "string",
-            "default": "Devuelve tus respuestas de forma directa. Si generas código, ponlo dentro de bloques markdown.",
+            "default": "You are a Principal Software Engineer specialized in code navigation and architecture. Explain execution flows strictly from the provided context.\nRULES:\n1. Answer using only the architecture map and the code inside <contexto_codigo>.\n2. If the answer is not explicitly present in the provided code, say: \"Insufficient information in indexed files\". Do not invent logic.\n3. Structure the response chronologically (Step 1, Step 2, Step 3) and show transitions between files.\n4. Respond in markdown format",
             "description": "%config.systemPrompt.description%",
             "editPresentation": "multilineText"
           },
@@ -113,8 +113,8 @@
             "description": "%config.server.tools.description%"
           }
         }
-        },
-        {
+      },
+      {
         "title": "%config.rag.title%",
         "properties": {
           "llamaChat.rag.chromaUrl": {
@@ -282,6 +282,7 @@
   },
   "dependencies": {
     "@hey-api/client-fetch": "^0.13.1",
+    "@langchain/textsplitters": "^1.0.1",
     "chromadb": "^3.4.3"
   }
 }

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { SessionManager } from './chat/sessionManager';
 import {
     SessionPayloadBuilder,
@@ -20,13 +21,19 @@ import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
 import {
     ChromaDbConnectionConfig,
+    ChromaConceptualKnnOptions,
     ChromaQueryMode,
     indexAllWithChromaDb,
     isChromaDbAvailable,
+    queryRelevantContextFromChromaDbConceptualKnn,
     queryRelevantContextFromChromaDb
 } from './rag/chromaDbIndexer';
+import { WorkspaceDependencyGraphBuilder } from './rag/workspaceDependencyGraphBuilder';
 import { buildPromptContext, RagContextSnippet } from './chat/promptContextBuilder';
+import { PromptTemplateManager } from './chat/promptTemplateManager';
 import { LlamaMessageBuilder } from './chat/llamaMessageBuilder';
+import { EndpointFlowResolver } from './chat/endpointFlowResolver';
+import { classifyUserIntent, QueryIntentType } from './chat/queryIntentClassifier';
 
 interface BaseWebviewMessage {
     type: string;
@@ -138,6 +145,7 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
 
 export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private currentAbortController: AbortController | null = null;
+    private generationLock: Promise<void> = Promise.resolve();
     private _view?: vscode.WebviewView;
     private isPickerOpen = false;
     private isGenerationActive = false;
@@ -382,53 +390,87 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     }
 
     private async handleAskLlama(data: AskLlamaMessage, webviewView: vscode.WebviewView): Promise<void> {
-        this.isGenerationActive = true;
-        this.metrics.totalRequests += 1;
-
-        const generationStart = performance.now();
-        try {
-            const userPrompt = data.value;
-            const filesMetadata = this.collectFilesMetadata(data.attachedFiles || []);
-
-            // Save user message to session
-            const userPayload = SessionPayloadBuilder.createUserMessagePayload(userPrompt, filesMetadata);
-            this.saveUserMessageToSession(userPayload);
-
-            // Notify frontend
-            webviewView.webview.postMessage({
-                type: 'addMessage',
-                role: 'user',
-                text: userPrompt,
-                filesMetadata: filesMetadata
-            });
-            webviewView.webview.postMessage({ type: 'startStreaming' });
-
-            // Generate response from Llama.cpp
-            await this.generateLlamaResponse(
-                userPrompt,
-                filesMetadata,
-                webviewView
-            );
-        } catch (error: unknown) {
-            this.metrics.totalErrors += 1;
-            console.error('Error in askLlama:', error);
-            if (error instanceof Error && error.name === 'AbortError') {
-                webviewView.webview.postMessage({ type: 'stopStreaming' });
-            } else {
-                const errorMessage = error instanceof Error
-                    ? error.message
-                    : this.getLocalizedUnknownErrorLabel();
-                webviewView.webview.postMessage({
-                    type: 'errorStreaming',
-                    text: `${this.getLocalizedErrorPrefix()}: ${errorMessage}`
-                });
+        this.generationLock = this.generationLock.catch(() => undefined).then(async () => {
+            if (this.currentAbortController) {
+                this.currentAbortController.abort();
+                this.currentAbortController = null;
             }
-        } finally {
-            this.isGenerationActive = false;
-            this.metrics.totalDurationMs += (performance.now() - generationStart);
-            this.maybeLogMetrics();
-            this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
+
+            this.isGenerationActive = true;
+            this.metrics.totalRequests += 1;
+
+            const generationStart = performance.now();
+            try {
+                const userPrompt = data.value;
+                const queryIntent = classifyUserIntent(userPrompt);
+                const shouldRunStructuredFlow = queryIntent === QueryIntentType.STRUCTURED_FOCUSED;
+
+                let endpointFlow: string[] = [];
+                let promptWithEndpointFlow = userPrompt;
+
+                if (shouldRunStructuredFlow) {
+                    const endpointFlowResolver = new EndpointFlowResolver(this.getProjectGraphCacheRoot());
+                    endpointFlow = await endpointFlowResolver.resolveFlowFromPrompt(userPrompt);
+                    promptWithEndpointFlow = this.buildPromptWithEndpointFlow(userPrompt, endpointFlow);
+                }
+
+                const filesMetadata = this.collectFilesMetadata(data.attachedFiles || []);
+
+                const userPayload = SessionPayloadBuilder.createUserMessagePayload(userPrompt, filesMetadata);
+                this.saveUserMessageToSession(userPayload);
+
+                webviewView.webview.postMessage({
+                    type: 'addMessage',
+                    role: 'user',
+                    text: userPrompt,
+                    filesMetadata: filesMetadata
+                });
+                webviewView.webview.postMessage({ type: 'startStreaming' });
+
+                await this.generateLlamaResponse(
+                    promptWithEndpointFlow,
+                    filesMetadata,
+                    webviewView,
+                    endpointFlow,
+                    shouldRunStructuredFlow
+                );
+            } catch (error: unknown) {
+                this.metrics.totalErrors += 1;
+                console.error('Error in askLlama:', error);
+                if (error instanceof Error && error.name === 'AbortError') {
+                    webviewView.webview.postMessage({ type: 'stopStreaming' });
+                } else {
+                    const errorMessage = error instanceof Error
+                        ? error.message
+                        : this.getUnknownErrorLabel();
+                    webviewView.webview.postMessage({
+                        type: 'errorStreaming',
+                        text: `${this.getErrorPrefix()}: ${errorMessage}`
+                    });
+                }
+            } finally {
+                this.isGenerationActive = false;
+                this.metrics.totalDurationMs += (performance.now() - generationStart);
+                this.maybeLogMetrics();
+                this.pushActiveEditorContext(webviewView, vscode.window.activeTextEditor);
+            }
+        });
+
+        await this.generationLock;
+    }
+
+    private buildPromptWithEndpointFlow(userPrompt: string, endpointFlow: string[]): string {
+        if (endpointFlow.length === 0) {
+            return userPrompt;
         }
+
+        const flowLines = endpointFlow.map((filePath, index) => `${index + 1}. ${filePath}`).join('\n');
+        return [
+            'Detected endpoint call flow:',
+            flowLines,
+            '',
+            userPrompt
+        ].join('\n');
     }
 
     private handleApplyCode(data: ApplyCodeMessage): void {
@@ -479,13 +521,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             return;
         }
 
-        const chromaConfig = this.getChromaDbConfig();
-        this.isChromaAvailable = await isChromaDbAvailable(chromaConfig);
-        if (!this.isChromaAvailable) {
-            this.postRagState(webviewView);
-            return;
-        }
-
         this.isRagIndexing = true;
         const previousState = this.sessionManager.getRagIndexState();
         this.sessionManager.setRagIndexState({
@@ -497,9 +532,21 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         try {
             const workspaceRoot = this.getWorkspaceRoot();
             if (!workspaceRoot) {
-                throw new Error(this.isSpanishLocale()
-                    ? 'No hay una carpeta de trabajo abierta.'
-                    : 'No workspace folder is open.');
+                throw new Error('No workspace folder is open.');
+            }
+
+            const chromaConfig = this.getChromaDbConfig();
+            const cacheRoot = this.getProjectGraphCacheRoot();
+            const graphBuilder = new WorkspaceDependencyGraphBuilder(workspaceRoot, chromaConfig, cacheRoot);
+            await graphBuilder.build();
+
+            this.isChromaAvailable = await isChromaDbAvailable(chromaConfig);
+            if (!this.isChromaAvailable) {
+                this.sessionManager.setRagIndexState({
+                    ...previousState,
+                    status: 'idle'
+                });
+                return;
             }
 
             const result = await indexAllWithChromaDb(workspaceRoot, chromaConfig);
@@ -525,19 +572,33 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     private async generateLlamaResponse(
         userPrompt: string,
         filesMetadata: FileMetadata[],
-        webviewView: vscode.WebviewView
+        webviewView: vscode.WebviewView,
+        endpointFlowPaths: string[] = [],
+        shouldRunStructuredFlow = false
     ): Promise<void> {
         try {
             this.currentAbortController = new AbortController();
             const abortSignal = this.currentAbortController.signal;
 
             const config = this.getLlamaConfig();
-            const ragSnippets = await this.resolveRagContext(userPrompt, filesMetadata, abortSignal);
+            const ragSnippets = await this.resolveRagContext(
+                userPrompt,
+                filesMetadata,
+                abortSignal,
+                endpointFlowPaths,
+                shouldRunStructuredFlow
+            );
             this.throwIfAborted(abortSignal);
+            const hasRepositoryAttachment = filesMetadata.some((file) => file.isRepository);
+            const ragModeTemplate = PromptTemplateManager.getRagModeTemplate();
+            const specificFilesModeTemplate = PromptTemplateManager.getSpecificFilesModeTemplate();
             const contextPrompt = buildPromptContext({
                 userPrompt,
                 attachedFiles: filesMetadata,
-                ragSnippets
+                ragSnippets,
+                hasRepositoryAttachment,
+                ragModeTemplate,
+                specificFilesModeTemplate
             });
             this.throwIfAborted(abortSignal);
 
@@ -598,29 +659,23 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
 
         const errorMessage = error instanceof Error
             ? error.message
-            : this.getLocalizedUnknownGenerationErrorLabel();
+            : this.getUnknownGenerationErrorLabel();
         webviewView.webview.postMessage({
             type: 'errorStreaming',
-            text: `${this.getLocalizedErrorPrefix()}: ${errorMessage}`
+            text: `${this.getErrorPrefix()}: ${errorMessage}`
         });
     }
 
-    private getLocalizedErrorPrefix(): string {
+    private getErrorPrefix(): string {
         return 'Error';
     }
 
-    private getLocalizedUnknownErrorLabel(): string {
-        return this.isSpanishLocale() ? 'Error desconocido' : 'Unknown error';
+    private getUnknownErrorLabel(): string {
+        return 'Unknown error';
     }
 
-    private getLocalizedUnknownGenerationErrorLabel(): string {
-        return this.isSpanishLocale()
-            ? 'Error desconocido durante la generación'
-            : 'Unknown error during generation';
-    }
-
-    private isSpanishLocale(): boolean {
-        return vscode.env.language.toLowerCase().startsWith('es');
+    private getUnknownGenerationErrorLabel(): string {
+        return 'Unknown error during generation';
     }
 
     private setupEditorListeners(): void {
@@ -717,6 +772,11 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || this._extensionUri.fsPath;
     }
 
+    private getProjectGraphCacheRoot(): string {
+        const workspaceRoot = this.getWorkspaceRoot() || this.context.globalStorageUri.fsPath;
+        return path.join(workspaceRoot, '.prrrrr');
+    }
+
     private getChromaDbConfig(): ChromaDbConnectionConfig {
         const config = vscode.workspace.getConfiguration('llamaChat');
         return {
@@ -763,7 +823,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     private async resolveRagContext(
         userPrompt: string,
         filesMetadata: FileMetadata[],
-        abortSignal?: AbortSignal
+        abortSignal?: AbortSignal,
+        endpointFlowPaths?: string[],
+        shouldRunStructuredFlow = false
     ): Promise<RagContextSnippet[]> {
         const hasRepositoryAttachment = filesMetadata.some((file) => file.isRepository);
         if (!hasRepositoryAttachment) {
@@ -783,14 +845,29 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
 
         try {
             this.throwIfAborted(abortSignal);
-            const queryMode = this.getChromaQueryMode();
-            const results = await queryRelevantContextFromChromaDb(
-                userPrompt,
-                chromaConfig,
-                chromaConfig.maxQueryResults,
-                queryMode,
-                abortSignal
-            );
+            let results;
+            if (shouldRunStructuredFlow) {
+                const queryMode = this.getChromaQueryMode();
+                results = await queryRelevantContextFromChromaDb(
+                    userPrompt,
+                    chromaConfig,
+                    chromaConfig.maxQueryResults,
+                    queryMode,
+                    abortSignal,
+                    endpointFlowPaths
+                );
+            } else {
+                const conceptualOptions: ChromaConceptualKnnOptions = {
+                    topK: chromaConfig.maxQueryResults,
+                    minCosineSimilarity: 0.2,
+                    signal: abortSignal
+                };
+                results = await queryRelevantContextFromChromaDbConceptualKnn(
+                    userPrompt,
+                    chromaConfig,
+                    conceptualOptions
+                );
+            }
             this.throwIfAborted(abortSignal);
             return results.map((result) => ({
                 path: result.path,

@@ -48,6 +48,31 @@ export interface StreamChunk {
 }
 
 export class LlamaService {
+    private static readonly REQUEST_TIMEOUT_MS = 60_000;
+    private static readonly STREAM_READ_TIMEOUT_MS = 10_000;
+
+    private static createCompositeAbortSignal(externalSignal?: AbortSignal): AbortSignal {
+        const timeoutController = new AbortController();
+        const timeoutHandle = setTimeout(() => timeoutController.abort(), this.REQUEST_TIMEOUT_MS);
+
+        if (!externalSignal) {
+            timeoutController.signal.addEventListener('abort', () => clearTimeout(timeoutHandle), { once: true });
+            return timeoutController.signal;
+        }
+
+        const compositeController = new AbortController();
+        const abortComposite = () => {
+            clearTimeout(timeoutHandle);
+            if (!compositeController.signal.aborted) {
+                compositeController.abort();
+            }
+        };
+
+        timeoutController.signal.addEventListener('abort', abortComposite, { once: true });
+        externalSignal.addEventListener('abort', abortComposite, { once: true });
+        return compositeController.signal;
+    }
+
     static async streamLlamaResponse(
         messages: ChatMessage[],
         config: LlamaConfig,
@@ -84,7 +109,7 @@ export class LlamaService {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestPayload),
-                signal: abortSignal
+                signal: this.createCompositeAbortSignal(abortSignal)
             });
 
             if (!response.ok) {
@@ -99,8 +124,28 @@ export class LlamaService {
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
 
+            const readWithTimeout = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+                let timeoutId: ReturnType<typeof setTimeout> | undefined;
+                try {
+                    return await Promise.race([
+                        reader.read(),
+                        new Promise<never>((_, reject) => {
+                            timeoutId = setTimeout(() => {
+                                reject(new Error('Timed out while reading streaming response.'));
+                            }, this.STREAM_READ_TIMEOUT_MS);
+                        })
+                    ]);
+                } finally {
+                    if (timeoutId) {
+                        clearTimeout(timeoutId);
+                    }
+                }
+            };
+
             while (true) {
-                const { done, value } = await reader.read();
+                const readResult = await readWithTimeout();
+
+                const { done, value } = readResult;
                 if (done) {
                     break;
                 }

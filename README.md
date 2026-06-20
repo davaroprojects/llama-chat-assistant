@@ -28,6 +28,50 @@ VS Code extension to chat with a local OpenAI-compatible server (e.g. `llama.cpp
 | `llamaChat.maxAttachedFileSizeKb` | `256` | Max size in KB for manually attached files |
 
 Token counter total is not configurable: it is always read from llama.cpp `GET /props` (`n_ctx`).
+
+### Customizable Prompt Templates
+
+You can customize the execution mode prompts for both **RAG (Global Analysis)** and **Specific Files** modes through VS Code settings. Templates support variable interpolation:
+
+**RAG Mode Template** (`ragModeTemplate`):
+```json
+{
+  "modoEjecucion": {
+    "header": "<modo_ejecucion>",
+    "alcance": "ALCANCE: ...",
+    "instruccion": "Se te proveen múltiples fragmentos..."
+  },
+  "contextoRecuperado": {
+    "header": "<contexto_recuperado>",
+    "footer": "</contexto_recuperado>",
+    "fragmentoFormat": "Fragmento {index} | Origen: {path}{distance}\n```\n{content}\n```"
+  },
+  "consulta": {
+    "label": "Consulta General del Usuario: {prompt}"
+  }
+}
+```
+
+**Specific Files Mode Template** (`specificFilesModeTemplate`):
+```json
+{
+  "modoEjecucion": {
+    "header": "<modo_ejecucion>",
+    "alcance": "ALCANCE: Archivos Específicos...",
+    "instruccion": "Analiza detalladamente el código provisto..."
+  },
+  "archivosObjetivo": {
+    "header": "<archivos_objetivo>",
+    "footer": "</archivos_objetivo>",
+    "archivoFormat": "Archivo: {name}\nTipo: {type}\nExtensión: {extension}\n```\n{content}\n```"
+  },
+  "consulta": {
+    "label": "Consulta del Usuario: {prompt}"
+  }
+}
+```
+
+Add these to your VS Code `settings.json` under `llamaChat` scope to override defaults.
 ## File attachment rules
 
 - All attachments live in a single array: `{ name, content, isAutomatic }`.

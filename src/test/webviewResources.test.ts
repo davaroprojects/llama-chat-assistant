@@ -2,37 +2,7 @@ import * as assert from 'assert';
 import { getWebviewLabels } from '../webview/webviewResources';
 
 suite('webviewResources', () => {
-    test('Returns Spanish labels for es locales', () => {
-        const labels = getWebviewLabels('es-ES');
-
-        assert.strictEqual(labels.chatTabLabel, 'Chat');
-        assert.strictEqual(labels.serverTabLabel, 'Servidor');
-        assert.strictEqual(labels.serverStartLabel, 'Iniciar');
-        assert.strictEqual(labels.serverStopLabel, 'Detener');
-        assert.strictEqual(labels.serverParametersTitle, 'Parámetros');
-        assert.strictEqual(labels.propertyLabel, 'Propiedad');
-        assert.strictEqual(labels.valueLabel, 'Valor');
-        assert.strictEqual(labels.emptyChatReadyLabel, 'Inicie una nueva sesion desde el chat');
-        assert.strictEqual(labels.emptyServerStoppedLabel, 'Inicie el servidor para iniciar');
-        assert.strictEqual(labels.deleteSessionLabel, 'Eliminar sesión permanentemente');
-        assert.strictEqual(labels.sessionUnavailableLabel, 'No disponible mientras el servidor está detenido');
-        assert.strictEqual(labels.generationCanceledLabel, 'Generación cancelada');
-        assert.strictEqual(labels.backToSessionsTitle, 'Volver a las sesiones');
-        assert.strictEqual(labels.sessionsMainTitle, 'Sesiones');
-        assert.strictEqual(labels.promptPlaceholder, 'Pregúntale a tu Llama local o pide cambios...');
-        assert.strictEqual(labels.attachFileTitle, 'Agregar archivo al contexto');
-        assert.strictEqual(labels.sendMessageTitle, 'Enviar mensaje');
-        assert.strictEqual(labels.stopGenerationTitle, 'Detener generación');
-        assert.strictEqual(labels.modelMenuTitle, 'Ver modelo actual');
-        assert.strictEqual(labels.modelLabel, 'Modelo');
-        assert.strictEqual(labels.removeFileTitle, 'Quitar archivo');
-        assert.strictEqual(labels.unavailableShortLabel, 'No disponible');
-        assert.strictEqual(labels.copyCodeTitle, 'Copiar código');
-        assert.strictEqual(labels.copyClipboardTitle, 'Copiar al portapapeles');
-        assert.strictEqual(labels.newSessionLabel, 'Nueva Sesión');
-    });
-
-    test('Returns English labels for non-es locales', () => {
+    test('Returns English labels for any locale', () => {
         const labels = getWebviewLabels('en-US');
 
         assert.strictEqual(labels.chatTabLabel, 'Chat');
@@ -60,5 +30,9 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.copyCodeTitle, 'Copy code');
         assert.strictEqual(labels.copyClipboardTitle, 'Copy to clipboard');
         assert.strictEqual(labels.newSessionLabel, 'New Session');
+
+        const esLabels = getWebviewLabels('es-ES');
+        assert.strictEqual(esLabels.serverTabLabel, 'Server');
+        assert.strictEqual(esLabels.newSessionLabel, 'New Session');
     });
 });

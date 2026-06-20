@@ -135,16 +135,16 @@ const elements = {
 };
 
 const labels = {
-    emptyChatReadyLabel: document.body.dataset.emptyChatReadyLabel || 'Inicie una nueva sesion desde el chat',
-    emptyServerStoppedLabel: document.body.dataset.emptyServerStoppedLabel || 'Inicie el servidor para iniciar',
-    deleteSessionLabel: document.body.dataset.deleteSessionLabel || 'Eliminar sesión permanentemente',
-    sessionUnavailableLabel: document.body.dataset.sessionUnavailableLabel || 'No disponible mientras el servidor está detenido',
-    generationCanceledLabel: document.body.dataset.generationCanceledLabel || 'Generación cancelada',
-    removeFileTitle: document.body.dataset.removeFileTitle || 'Quitar archivo',
-    unavailableShortLabel: document.body.dataset.unavailableShortLabel || 'No disponible',
-    copyCodeTitle: document.body.dataset.copyCodeTitle || 'Copiar código',
-    copyClipboardTitle: document.body.dataset.copyClipboardTitle || 'Copiar al portapapeles',
-    newSessionLabel: document.body.dataset.newSessionLabel || 'Nueva Sesión',
+    emptyChatReadyLabel: document.body.dataset.emptyChatReadyLabel || 'Start a new session from chat',
+    emptyServerStoppedLabel: document.body.dataset.emptyServerStoppedLabel || 'Start the server to begin',
+    deleteSessionLabel: document.body.dataset.deleteSessionLabel || 'Delete session permanently',
+    sessionUnavailableLabel: document.body.dataset.sessionUnavailableLabel || 'Unavailable while the server is stopped',
+    generationCanceledLabel: document.body.dataset.generationCanceledLabel || 'Generation canceled',
+    removeFileTitle: document.body.dataset.removeFileTitle || 'Remove file',
+    unavailableShortLabel: document.body.dataset.unavailableShortLabel || 'Unavailable',
+    copyCodeTitle: document.body.dataset.copyCodeTitle || 'Copy code',
+    copyClipboardTitle: document.body.dataset.copyClipboardTitle || 'Copy to clipboard',
+    newSessionLabel: document.body.dataset.newSessionLabel || 'New Session',
     externalServerBlockedLabel: document.body.dataset.externalServerBlockedLabel || 'Server started externally. Cannot stop from here.',
     repositoryBadgeLabel: document.body.dataset.repositoryBadgeLabel || 'Repository',
     ragIdleLabel: document.body.dataset.ragIdleLabel || 'Idle',
@@ -155,6 +155,55 @@ const labels = {
     ragChromaPortLabel: document.body.dataset.ragChromaPortLabel || 'ChromaDB port',
     ragChromaUnavailableLabel: document.body.dataset.ragChromaUnavailableLabel || 'ChromaDB server is not active'
 };
+
+const incomingMessageSchemas = {
+    codeSelectionCaptured: { name: 'string', content: 'string' },
+    clearActiveEditorContext: {},
+    restoreActiveChat: { title: 'string', messages: 'array' },
+    renderSessionsList: { sessions: 'array' },
+    fileSelected: { name: 'string', content: 'string' },
+    addMessage: { role: 'string', text: 'string' },
+    startStreaming: {},
+    appendToken: { text: 'string' },
+    endStreaming: {},
+    errorStreaming: { text: 'string' },
+    stopStreaming: {},
+    updateContextWindow: { contextWindow: 'number' },
+    restoreUiState: {},
+    updateServerState: {},
+    updateRagState: {}
+};
+
+function isValidIncomingMessage(message) {
+    if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
+        return false;
+    }
+
+    const schema = incomingMessageSchemas[message.type];
+    if (!schema) {
+        return false;
+    }
+
+    for (const [field, expectedType] of Object.entries(schema)) {
+        const value = message[field];
+        if (value === undefined || value === null) {
+            return false;
+        }
+
+        if (expectedType === 'array') {
+            if (!Array.isArray(value)) {
+                return false;
+            }
+            continue;
+        }
+
+        if (typeof value !== expectedType) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 const BLOCKED_HTML_TAGS = new Set([
     'script', 'style', 'iframe', 'object', 'embed',
@@ -457,7 +506,7 @@ window.addEventListener('blur', () => {
 function handleExtensionMessage(event) {
     const message = event.data;
 
-    if (!message || typeof message !== 'object' || typeof message.type !== 'string') {
+    if (!isValidIncomingMessage(message)) {
         return;
     }
 
@@ -806,11 +855,14 @@ function handleStartStreaming() {
 function handleAppendToken(message) {
     if (!currentAssistantBubble) return;
 
-    let tokenText = message.text;
+    let tokenText = typeof message.text === 'string' ? message.text : String(message.text || '');
+    if (tokenText.length > 10000) {
+        tokenText = tokenText.slice(0, 10000);
+    }
     if (tokenText.startsWith('{') && tokenText.includes('"text"')) {
         try {
             const parsed = JSON.parse(tokenText);
-            tokenText = parsed.text;
+            tokenText = typeof parsed.text === 'string' ? parsed.text : '';
         } catch (e) { }
     }
 
