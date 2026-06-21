@@ -42,7 +42,6 @@ export class SessionPayloadBuilder {
     }
 
     static collectFilesMetadata(attachedFiles: FileMetadata[]): FileMetadata[] {
-        // Deduplicate by name, last occurrence wins
         const byName = new Map<string, FileMetadata>();
         (attachedFiles || []).forEach(file => {
             byName.set(file.name, {

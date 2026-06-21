@@ -21,11 +21,14 @@ VS Code extension to chat with a local OpenAI-compatible server (e.g. `llama.cpp
 
 | Setting | Default | Description |
 |---|---|---|
-| `llamaChat.apiUrl` | `http://127.0.0.1:8033/v1/chat/completions` | Backend URL |
-| `llamaChat.temperature` | `0.2` | Generation temperature |
-| `llamaChat.systemPrompt` | *(built-in)* | System prompt |
-| `llamaChat.debug` | `false` | Enable verbose logs and runtime metrics every 10 requests |
-| `llamaChat.maxAttachedFileSizeKb` | `256` | Max size in KB for manually attached files |
+| `llamaChat.chat.temperature` | `0.2` | Generation temperature |
+| `llamaChat.chat.systemPrompt` | *(built-in)* | System prompt |
+| `llamaChat.chat.debug` | `false` | Enable verbose logs and runtime metrics every 10 requests |
+| `llamaChat.chat.maxAttachedFileSizeKb` | `256` | Max size in KB for manually attached files |
+| `llamaChat.llamaCpp.host` | `127.0.0.1` | llama.cpp host |
+| `llamaChat.llamaCpp.port` | `8033` | llama.cpp port |
+| `llamaChat.chromaDb.url` | `http://127.0.0.1` | ChromaDB URL |
+| `llamaChat.chromaDb.port` | `8000` | ChromaDB port |
 
 Token counter total is not configurable: it is always read from llama.cpp `GET /props` (`n_ctx`).
 
@@ -33,7 +36,7 @@ Token counter total is not configurable: it is always read from llama.cpp `GET /
 
 You can customize the execution mode prompts for both **RAG (Global Analysis)** and **Specific Files** modes through VS Code settings. Templates support variable interpolation:
 
-**RAG Mode Template** (`ragModeTemplate`):
+**RAG Mode Template** (`chat.ragModeTemplate`):
 ```json
 {
   "modoEjecucion": {
@@ -52,7 +55,7 @@ You can customize the execution mode prompts for both **RAG (Global Analysis)** 
 }
 ```
 
-**Specific Files Mode Template** (`specificFilesModeTemplate`):
+**Specific Files Mode Template** (`chat.specificFilesModeTemplate`):
 ```json
 {
   "modoEjecucion": {
@@ -71,7 +74,7 @@ You can customize the execution mode prompts for both **RAG (Global Analysis)** 
 }
 ```
 
-Add these to your VS Code `settings.json` under `llamaChat` scope to override defaults.
+Add these to your VS Code `settings.json` under `llamaChat.chat` scope to override defaults.
 ## File attachment rules
 
 - All attachments live in a single array: `{ name, content, isAutomatic }`.

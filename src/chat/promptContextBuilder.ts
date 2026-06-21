@@ -56,10 +56,6 @@ function trimToLimit(value: string, maxChars: number): string {
     return `${value.slice(0, maxChars)}\n[truncated]`;
 }
 
-/**
- * Classify file type based on extension and name patterns.
- * Returns 'configuration' for config files, 'source_code' for source code.
- */
 function classifyFileTypeForPrompt(fileName: string): string {
     const extension = path.extname(fileName).toLowerCase();
     const configExtensions = new Set(['xml', 'yaml', 'yml', 'properties', 'env', 'json', 'toml', 'ini', 'conf', 'config']);
@@ -127,11 +123,9 @@ export function buildPromptContext(options: PromptContextOptions): string {
     const specificFilesTemplate = options.specificFilesModeTemplate ?? DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE;
 
     if (hasRepository && options.ragSnippets.length > 0) {
-        // Mode: Global Project Analysis (RAG)
         return buildPromptContextRag(options, ragTemplate);
     }
 
-    // Mode: Specific Files Analysis
     return buildPromptContextSpecificFiles(options, specificFilesTemplate);
 }
 
@@ -141,11 +135,9 @@ function buildPromptContextRag(
 ): string {
     const parts: string[] = [];
 
-    // Add execution mode header using template builder
     const executionModeText = PromptTemplateBuilder.buildRagModeExecution(template);
     parts.push(executionModeText);
 
-    // Add RAG context
     const ragContext = buildRagContextGlobal(options.ragSnippets, template);
     if (ragContext) {
         parts.push(
@@ -153,7 +145,6 @@ function buildPromptContextRag(
         );
     }
 
-    // Add user query
     const userQueryText = interpolateQueryLabel(template.query.label, options.userPrompt);
     parts.push(userQueryText);
 
@@ -166,11 +157,9 @@ function buildPromptContextSpecificFiles(
 ): string {
     const parts: string[] = [];
 
-    // Add execution mode header using template builder
     const executionModeText = PromptTemplateBuilder.buildSpecificFilesModeExecution(template);
     parts.push(executionModeText);
 
-    // Add attached files as specific files
     const specificFiles = buildAttachedFilesContextSpecific(options.attachedFiles, template);
     if (specificFiles) {
         parts.push(
@@ -178,7 +167,6 @@ function buildPromptContextSpecificFiles(
         );
     }
 
-    // Add user query
     const userQueryText = interpolateQueryLabel(template.query.label, options.userPrompt);
     parts.push(userQueryText);
 

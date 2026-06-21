@@ -3,10 +3,6 @@ export enum QueryIntentType {
     OPEN_CONCEPTUAL = 'OPEN_CONCEPTUAL'
 }
 
-/**
- * Classifies user intent to route either endpoint-structured retrieval
- * or broad conceptual retrieval.
- */
 export function classifyUserIntent(userQuestion: string): QueryIntentType {
     const normalizedText = userQuestion.toLowerCase().trim();
 
@@ -38,10 +34,3 @@ export function classifyUserIntent(userQuestion: string): QueryIntentType {
 
     return QueryIntentType.OPEN_CONCEPTUAL;
 }
-
-// Backward-compatible aliases for existing imports.
-export const TipoConsulta = {
-    PUNTUAL_ESTRUCTURADA: QueryIntentType.STRUCTURED_FOCUSED,
-    ABIERTA_CONCEPTUAL: QueryIntentType.OPEN_CONCEPTUAL
-} as const;
-export const clasificarIntencionUsuario = classifyUserIntent;

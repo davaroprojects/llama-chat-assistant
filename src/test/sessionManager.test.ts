@@ -40,11 +40,11 @@ suite('SessionManager', () => {
         const manager = new SessionManager(context);
         const session = manager.createSession('First question');
 
-        manager.setActiveTab('server');
+        manager.setActiveTab('settings');
         manager.setCurrentSession(session.id);
 
         const storedState = context.globalState.get<any>('llamaChatSessions');
-        assert.strictEqual(storedState.uiState.activeTab, 'server');
+        assert.strictEqual(storedState.uiState.activeTab, 'settings');
         assert.strictEqual(storedState.uiState.currentSessionId, session.id);
     });
 });

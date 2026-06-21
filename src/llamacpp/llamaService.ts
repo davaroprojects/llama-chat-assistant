@@ -1,3 +1,5 @@
+import { Logger } from '../logging/outputLogger';
+
 export interface ChatMessage {
     role: string;
     content: string | object;
@@ -50,6 +52,11 @@ export interface StreamChunk {
 export class LlamaService {
     private static readonly REQUEST_TIMEOUT_MS = 60_000;
     private static readonly STREAM_READ_TIMEOUT_MS = 10_000;
+    private static logger: Logger | null = null;
+
+    static setLogger(logger: Logger): void {
+        this.logger = logger;
+    }
 
     private static createCompositeAbortSignal(externalSignal?: AbortSignal): AbortSignal {
         const timeoutController = new AbortController();
@@ -100,9 +107,7 @@ export class LlamaService {
             };
 
             if (config.debug) {
-                console.log("=== LLAMA.CPP REQUEST PAYLOAD ===");
-                console.log(JSON.stringify(requestPayload, null, 2));
-                console.log("=================================");
+                this.logger?.debug('llama', 'Streaming payload', requestPayload);
             }
 
             const response = await globalThis.fetch(config.apiUrl, {
@@ -191,7 +196,7 @@ export class LlamaService {
                 serverUsageTokens
             };
         } catch (error: any) {
-            console.error("Error during Llama.cpp streaming:", error);
+            this.logger?.error('llama', 'Error during llama.cpp streaming', error);
             throw error;
         }
     }
@@ -219,7 +224,7 @@ export class LlamaService {
             if (response.ok) {
                 return await response.json() as LlamaServerProps;
             }
-        } catch { /* /props not available */ }
+        } catch { }
         return null;
     }
 
@@ -241,15 +246,32 @@ export class LlamaService {
             return 'local';
         }
 
+        const nestedParams = props.default_generation_settings?.params || {};
+        const nestedName = [
+            nestedParams['model_name'],
+            nestedParams['model'],
+            nestedParams['model_alias']
+        ].find(value => typeof value === 'string' && value.trim().length > 0);
+
         const directName = [props.model_name, props.model, props.model_alias]
             .find(value => typeof value === 'string' && value.trim().length > 0);
         if (typeof directName === 'string') {
             return directName.trim();
         }
 
-        if (typeof props.model_path === 'string' && props.model_path.trim().length > 0) {
-            const fileName = props.model_path.split(/[\\/]/).pop() || props.model_path;
-            return fileName.replace(/\.[^.]+$/, '');
+        if (typeof nestedName === 'string') {
+            return nestedName.trim();
+        }
+
+        const modelPathCandidates = [
+            props.model_path,
+            typeof nestedParams['model_path'] === 'string' ? nestedParams['model_path'] : undefined
+        ];
+
+        const modelPath = modelPathCandidates.find(value => typeof value === 'string' && value.trim().length > 0);
+        if (typeof modelPath === 'string') {
+            const fileName = modelPath.split(/[\\/]/).pop() || modelPath;
+            return fileName.trim();
         }
 
         return 'local';

@@ -5,7 +5,7 @@ import * as path from 'node:path';
 interface FileQuickPickItem extends vscode.QuickPickItem {
     uri?: vscode.Uri;
     displayName: string;
-    itemType: 'repository' | 'file';
+    itemType: 'file';
 }
 
 export async function openFilePicker(webviewView: vscode.WebviewView): Promise<void> {
@@ -44,9 +44,7 @@ export async function openFilePicker(webviewView: vscode.WebviewView): Promise<v
 
         const selected = await pickProjectFile(items);
         if (selected) {
-            if (selected.itemType === 'repository') {
-                processRepositorySelection(projectFiles, webviewView);
-            } else if (selected.uri) {
+            if (selected.uri) {
                 processSelectedFile(selected.uri, webviewView);
             }
         }
@@ -63,28 +61,13 @@ async function pickProjectFile(items: FileQuickPickItem[]): Promise<FileQuickPic
         quickPick.matchOnDescription = true;
         quickPick.ignoreFocusOut = false;
 
-        const repositoryItem: FileQuickPickItem = {
-            label: vscode.l10n.t('Repository'),
-            description: vscode.l10n.t('Attach repository file index'),
-            iconPath: new vscode.ThemeIcon('folder'),
-            displayName: vscode.l10n.t('Repository'),
-            itemType: 'repository'
-        };
-
-        const separatorItem: FileQuickPickItem = {
-            label: '',
-            kind: vscode.QuickPickItemKind.Separator,
-            displayName: '',
-            itemType: 'file'
-        };
-
         const applyFilter = (query: string) => {
             const normalizedQuery = query.trim().toLowerCase();
             const filtered = normalizedQuery
                 ? items.filter((item) => item.label.toLowerCase().includes(normalizedQuery) || item.description?.toLowerCase().includes(normalizedQuery))
                 : items;
 
-            quickPick.items = [repositoryItem, separatorItem, ...filtered.slice(0, 10)];
+            quickPick.items = filtered.slice(0, 10);
         };
 
         applyFilter('');
@@ -113,7 +96,9 @@ function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewVie
         const filePath = fileUri.fsPath;
         const fileName = path.basename(filePath);
         const config = vscode.workspace.getConfiguration('llamaChat');
-        const maxFileSizeKb = config.get<number>('maxAttachedFileSizeKb') ?? 256;
+        const maxFileSizeKb = config.get<number>('chat.maxAttachedFileSizeKb')
+            ?? config.get<number>('maxAttachedFileSizeKb')
+            ?? 256;
         const fileStats = fs.statSync(filePath);
 
         if (fileStats.size > maxFileSizeKb * 1024) {
@@ -135,27 +120,4 @@ function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewVie
         const message = error instanceof Error ? error.message : vscode.l10n.t('Unknown error');
         vscode.window.showErrorMessage(`${vscode.l10n.t('Error reading file')}: ${message}`);
     }
-}
-
-function processRepositorySelection(projectFiles: vscode.Uri[], webviewView: vscode.WebviewView): void {
-    const relativeFiles = projectFiles
-        .map((uri) => vscode.workspace.asRelativePath(uri, false))
-        .sort((a, b) => a.localeCompare(b));
-
-    const maxEntries = 2500;
-    const listedFiles = relativeFiles.slice(0, maxEntries);
-    const omittedCount = Math.max(0, relativeFiles.length - listedFiles.length);
-
-    const header = vscode.l10n.t('Repository file index');
-    const body = listedFiles.join('\n');
-    const footer = omittedCount > 0
-        ? `\n\n${vscode.l10n.t('... and {0} more files', String(omittedCount))}`
-        : '';
-
-    webviewView.webview.postMessage({
-        type: 'fileSelected',
-        name: vscode.l10n.t('Repository'),
-        content: `${header}\n${body}${footer}`,
-        isRepository: true
-    });
 }

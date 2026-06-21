@@ -5,7 +5,7 @@ import {
     buildServerParameterRows,
     resolveWorkspacePath,
     type LlamaServerLaunchConfig
-} from '../chat/serverConfig';
+} from '../llamacpp/serverConfig';
 
 const SERVER_CONFIG: LlamaServerLaunchConfig = {
     executablePath: './build/bin/llama-server',

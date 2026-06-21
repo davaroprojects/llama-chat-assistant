@@ -21,6 +21,7 @@ export interface ChromaDbConnectionConfig {
     chunkOverlapChars: number;
     vectorCandidatePool: number;
     maxQueryResults: number;
+    minCosineSimilarity: number;
 }
 
 export interface ChromaSearchResult {
@@ -88,6 +89,12 @@ function computeEmbedding(text: string): number[] {
     }
 
     return vec;
+}
+
+function createLocalEmbeddingFunction() {
+    return {
+        generate: async (texts: string[]) => texts.map((text) => computeEmbedding(text))
+    } as any;
 }
 
 function normalizeExtension(fileName: string): string {
@@ -178,18 +185,35 @@ interface TextChunk {
     end: number;
 }
 
-/**
- * Dynamic factory that returns the optimized splitter based on file extension.
- * Uses LangChain's RecursiveCharacterTextSplitter with language-specific separators.
- */
-function getSplitterForFile(fileName: string): RecursiveCharacterTextSplitter {
+interface ChunkTuning {
+    chunkSizeChars?: number;
+    chunkOverlapChars?: number;
+}
+
+function resolveChunkTuning(
+    tuning: ChunkTuning | undefined,
+    defaultChunkSize: number,
+    defaultChunkOverlap: number
+): { chunkSize: number; chunkOverlap: number } {
+    const configuredSize = Math.max(200, Math.floor(tuning?.chunkSizeChars ?? defaultChunkSize));
+    const configuredOverlap = Math.max(0, Math.floor(tuning?.chunkOverlapChars ?? defaultChunkOverlap));
+
+    return {
+        chunkSize: configuredSize,
+        chunkOverlap: Math.min(configuredOverlap, Math.max(configuredSize - 1, 0))
+    };
+}
+
+function getSplitterForFile(fileName: string, tuning?: ChunkTuning): RecursiveCharacterTextSplitter {
     const extension = path.extname(fileName).toLowerCase();
 
     switch (extension) {
         case '.java':
+            {
+                const chunk = resolveChunkTuning(tuning, 1000, 150);
             return new RecursiveCharacterTextSplitter({
-                chunkSize: 1000,
-                chunkOverlap: 150,
+                chunkSize: chunk.chunkSize,
+                chunkOverlap: chunk.chunkOverlap,
                 separators: [
                     '\n\n',
                     '\npublic\n',
@@ -201,64 +225,73 @@ function getSplitterForFile(fileName: string): RecursiveCharacterTextSplitter {
                     '\n'
                 ]
             });
+            }
 
         case '.py':
+            {
+                const chunk = resolveChunkTuning(tuning, 800, 100);
             return new RecursiveCharacterTextSplitter({
-                chunkSize: 800,
-                chunkOverlap: 100,
+                chunkSize: chunk.chunkSize,
+                chunkOverlap: chunk.chunkOverlap,
                 separators: ['\n\n', '\ndef ', '\nclass ', '\n', ' ']
             });
+            }
 
         case '.xml':
+            {
+                const chunk = resolveChunkTuning(tuning, 600, 50);
             return new RecursiveCharacterTextSplitter({
-                chunkSize: 600,
-                chunkOverlap: 50,
+                chunkSize: chunk.chunkSize,
+                chunkOverlap: chunk.chunkOverlap,
                 separators: ['</bean>', '</dependency>', '</plugin>', '\n\n', '\n']
             });
+            }
 
         case '.yaml':
         case '.yml':
+            {
+                const chunk = resolveChunkTuning(tuning, 500, 50);
             return new RecursiveCharacterTextSplitter({
-                chunkSize: 500,
-                chunkOverlap: 50,
+                chunkSize: chunk.chunkSize,
+                chunkOverlap: chunk.chunkOverlap,
                 separators: ['\n\n', '\n-', '\n  ', '\n']
             });
+            }
 
         case '.properties':
         case '.env':
         case '.conf':
+            {
+                const chunk = resolveChunkTuning(tuning, 400, 0);
             return new RecursiveCharacterTextSplitter({
-                chunkSize: 400,
-                chunkOverlap: 0,
+                chunkSize: chunk.chunkSize,
+                chunkOverlap: chunk.chunkOverlap,
                 separators: ['\n\n', '\n']
             });
+            }
 
         default:
+            {
+                const chunk = resolveChunkTuning(tuning, 800, 100);
             return new RecursiveCharacterTextSplitter({
-                chunkSize: 800,
-                chunkOverlap: 100,
+                chunkSize: chunk.chunkSize,
+                chunkOverlap: chunk.chunkOverlap,
                 separators: ['\n\n', '\n', ' ']
             });
+            }
     }
 }
 
-/**
- * Process and chunk a file using LangChain's language-aware splitter.
- * Returns TextChunk array with start/end position tracking.
- */
-async function processAndChunkFile(filePath: string, content: string): Promise<TextChunk[]> {
+async function processAndChunkFile(filePath: string, content: string, tuning?: ChunkTuning): Promise<TextChunk[]> {
     const fileName = path.basename(filePath);
-    const splitter = getSplitterForFile(fileName);
+    const splitter = getSplitterForFile(fileName, tuning);
 
-    // LangChain's splitter returns an array of chunk text strings
     const chunkTexts = await splitter.splitText(content);
 
-    // Convert text chunks to TextChunk objects with position tracking
     const chunks: TextChunk[] = [];
     let currentPos = 0;
 
     for (const chunkText of chunkTexts) {
-        // Find where this chunk starts in the original content
         const startPos = content.indexOf(chunkText, currentPos);
         const start = startPos >= 0 ? startPos : currentPos;
         const end = start + chunkText.length;
@@ -275,7 +308,6 @@ async function processAndChunkFile(filePath: string, content: string): Promise<T
     return chunks;
 }
 
-// Backward-compatible aliases for existing imports/tests.
 const obtenerSplitterPorArchivo = getSplitterForFile;
 const procesarYChunkearArchivo = processAndChunkFile;
 
@@ -528,7 +560,6 @@ async function listTextFiles(
         .map((pattern) => globToRegExp(pattern));
     const maxFileSizeBytes = Math.max(1, config.maxFileSizeKb) * 1024;
     const maxIndexedFiles = Math.max(1, config.maxIndexedFiles);
-    const chunkSizeChars = Math.max(200, config.chunkSizeChars);
 
     async function walk(currentDir: string): Promise<void> {
         if (indexed.length >= maxIndexedFiles) {
@@ -584,7 +615,10 @@ async function listTextFiles(
                 const language = detectLanguage(fileName);
                 const fileType = classifyFileType(fileName, language);
                 const ecosystemLanguage = getEcosystemLanguage(language, projectType);
-                const chunks = await procesarYChunkearArchivo(relativePath, content);
+                const chunks = await procesarYChunkearArchivo(relativePath, content, {
+                    chunkSizeChars: config.chunkSizeChars,
+                    chunkOverlapChars: config.chunkOverlapChars
+                });
 
                 chunks.forEach((chunk, index) => {
                     const javaMetadata = language === 'java'
@@ -610,7 +644,6 @@ async function listTextFiles(
                     });
                 });
             } catch (error) {
-                // Skip unreadable/binary files.
             }
         }
     }
@@ -627,12 +660,10 @@ async function cleanupEphemeralCollections(client: ChromaClient, collectionPrefi
                 try {
                     await client.deleteCollection({ name: collection.name });
                 } catch {
-                    // Best effort cleanup.
                 }
             }
         }
     } catch {
-        // Ignore cleanup errors.
     }
 }
 
@@ -675,7 +706,10 @@ export async function indexAllWithChromaDb(
     await cleanupEphemeralCollections(client, config.collectionPrefix);
 
     const collectionName = `${config.collectionPrefix}-${indexedAt}`;
-    const collection = await client.createCollection({ name: collectionName });
+    const collection = await client.createCollection({
+        name: collectionName,
+        embeddingFunction: createLocalEmbeddingFunction()
+    } as any);
 
     const projectType = await detectProjectType(workspaceRoot);
     const files = await listTextFiles(workspaceRoot, config, projectType);
@@ -753,7 +787,10 @@ export async function queryRelevantContextFromChromaDbSemantic(
         throw new DOMException('Aborted', 'AbortError');
     }
 
-    const collection = await client.getCollection({ name: collectionName });
+    const collection = await client.getCollection({
+        name: collectionName,
+        embeddingFunction: createLocalEmbeddingFunction()
+    } as any);
     const where = buildWhereFilter(filePathFilter);
     const queryResult = await collection.query({
         queryEmbeddings: [computeEmbedding(queryText)],
@@ -820,7 +857,10 @@ export async function queryRelevantContextFromChromaDbLexical(
         return [];
     }
 
-    const collection = await client.getCollection({ name: collectionName });
+    const collection = await client.getCollection({
+        name: collectionName,
+        embeddingFunction: createLocalEmbeddingFunction()
+    } as any);
     const where = buildWhereFilter(filePathFilter);
     const pageSize = 500;
     let offset = 0;
@@ -909,7 +949,10 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
         return [];
     }
 
-    const collection = await client.getCollection({ name: collectionName });
+    const collection = await client.getCollection({
+        name: collectionName,
+        embeddingFunction: createLocalEmbeddingFunction()
+    } as any);
     const queryEmbedding = computeEmbedding(queryText);
 
     const pageSize = 500;

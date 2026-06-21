@@ -17,97 +17,107 @@
       {
         "title": "%config.chat.title%",
         "properties": {
-          "llamaChat.temperature": {
+          "llamaChat.chat.temperature": {
             "type": "number",
             "default": 0.2,
             "minimum": 0,
             "maximum": 2,
             "description": "%config.temperature.description%"
           },
-          "llamaChat.model": {
+          "llamaChat.chat.model": {
             "type": "string",
             "default": "local",
             "description": "%config.model.description%"
           },
-          "llamaChat.maxTokens": {
+          "llamaChat.chat.maxTokens": {
             "type": "number",
             "default": 2048,
             "minimum": 1,
             "maximum": 16384,
             "description": "%config.maxTokens.description%"
           },
-          "llamaChat.systemPrompt": {
+          "llamaChat.chat.systemPrompt": {
             "type": "string",
             "default": "You are a Principal Software Engineer specialized in code navigation and architecture. Explain execution flows strictly from the provided context.\nRULES:\n1. Answer using only the architecture map and the code inside <contexto_codigo>.\n2. If the answer is not explicitly present in the provided code, say: \"Insufficient information in indexed files\". Do not invent logic.\n3. Structure the response chronologically (Step 1, Step 2, Step 3) and show transitions between files.\n4. Respond in markdown format",
             "description": "%config.systemPrompt.description%",
             "editPresentation": "multilineText"
           },
-          "llamaChat.debug": {
+          "llamaChat.chat.debug": {
             "type": "boolean",
             "default": false,
             "description": "%config.debug.description%"
           },
-          "llamaChat.maxAttachedFileSizeKb": {
+          "llamaChat.chat.maxAttachedFileSizeKb": {
             "type": "number",
             "default": 256,
             "minimum": 1,
             "maximum": 4096,
             "description": "%config.maxAttachedFileSizeKb.description%"
+          },
+          "llamaChat.chat.ragModeTemplate": {
+            "type": "object",
+            "default": {},
+            "description": "%config.chat.ragModeTemplate.description%"
+          },
+          "llamaChat.chat.specificFilesModeTemplate": {
+            "type": "object",
+            "default": {},
+            "description": "%config.chat.specificFilesModeTemplate.description%"
           }
         }
       },
       {
-        "title": "%config.server.title%",
+        "title": "%config.llamaCpp.title%",
         "properties": {
-          "llamaChat.server.executablePath": {
+          "llamaChat.llamaCpp.executablePath": {
             "type": "string",
             "default": "./build/bin/llama-server",
             "description": "%config.server.executablePath.description%"
           },
-          "llamaChat.server.modelPath": {
+          "llamaChat.llamaCpp.modelPath": {
             "type": "string",
             "default": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
             "description": "%config.server.modelPath.description%"
           },
-          "llamaChat.server.gpuLayers": {
+          "llamaChat.llamaCpp.gpuLayers": {
             "type": "number",
             "default": 99,
             "description": "%config.server.gpuLayers.description%"
           },
-          "llamaChat.server.contextSize": {
+          "llamaChat.llamaCpp.contextSize": {
             "type": "number",
             "default": 16384,
             "minimum": 1,
             "description": "%config.server.contextSize.description%"
           },
-          "llamaChat.server.flashAttention": {
+          "llamaChat.llamaCpp.flashAttention": {
             "type": "boolean",
             "default": true,
             "description": "%config.server.flashAttention.description%"
           },
-          "llamaChat.server.host": {
+          "llamaChat.llamaCpp.host": {
             "type": "string",
             "default": "127.0.0.1",
             "description": "%config.server.host.description%"
           },
-          "llamaChat.server.port": {
+          "llamaChat.llamaCpp.port": {
             "type": "number",
             "default": 8033,
             "minimum": 1,
             "maximum": 65535,
             "description": "%config.server.port.description%"
           },
-          "llamaChat.server.chatCompletionsPath": {
+          "llamaChat.llamaCpp.chatCompletionsPath": {
             "type": "string",
             "default": "/v1/chat/completions",
             "description": "%config.server.chatCompletionsPath.description%"
           },
-          "llamaChat.server.jinja": {
+          "llamaChat.llamaCpp.jinja": {
             "type": "boolean",
             "default": true,
             "description": "%config.server.jinja.description%"
           },
-          "llamaChat.server.tools": {
+          "llamaChat.llamaCpp.tools": {
             "type": "string",
             "default": "all",
             "description": "%config.server.tools.description%"
@@ -115,26 +125,26 @@
         }
       },
       {
-        "title": "%config.rag.title%",
+        "title": "%config.chromaDb.title%",
         "properties": {
-          "llamaChat.rag.chromaUrl": {
+          "llamaChat.chromaDb.url": {
             "type": "string",
             "default": "http://127.0.0.1",
             "description": "%config.rag.chromaUrl.description%"
           },
-          "llamaChat.rag.chromaPort": {
+          "llamaChat.chromaDb.port": {
             "type": "number",
             "default": 8000,
             "minimum": 1,
             "maximum": 65535,
             "description": "%config.rag.chromaPort.description%"
           },
-          "llamaChat.rag.collectionPrefix": {
+          "llamaChat.chromaDb.collectionPrefix": {
             "type": "string",
             "default": "llama-chat-ephemeral",
             "description": "%config.rag.collectionPrefix.description%"
           },
-          "llamaChat.rag.excludeDirs": {
+          "llamaChat.chromaDb.excludeDirs": {
             "type": "array",
             "default": [
               ".git",
@@ -153,7 +163,7 @@
             },
             "description": "%config.rag.excludeDirs.description%"
           },
-          "llamaChat.rag.excludeFileGlobs": {
+          "llamaChat.chromaDb.excludeFileGlobs": {
             "type": "array",
             "default": [
               "**/*.bin",
@@ -166,43 +176,50 @@
             },
             "description": "%config.rag.excludeFileGlobs.description%"
           },
-          "llamaChat.rag.maxFileSizeKb": {
+          "llamaChat.chromaDb.maxFileSizeKb": {
             "type": "number",
             "default": 512,
             "minimum": 1,
             "description": "%config.rag.maxFileSizeKb.description%"
           },
-          "llamaChat.rag.maxIndexedFiles": {
+          "llamaChat.chromaDb.maxIndexedFiles": {
             "type": "number",
             "default": 2000,
             "minimum": 1,
             "description": "%config.rag.maxIndexedFiles.description%"
           },
-          "llamaChat.rag.chunkSizeChars": {
+          "llamaChat.chromaDb.chunkSizeChars": {
             "type": "number",
             "default": 2000,
             "minimum": 200,
             "description": "%config.rag.chunkSizeChars.description%"
           },
-          "llamaChat.rag.chunkOverlapChars": {
+          "llamaChat.chromaDb.chunkOverlapChars": {
             "type": "number",
             "default": 300,
             "minimum": 0,
             "description": "%config.rag.chunkOverlapChars.description%"
           },
-          "llamaChat.rag.vectorCandidatePool": {
+          "llamaChat.chromaDb.vectorCandidatePool": {
             "type": "number",
             "default": 50,
             "minimum": 1,
             "description": "%config.rag.vectorCandidatePool.description%"
           },
-          "llamaChat.rag.maxQueryResults": {
+          "llamaChat.chromaDb.maxQueryResults": {
             "type": "number",
             "default": 12,
             "minimum": 1,
             "description": "%config.rag.maxQueryResults.description%"
           },
-          "llamaChat.rag.queryMode": {
+          "llamaChat.chromaDb.minCosineSimilarity": {
+            "type": "number",
+            "default": 0.2,
+            "minimum": 0,
+            "maximum": 1,
+            "description": "%config.rag.minCosineSimilarity.description%"
+          },
+          "llamaChat.chromaDb.queryMode": {
             "type": "string",
             "default": "semantic",
             "enum": [
@@ -255,7 +272,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "copy-media": "node -e \"const fs=require('fs'); fs.mkdirSync('dist/media', {recursive:true}); fs.copyFileSync('media/webview.html', 'dist/media/webview.html'); fs.copyFileSync('media/webview.css', 'dist/media/webview.css'); fs.copyFileSync('media/webview.js', 'dist/media/webview.js'); fs.copyFileSync('media/prism.min.js', 'dist/media/prism.min.js'); fs.copyFileSync('media/marked.min.js', 'dist/media/marked.min.js');\"",
+    "copy-media": "node -e \"const fs=require('fs'); fs.mkdirSync('dist/media', {recursive:true}); fs.copyFileSync('media/webview.html', 'dist/media/webview.html'); fs.copyFileSync('media/webview.css', 'dist/media/webview.css'); fs.copyFileSync('media/webview.js', 'dist/media/webview.js'); fs.copyFileSync('media/webviewSecurity.js', 'dist/media/webviewSecurity.js'); fs.copyFileSync('media/webviewUiPrimitives.js', 'dist/media/webviewUiPrimitives.js'); fs.copyFileSync('media/prism.min.js', 'dist/media/prism.min.js'); fs.copyFileSync('media/marked.min.js', 'dist/media/marked.min.js');\"",
     "compile": "npm run check-types && npm run lint && node esbuild.js && npm run copy-media",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",

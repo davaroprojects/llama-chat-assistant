@@ -1,28 +1,28 @@
 import * as assert from 'assert';
-import { buscarFlujoPorEndpoint } from '../chat/endpointFlowResolver';
-import { WorkspaceGraph } from '../rag/workspaceDependencyGraphBuilder';
+import { searchFlowByEndpoint } from '../chat/endpointFlowResolver';
+import { WorkspaceGraph } from '../chromadb/workspaceDependencyGraphBuilder';
 
-suite('EndpointFlowResolver - buscarFlujoPorEndpoint', () => {
+suite('EndpointFlowResolver - searchFlowByEndpoint', () => {
     test('Returns DFS flow from matching trigger', () => {
         const graph: WorkspaceGraph = {
             'src/controllers/usersController.ts': {
-                tipo: 'controller',
+                type: 'controller',
                 triggers: ['/api/users'],
-                llamadas: ['src/services/usersService.ts']
+                calls: ['src/services/usersService.ts']
             },
             'src/services/usersService.ts': {
-                tipo: 'service',
+                type: 'service',
                 triggers: [],
-                llamadas: ['src/repositories/usersRepository.ts']
+                calls: ['src/repositories/usersRepository.ts']
             },
             'src/repositories/usersRepository.ts': {
-                tipo: 'repository',
+                type: 'repository',
                 triggers: [],
-                llamadas: []
+                calls: []
             }
         };
 
-        const flow = buscarFlujoPorEndpoint(graph, '/api/users');
+        const flow = searchFlowByEndpoint(graph, '/api/users');
         assert.deepStrictEqual(flow, [
             'src/controllers/usersController.ts',
             'src/services/usersService.ts',
@@ -33,36 +33,36 @@ suite('EndpointFlowResolver - buscarFlujoPorEndpoint', () => {
     test('Returns empty when endpoint is not found', () => {
         const graph: WorkspaceGraph = {
             'src/controllers/usersController.ts': {
-                tipo: 'controller',
+                type: 'controller',
                 triggers: ['/api/users'],
-                llamadas: ['src/services/usersService.ts']
+                calls: ['src/services/usersService.ts']
             },
             'src/services/usersService.ts': {
-                tipo: 'service',
+                type: 'service',
                 triggers: [],
-                llamadas: []
+                calls: []
             }
         };
 
-        const flow = buscarFlujoPorEndpoint(graph, '/api/orders');
+        const flow = searchFlowByEndpoint(graph, '/api/orders');
         assert.deepStrictEqual(flow, []);
     });
 
     test('Avoids cycles while traversing DFS', () => {
         const graph: WorkspaceGraph = {
             'a.ts': {
-                tipo: 'controller',
+                type: 'controller',
                 triggers: ['/api/a'],
-                llamadas: ['b.ts']
+                calls: ['b.ts']
             },
             'b.ts': {
-                tipo: 'service',
+                type: 'service',
                 triggers: [],
-                llamadas: ['a.ts']
+                calls: ['a.ts']
             }
         };
 
-        const flow = buscarFlujoPorEndpoint(graph, '/api/a');
+        const flow = searchFlowByEndpoint(graph, '/api/a');
         assert.deepStrictEqual(flow, ['a.ts', 'b.ts']);
     });
 });

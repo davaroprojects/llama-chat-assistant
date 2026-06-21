@@ -1,8 +1,3 @@
-/**
- * Configurable prompt templates for RAG and Specific Files execution modes.
- * These templates can be overridden by user configuration.
- */
-
 export interface RagModeTemplate {
     executionMode: {
         header: string;
@@ -12,10 +7,10 @@ export interface RagModeTemplate {
     retrievedContext: {
         header: string;
         footer: string;
-        fragmentFormat: string; // Use {index}, {path}, {distance}, {content}
+        fragmentFormat: string;
     };
     query: {
-        label: string; // Use {prompt}
+        label: string;
     };
 }
 
@@ -28,10 +23,10 @@ export interface SpecificFilesModeTemplate {
     targetFiles: {
         header: string;
         footer: string;
-        fileFormat: string; // Use {name}, {type}, {extension}, {content}
+        fileFormat: string;
     };
     query: {
-        label: string; // Use {prompt}
+        label: string;
     };
 }
 
@@ -189,9 +184,6 @@ export function normalizeSpecificFilesModeTemplate(
     };
 }
 
-/**
- * Formatter functions to interpolate template variables
- */
 export function interpolateRagFragment(
     template: string,
     index: number,
@@ -228,9 +220,6 @@ export function interpolateQueryLabel(template: string, prompt: string): string 
     return interpolateConsulta(template, prompt);
 }
 
-/**
- * Builder to generate complete mode execution text
- */
 export class PromptTemplateBuilder {
     static buildRagModeExecution(
         template: RagModeTemplate = DEFAULT_RAG_MODE_TEMPLATE

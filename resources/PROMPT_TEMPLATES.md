@@ -6,8 +6,8 @@ This document explains how to customize the prompt templates for RAG (Global Ana
 
 Prompt templates are configurable through VS Code settings. Two modes are available:
 
-1. **RAG Mode** (`llamaChat.ragModeTemplate`): Used when a repository is selected
-2. **Specific Files Mode** (`llamaChat.specificFilesModeTemplate`): Used when only individual files are attached
+1. **RAG Mode** (`llamaChat.chat.ragModeTemplate`): Used when a repository is selected
+2. **Specific Files Mode** (`llamaChat.chat.specificFilesModeTemplate`): Used when only individual files are attached
 
 ## Template Variables
 
@@ -33,7 +33,7 @@ Prompt templates are configurable through VS Code settings. Two modes are availa
 
 ```json
 {
-  "llamaChat.ragModeTemplate": {
+  "llamaChat.chat.ragModeTemplate": {
     "modoEjecucion": {
       "header": "---RAG MODE---",
       "alcance": "Multi-file analysis",
@@ -55,7 +55,7 @@ Prompt templates are configurable through VS Code settings. Two modes are availa
 
 ```json
 {
-  "llamaChat.specificFilesModeTemplate": {
+  "llamaChat.chat.specificFilesModeTemplate": {
     "archivosObjetivo": {
       "archivoFormat": "=== {name} ({type}) ===\n```\n{content}\n```"
     }
@@ -73,7 +73,7 @@ Or edit `.vscode/settings.json`:
 
 ```json
 {
-  "llamaChat.ragModeTemplate": {
+  "llamaChat.chat.ragModeTemplate": {
     "modoEjecucion": { ... },
     "contextoRecuperado": { ... },
     "consulta": { ... }
@@ -89,7 +89,7 @@ Example - Change only the fragment format:
 
 ```json
 {
-  "llamaChat.ragModeTemplate": {
+  "llamaChat.chat.ragModeTemplate": {
     "contextoRecuperado": {
       "fragmentoFormat": "### Segment {index} ({path})\n```\n{content}\n```"
     }
@@ -201,7 +201,7 @@ interface SpecificFilesModeTemplate {
 
 ### Templates not applying?
 
-1. Ensure you're using the correct setting names: `llamaChat.ragModeTemplate` and `llamaChat.specificFilesModeTemplate`
+1. Ensure you're using the correct setting names: `llamaChat.chat.ragModeTemplate` and `llamaChat.chat.specificFilesModeTemplate`
 2. Check for JSON syntax errors (use VS Code's JSON validator)
 3. Restart VS Code to ensure settings are reloaded
 

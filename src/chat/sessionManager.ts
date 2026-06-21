@@ -13,13 +13,9 @@ export interface ChatSession {
 }
 
 export interface ChatUiState {
-    // Current visible tab in the webview UI.
-    activeTab: 'chat' | 'server' | 'rag';
-    // Ordered list of tabs visited by the user in the current UI lifecycle.
-    activeScreens: Array<'chat' | 'server' | 'rag'>;
-    // Session currently selected in the chat UI.
+    activeTab: 'chat' | 'settings' | 'about';
+    activeScreens: Array<'chat' | 'settings' | 'about'>;
     currentSessionId: string | null;
-    // Persisted state of repository indexing in the RAG tab.
     ragIndexState: RagIndexState;
 }
 
@@ -39,13 +35,9 @@ export class SessionManager {
     private currentSessionId: string | null = null;
     private readonly STORAGE_KEY = 'llamaChatSessions';
     private uiState: ChatUiState = {
-        // Current visible tab in the webview UI.
         activeTab: 'chat',
-        // Ordered list of tabs visited by the user in the current UI lifecycle.
         activeScreens: ['chat'],
-        // Session currently selected in the chat UI.
         currentSessionId: null,
-        // Persisted state of repository indexing in the RAG tab.
         ragIndexState: {
             status: 'idle',
             indexedAt: null,
@@ -70,6 +62,18 @@ export class SessionManager {
                 ...(storedState.uiState?.ragIndexState || {})
             }
         };
+
+        if (this.uiState.activeTab !== 'chat' && this.uiState.activeTab !== 'settings' && this.uiState.activeTab !== 'about') {
+            this.uiState.activeTab = 'chat';
+        }
+
+        this.uiState.activeScreens = (this.uiState.activeScreens || [])
+            .map((screen) => (screen === 'chat' || screen === 'settings' || screen === 'about' ? screen : 'settings'));
+
+        if (this.uiState.activeScreens.length === 0) {
+            this.uiState.activeScreens = [this.uiState.activeTab];
+        }
+
         this.currentSessionId = this.uiState.currentSessionId;
     }
 
@@ -128,7 +132,7 @@ export class SessionManager {
         return { ...this.uiState };
     }
 
-    public setActiveTab(activeTab: 'chat' | 'server' | 'rag'): void {
+    public setActiveTab(activeTab: 'chat' | 'settings' | 'about'): void {
         this.uiState.activeTab = activeTab;
         if (!this.uiState.activeScreens.includes(activeTab)) {
             this.uiState.activeScreens.push(activeTab);

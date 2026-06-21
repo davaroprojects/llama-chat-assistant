@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { ProjectComponent, WorkspaceGraph } from '../rag/workspaceDependencyGraphBuilder';
+import { ProjectComponent, WorkspaceGraph } from '../chromadb/workspaceDependencyGraphBuilder';
 
 interface WorkspaceGraphFilePayload {
     components?: WorkspaceGraph;
@@ -9,9 +9,6 @@ interface WorkspaceGraphFilePayload {
 const MAX_GRAPH_DEPTH = 100;
 const MAX_VISITED_NODES = 10_000;
 
-/**
- * Resolves endpoint call flow by traversing the workspace dependency graph.
- */
 export function searchFlowByEndpoint(graph: WorkspaceGraph, searchedEndpoint: string): string[] {
     let initialController: string | null = null;
     const normalizedEndpoint = searchedEndpoint.toLowerCase().trim();
@@ -59,9 +56,7 @@ export function searchFlowByEndpoint(graph: WorkspaceGraph, searchedEndpoint: st
         detectedFlow.push(current.filePath);
 
         const componentData = graph[current.filePath];
-        const outgoingCalls = Array.isArray(componentData?.calls)
-            ? componentData.calls
-            : (Array.isArray(componentData?.llamadas) ? componentData.llamadas : []);
+        const outgoingCalls = Array.isArray(componentData?.calls) ? componentData.calls : [];
 
         if (outgoingCalls.length > 0) {
             for (const targetFile of outgoingCalls) {
@@ -86,8 +81,8 @@ function looksLikeComponentMap(value: unknown): value is WorkspaceGraph {
         }
 
         const candidate = item as ProjectComponent;
-        const componentType = typeof candidate.type === 'string' ? candidate.type : candidate.tipo;
-        const calls = Array.isArray(candidate.calls) ? candidate.calls : candidate.llamadas;
+        const componentType = candidate.type;
+        const calls = candidate.calls;
 
         return typeof componentType === 'string'
             && Array.isArray(candidate.triggers)
@@ -152,6 +147,3 @@ export class EndpointFlowResolver {
         return cleaned;
     }
 }
-
-// Backward-compatible alias for existing tests/imports.
-export const buscarFlujoPorEndpoint = searchFlowByEndpoint;

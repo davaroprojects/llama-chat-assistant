@@ -37,17 +37,11 @@ export interface ProjectComponent {
     type?: string;
     triggers: string[];
     calls?: string[];
-    // Legacy aliases kept for compatibility with existing caches/tests.
-    tipo?: string;
-    llamadas?: string[];
 }
 
 export interface WorkspaceGraph {
     [filePath: string]: ProjectComponent;
 }
-
-// Backward-compatible alias for existing imports.
-export type ComponenteProyecto = ProjectComponent;
 
 interface ImportReference {
     moduleSpecifier: string;
@@ -171,7 +165,6 @@ function parseImportReferences(content: string): ImportReference[] {
             continue;
         }
 
-        // `import com.example.UserService;` -> class symbol `UserService`
         const className = fullImport.split('.').pop() || '';
         imports.push({
             moduleSpecifier: fullImport,
@@ -220,7 +213,6 @@ function resolveImportTargetFile(sourceFile: string, moduleSpecifier: string): s
                 return candidate;
             }
         } catch {
-            // Continue checking remaining candidates.
         }
     }
 
@@ -230,30 +222,28 @@ function resolveImportTargetFile(sourceFile: string, moduleSpecifier: string): s
 function classifyComponentType(filePath: string): string {
     const lowerPath = filePath.toLowerCase();
     if (lowerPath.includes('controller')) {
-        return 'controlador';
+        return 'controller';
     }
     if (lowerPath.includes('router') || lowerPath.includes('routes')) {
         return 'router';
     }
     if (lowerPath.includes('service')) {
-        return 'servicio';
+        return 'service';
     }
     if (lowerPath.includes('repository') || lowerPath.includes('dao')) {
-        return 'repositorio';
+        return 'repository';
     }
     if (lowerPath.includes('handler')) {
         return 'handler';
     }
 
-    return 'modulo';
+    return 'module';
 }
 
 function detectEndpointTriggers(content: string): string[] {
     const triggers = new Set<string>();
 
-    // Express / Koa / Fastify style
     const jsRouteRegex = /\b(?:app|router|server)\s*\.\s*(get|post|put|delete|patch|options|head|all|use)\s*\(\s*['"]([^'"]+)['"]/gmi;
-    // Spring annotations, supports multiline content inside annotation params
     const springRouteRegex = /@(GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping)\s*\(([^)]*)\)/gmi;
 
     let match: RegExpExecArray | null;
@@ -294,9 +284,7 @@ function detectEndpointTriggers(content: string): string[] {
 function extractDeclaredSymbols(content: string): string[] {
     const symbols = new Set<string>();
 
-    // JS/TS declarations
     const jsSymbolRegex = /\b(?:class|function|interface|type|enum|const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
-    // Java/C# class or interface declarations
     const classLikeRegex = /\b(?:public|private|protected)?\s*(?:abstract\s+|final\s+)?(?:class|interface|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
 
     let match: RegExpExecArray | null;
@@ -450,9 +438,7 @@ export class WorkspaceDependencyGraphBuilder {
             graph.components[filePath] = {
                 type: componentType,
                 triggers: fileToTriggers.get(filePath) || [],
-                calls,
-                tipo: componentType,
-                llamadas: calls
+                calls
             };
         });
 

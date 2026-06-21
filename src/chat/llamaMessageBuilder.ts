@@ -1,4 +1,4 @@
-import { ChatMessage } from './llamaService';
+import { ChatMessage } from '../llamacpp/llamaService';
 import { FileMetadata } from './sessionPayloadBuilder';
 
 function getBaseName(name: string): string {

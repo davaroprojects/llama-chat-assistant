@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { LlamaService } from '../chat/llamaService';
+import { LlamaService } from '../llamacpp/llamaService';
 import { LlamaMessageBuilder } from '../chat/llamaMessageBuilder';
 
 const BASE_CONFIG = {
@@ -129,6 +129,17 @@ suite('LlamaService - server props', () => {
         const modelName = LlamaService.extractModelName({
             model_path: '/models/qwen2.5-coder-7b-instruct-q8_0.gguf'
         });
-        assert.strictEqual(modelName, 'qwen2.5-coder-7b-instruct-q8_0');
+        assert.strictEqual(modelName, 'qwen2.5-coder-7b-instruct-q8_0.gguf');
+    });
+
+    test('Extracts model name from nested default_generation_settings params', () => {
+        const modelName = LlamaService.extractModelName({
+            default_generation_settings: {
+                params: {
+                    model_path: '/models/qwen2.5-coder-7b-instruct-q4_k_m.gguf'
+                }
+            }
+        });
+        assert.strictEqual(modelName, 'qwen2.5-coder-7b-instruct-q4_k_m.gguf');
     });
 });
