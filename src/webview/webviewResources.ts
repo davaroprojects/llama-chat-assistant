@@ -6,6 +6,11 @@ import * as crypto from 'node:crypto';
 export interface WebviewLabels {
     htmlLang: string;
     chatTabLabel: string;
+    settingsTabLabel: string;
+    aboutTabLabel: string;
+    settingsLlamaSectionTitle: string;
+    settingsChromaSectionTitle: string;
+    aboutMarkdown: string;
     serverTabLabel: string;
     ragTabLabel: string;
     serverStartLabel: string;
@@ -65,6 +70,20 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
     return {
         htmlLang: 'en',
         chatTabLabel: 'Chat',
+        settingsTabLabel: 'Settings',
+        aboutTabLabel: 'About',
+        settingsLlamaSectionTitle: 'llama.cpp',
+        settingsChromaSectionTitle: 'ChromaDB',
+        aboutMarkdown: [
+            '## About',
+            '',
+            'This assistant runs fully local using **llama.cpp** and **ChromaDB**.',
+            '',
+            '- **llama.cpp** handles local model inference and chat completions.',
+            '- **ChromaDB** stores indexed project context used by retrieval.',
+            '',
+            'No cloud dependency is required for core chat and indexing flows.'
+        ].join('\n'),
         serverTabLabel: 'Server',
         ragTabLabel: 'RAG',
         serverStartLabel: 'Start',

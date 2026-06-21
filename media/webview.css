@@ -18,11 +18,13 @@ body {
     align-items: center;
     gap: 8px;
     margin-bottom: 12px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    padding-bottom: 8px;
 }
 
 .tab-button {
-    border: none;
-    background: transparent;
+    border: 1px solid transparent;
+    background: color-mix(in srgb, var(--vscode-editorWidget-background, transparent) 50%, transparent);
     color: var(--vscode-foreground);
     opacity: 0.55;
     border-radius: 8px;
@@ -40,6 +42,7 @@ body {
 .tab-button.is-active {
     opacity: 1;
     background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+    border-color: var(--vscode-focusBorder);
 }
 
 .tab-panel {
@@ -49,16 +52,66 @@ body {
     min-height: 0;
 }
 
-.server-tab-panel {
-    justify-content: center;
+.settings-tab-panel {
+    overflow-y: auto;
 }
 
-.server-panel-card {
+.settings-accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.settings-accordion-item {
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 10px;
+    background: var(--vscode-editor-background, rgba(255, 255, 255, 0.02));
+    overflow: hidden;
+}
+
+.settings-accordion-item summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 10px 12px;
+    font-size: calc(var(--vscode-font-size, 13px) * 0.95);
+    font-weight: 600;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-bottom: 18px;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.settings-accordion-item summary::-webkit-details-marker {
+    display: none;
+}
+
+.settings-accordion-item summary::before {
+    content: '▸';
+    display: inline-block;
+    margin-right: 8px;
+    transform: translateY(-0.5px);
+}
+
+.settings-accordion-item[open] summary::before {
+    content: '▾';
+}
+
+.accordion-title {
+    display: inline-flex;
+    align-items: center;
+}
+
+.accordion-header-action {
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: calc(var(--vscode-font-size, 13px) * 0.86);
+    line-height: 1.2;
+}
+
+.settings-accordion-item summary .accordion-header-action svg {
+    width: 12px;
+    height: 12px;
 }
 
 .server-start-button {
@@ -123,6 +176,14 @@ body {
 .server-action-button-label {
     display: inline-flex;
     align-items: center;
+}
+
+.settings-accordion-item summary .accordion-header-action {
+    padding: 2px 8px;
+    font-size: calc(var(--vscode-font-size, 13px) * 0.8);
+    font-weight: 500;
+    min-height: 20px;
+    gap: 4px;
 }
 
 .server-stop-button.is-disabled {
@@ -752,28 +813,43 @@ textarea {
     transition: opacity 0.2s ease;
 }
 
-.model-menu-trigger {
-    border: none;
-    background: transparent;
-    color: inherit;
-    opacity: 0.4;
+.model-name-display {
+    color: var(--vscode-foreground);
+    opacity: 0.7;
     font: inherit;
-    padding: 2px 6px;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.15s ease, opacity 0.15s ease;
+    padding: 2px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
 }
 
-.model-menu-trigger:hover {
-    opacity: 1;
-    background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+.about-tab-panel {
+    overflow-y: auto;
 }
 
-.model-menu-trigger.is-disabled,
-.model-menu-trigger:disabled {
-    opacity: 0.2 !important;
-    cursor: not-allowed;
-    pointer-events: none;
+.about-markdown-content {
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 10px;
+    background: var(--vscode-editor-background, rgba(255, 255, 255, 0.02));
+    padding: 12px;
+    line-height: 1.5;
+}
+
+.about-markdown-content h2,
+.about-markdown-content h3,
+.about-markdown-content p,
+.about-markdown-content ul {
+    margin: 0 0 10px;
+}
+
+.about-markdown-content ul {
+    padding-left: 18px;
+}
+
+.about-markdown-content code {
+    font-family: var(--vscode-editor-font-family, monospace);
+    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.85);
 }
 
 .quick-context-window {

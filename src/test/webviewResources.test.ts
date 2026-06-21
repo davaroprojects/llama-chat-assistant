@@ -6,9 +6,14 @@ suite('webviewResources', () => {
         const labels = getWebviewLabels('en-US');
 
         assert.strictEqual(labels.chatTabLabel, 'Chat');
-        assert.strictEqual(labels.serverTabLabel, 'Server');
+        assert.strictEqual(labels.settingsTabLabel, 'Settings');
+        assert.strictEqual(labels.aboutTabLabel, 'About');
         assert.strictEqual(labels.serverStartLabel, 'Start');
         assert.strictEqual(labels.serverStopLabel, 'Stop');
+        assert.strictEqual(labels.settingsLlamaSectionTitle, 'llama.cpp');
+        assert.strictEqual(labels.settingsChromaSectionTitle, 'ChromaDB');
+        assert.ok(labels.aboutMarkdown.includes('llama.cpp'));
+        assert.ok(labels.aboutMarkdown.includes('ChromaDB'));
         assert.strictEqual(labels.serverParametersTitle, 'Parameters');
         assert.strictEqual(labels.propertyLabel, 'Property');
         assert.strictEqual(labels.valueLabel, 'Value');
@@ -23,7 +28,6 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.attachFileTitle, 'Add file to context');
         assert.strictEqual(labels.sendMessageTitle, 'Send message');
         assert.strictEqual(labels.stopGenerationTitle, 'Stop generation');
-        assert.strictEqual(labels.modelMenuTitle, 'View current model');
         assert.strictEqual(labels.modelLabel, 'Model');
         assert.strictEqual(labels.removeFileTitle, 'Remove file');
         assert.strictEqual(labels.unavailableShortLabel, 'Unavailable');
@@ -32,7 +36,7 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.newSessionLabel, 'New Session');
 
         const esLabels = getWebviewLabels('es-ES');
-        assert.strictEqual(esLabels.serverTabLabel, 'Server');
+        assert.strictEqual(esLabels.settingsTabLabel, 'Settings');
         assert.strictEqual(esLabels.newSessionLabel, 'New Session');
     });
 });

@@ -83,18 +83,16 @@ function setServerButtonContent(button, label, kind, isPending) {
 const elements = {
     vscode: acquireVsCodeApi(),
     chatTabBtn: document.getElementById('chat-tab-btn'),
-    serverTabBtn: document.getElementById('server-tab-btn'),
-    ragTabBtn: document.getElementById('rag-tab-btn'),
+    settingsTabBtn: document.getElementById('settings-tab-btn'),
+    aboutTabBtn: document.getElementById('about-tab-btn'),
     chatTabPanel: document.getElementById('chat-tab-panel'),
-    serverTabPanel: document.getElementById('server-tab-panel'),
-    ragTabPanel: document.getElementById('rag-tab-panel'),
+    settingsTabPanel: document.getElementById('settings-tab-panel'),
+    aboutTabPanel: document.getElementById('about-tab-panel'),
+    aboutMarkdownContent: document.getElementById('about-markdown-content'),
     serverStartBtn: document.getElementById('server-start-btn'),
     serverStopBtn: document.getElementById('server-stop-btn'),
     ragIndexBtn: document.getElementById('rag-index-btn'),
     serverParametersBody: document.getElementById('server-parameters-body'),
-    ragStateValue: document.getElementById('rag-state-value'),
-    ragIndexedAtValue: document.getElementById('rag-indexed-at-value'),
-    ragIndexedFilesValue: document.getElementById('rag-indexed-files-value'),
     ragChromaUrlValue: document.getElementById('rag-chroma-url-value'),
     ragChromaPortValue: document.getElementById('rag-chroma-port-value'),
     ragChromaCollectionPrefixValue: document.getElementById('rag-chroma-collection-prefix-value'),
@@ -107,10 +105,6 @@ const elements = {
     ragChromaVectorCandidatePoolValue: document.getElementById('rag-chroma-vector-candidate-pool-value'),
     ragChromaMaxQueryResultsValue: document.getElementById('rag-chroma-max-query-results-value'),
     ragChromaQueryModeValue: document.getElementById('rag-chroma-query-mode-value'),
-    ragLlamaApiUrlValue: document.getElementById('rag-llama-api-url-value'),
-    ragLlamaModelValue: document.getElementById('rag-llama-model-value'),
-    ragLlamaMaxTokensValue: document.getElementById('rag-llama-max-tokens-value'),
-    ragLlamaTemperatureValue: document.getElementById('rag-llama-temperature-value'),
     chat: document.getElementById('chat'),
     prompt: document.getElementById('prompt'),
     sessionsContainer: document.getElementById('sessions-container'),
@@ -128,7 +122,7 @@ const elements = {
     tokenUsageChart: document.getElementById('token-usage-chart'),
     tokenUsagePercentage: document.getElementById('token-usage-percentage'),
     tokenUsageContainer: document.getElementById('token-usage-container'),
-    modelMenuTrigger: document.getElementById('model-menu-trigger'),
+    modelNameDisplay: document.getElementById('model-name-display'),
     contextWindow: document.getElementById('context-window'),
     contextWindowContent: document.getElementById('context-window-content'),
     attachedFilesContainer: null
@@ -376,15 +370,9 @@ function applyControlState() {
     elements.attachBtn.classList.toggle('is-disabled', !allowMainActions);
     elements.backToSessionsBtn.classList.toggle('is-disabled', !allowMainActions);
     elements.backToSessionsBtn.style.display = hasActiveSession ? 'flex' : 'none';
-    elements.modelMenuTrigger?.classList.toggle('is-disabled', !allowMainActions);
 
     elements.attachBtn.setAttribute('aria-disabled', String(!allowMainActions));
     elements.backToSessionsBtn.setAttribute('aria-disabled', String(!allowMainActions));
-    elements.modelMenuTrigger?.setAttribute('aria-disabled', String(!allowMainActions));
-
-    if (elements.modelMenuTrigger) {
-        elements.modelMenuTrigger.disabled = !allowMainActions;
-    }
 
     if (elements.sendBtn) {
         elements.sendBtn.style.display = allowMainActions ? 'flex' : 'none';
@@ -434,8 +422,8 @@ function setHasActiveSession(value) {
 // EVENT LISTENERS
 // ============================================================
 elements.chatTabBtn?.addEventListener('click', () => switchTab('chat'));
-elements.serverTabBtn?.addEventListener('click', () => switchTab('server'));
-elements.ragTabBtn?.addEventListener('click', () => switchTab('rag'));
+elements.settingsTabBtn?.addEventListener('click', () => switchTab('settings'));
+elements.aboutTabBtn?.addEventListener('click', () => switchTab('about'));
 elements.serverStartBtn?.addEventListener('click', () => {
     if (pendingServerAction || isServerRunning) {
         return;
@@ -477,10 +465,6 @@ elements.attachBtn.addEventListener('click', () => {
 elements.prompt.addEventListener('keydown', handlePromptKeyDown);
 elements.prompt.addEventListener('input', autoResizePrompt);
 window.addEventListener('message', handleExtensionMessage);
-elements.modelMenuTrigger?.addEventListener('click', (event) => {
-    event.stopPropagation();
-    toggleModelMenu();
-});
 elements.tokenUsageContainer?.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleTokenUsageMenu();
@@ -559,7 +543,7 @@ function handleExtensionMessage(event) {
             }
             if (Array.isArray(message.activeScreens)) {
                 uiState.activeScreens = message.activeScreens.filter((screen) =>
-                    screen === 'chat' || screen === 'server' || screen === 'rag'
+                    screen === 'chat' || screen === 'settings' || screen === 'about'
                 );
                 if (uiState.activeScreens.length === 0) {
                     uiState.activeScreens = [uiState.activeTab];
@@ -575,30 +559,6 @@ function handleExtensionMessage(event) {
         case 'updateRagState':
             renderRagState(message);
             break;
-    }
-}
-
-function formatIndexedAt(value) {
-    if (!value) {
-        return labels.ragNeverIndexedLabel;
-    }
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-        return labels.ragNeverIndexedLabel;
-    }
-
-    return date.toLocaleString();
-}
-
-function getRagStatusLabel(status) {
-    switch (status) {
-        case 'indexing':
-            return labels.ragIndexingLabel;
-        case 'indexed':
-            return labels.ragIndexedLabel;
-        default:
-            return labels.ragIdleLabel;
     }
 }
 
@@ -627,18 +587,6 @@ function renderRagState(message) {
     isChromaAvailable = !!message.chromaAvailable;
     uiState.isChromaAvailable = isChromaAvailable;
     updateRagActionButton();
-
-    if (elements.ragStateValue) {
-        elements.ragStateValue.textContent = getRagStatusLabel(message.status);
-    }
-
-    if (elements.ragIndexedAtValue) {
-        elements.ragIndexedAtValue.textContent = formatIndexedAt(message.indexedAt);
-    }
-
-    if (elements.ragIndexedFilesValue) {
-        elements.ragIndexedFilesValue.textContent = String(Number(message.indexedFiles) || 0);
-    }
 
     if (elements.ragChromaUrlValue) {
         elements.ragChromaUrlValue.textContent = typeof message.chromaUrl === 'string' && message.chromaUrl
@@ -690,21 +638,6 @@ function renderRagState(message) {
         elements.ragChromaQueryModeValue.textContent = String(message.chromaQueryMode || 'semantic');
     }
 
-    if (elements.ragLlamaApiUrlValue) {
-        elements.ragLlamaApiUrlValue.textContent = String(message.llamaApiUrl || '-');
-    }
-
-    if (elements.ragLlamaModelValue) {
-        elements.ragLlamaModelValue.textContent = String(message.llamaModel || '-');
-    }
-
-    if (elements.ragLlamaMaxTokensValue) {
-        elements.ragLlamaMaxTokensValue.textContent = String(Number(message.llamaMaxTokens) || 0);
-    }
-
-    if (elements.ragLlamaTemperatureValue) {
-        elements.ragLlamaTemperatureValue.textContent = String(Number(message.llamaTemperature) || 0);
-    }
 }
 
 // ============================================================
@@ -1404,8 +1337,8 @@ function updateServerActionButtons() {
         elements.serverStartBtn.disabled = !!pendingServerAction;
         elements.serverStartBtn.classList.toggle('is-pending', isPendingStart);
         const label = isPendingStart
-            ? (elements.serverStartBtn.dataset.loadingLabel || 'Iniciar')
-            : (elements.serverStartBtn.dataset.label || 'Iniciar');
+            ? (elements.serverStartBtn.dataset.loadingLabel || 'Start')
+            : (elements.serverStartBtn.dataset.label || 'Start');
         setServerButtonContent(elements.serverStartBtn, label, 'start', isPendingStart);
     }
 
@@ -1421,8 +1354,8 @@ function updateServerActionButtons() {
             ? labels.externalServerBlockedLabel
             : (elements.serverStopBtn.dataset.label || 'Detener');
         const label = isPendingStop
-            ? (elements.serverStopBtn.dataset.loadingLabel || 'Detener')
-            : (elements.serverStopBtn.dataset.label || 'Detener');
+            ? (elements.serverStopBtn.dataset.loadingLabel || 'Stop')
+            : (elements.serverStopBtn.dataset.label || 'Stop');
         setServerButtonContent(elements.serverStopBtn, label, 'stop', isPendingStop);
     }
 }
@@ -1452,27 +1385,25 @@ function switchTab(tabName, shouldPersist = true) {
         uiState.activeScreens.push(tabName);
     }
     const isChatTab = tabName === 'chat';
-    const isServerTab = tabName === 'server';
-    const isRagTab = tabName === 'rag';
+    const isSettingsTab = tabName === 'settings';
+    const isAboutTab = tabName === 'about';
 
     elements.chatTabBtn?.classList.toggle('is-active', isChatTab);
-    elements.serverTabBtn?.classList.toggle('is-active', isServerTab);
-    elements.ragTabBtn?.classList.toggle('is-active', isRagTab);
+    elements.settingsTabBtn?.classList.toggle('is-active', isSettingsTab);
+    elements.aboutTabBtn?.classList.toggle('is-active', isAboutTab);
     elements.chatTabBtn?.setAttribute('aria-selected', String(isChatTab));
-    elements.serverTabBtn?.setAttribute('aria-selected', String(isServerTab));
-    elements.ragTabBtn?.setAttribute('aria-selected', String(isRagTab));
+    elements.settingsTabBtn?.setAttribute('aria-selected', String(isSettingsTab));
+    elements.aboutTabBtn?.setAttribute('aria-selected', String(isAboutTab));
 
     if (elements.chatTabPanel) {
         elements.chatTabPanel.style.display = isChatTab ? 'flex' : 'none';
     }
-    if (elements.serverTabPanel) {
-        elements.serverTabPanel.style.display = isServerTab ? 'flex' : 'none';
+    if (elements.settingsTabPanel) {
+        elements.settingsTabPanel.style.display = isSettingsTab ? 'flex' : 'none';
     }
-    if (elements.ragTabPanel) {
-        elements.ragTabPanel.style.display = isRagTab ? 'flex' : 'none';
+    if (elements.aboutTabPanel) {
+        elements.aboutTabPanel.style.display = isAboutTab ? 'flex' : 'none';
     }
-
-    closeModelMenu();
 
     if (shouldPersist) {
         elements.vscode.postMessage({ type: 'setActiveTab', tab: activeTab });
@@ -1531,6 +1462,10 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
         total: hasTotal ? contextWindow : 0,
         pct
     };
+
+    if (elements.modelNameDisplay) {
+        elements.modelNameDisplay.textContent = modelName || 'local';
+    }
 
 }
 
@@ -1638,12 +1573,6 @@ function renderContextWindowContent(menuType) {
         return;
     }
 
-    if (menuType === 'model') {
-        const modelName = (currentModelName || 'local').trim();
-        elements.contextWindowContent.innerHTML = `<div class="quick-context-item">${modelName}</div>`;
-        return;
-    }
-
     const totalLabel = tokenUsageState.total > 0 ? tokenUsageState.total.toLocaleString() : '?';
     const usedLabel = tokenUsageState.used.toLocaleString();
     const pct = tokenUsageState.pct;
@@ -1678,26 +1607,6 @@ function hideContextWindow() {
     elements.contextWindow.style.top = '0px';
     activeContextMenu = null;
     activeContextAnchor = null;
-}
-
-function toggleModelMenu() {
-    if (!isServerRunning || elements.modelMenuTrigger?.disabled) {
-        return;
-    }
-
-    const shouldClose = activeContextMenu === 'model' && elements.contextWindow?.style.display === 'block';
-    if (shouldClose) {
-        hideContextWindow();
-        return;
-    }
-
-    showContextWindow('model', elements.modelMenuTrigger);
-}
-
-function closeModelMenu() {
-    if (activeContextMenu === 'model') {
-        hideContextWindow();
-    }
 }
 
 function toggleTokenUsageMenu() {
@@ -1802,7 +1711,63 @@ function truncateTitle(text) {
     cleanText = cleanText.split(/Indicación(?: del usuario)?:/i).pop()?.trim() || cleanText; cleanText = cleanText.replace(/\s+/g, ' ');
     return cleanText.length > 30 ? cleanText.substring(0, 27) + '...' : cleanText;
 }
+
+function renderAboutMarkdown() {
+    if (!elements.aboutMarkdownContent) {
+        return;
+    }
+
+    const markdownText = document.body.dataset.aboutMarkdown || '';
+    const normalizedMarkdown = markdownText
+        .replace(/\\n/g, '\n')
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map((line) => line.replace(/^\s{1,4}/, ''))
+        .join('\n')
+        .trim();
+
+    if (!normalizedMarkdown) {
+        elements.aboutMarkdownContent.textContent = '';
+        return;
+    }
+
+    if (typeof marked === 'undefined') {
+        elements.aboutMarkdownContent.textContent = normalizedMarkdown;
+        return;
+    }
+
+    const parsedHtml = marked.parse(normalizedMarkdown, { breaks: true, gfm: true });
+    elements.aboutMarkdownContent.innerHTML = sanitizeHtml(parsedHtml);
+}
+
+function setupSingleOpenAccordion() {
+    const accordionItems = document.querySelectorAll('.settings-accordion .settings-accordion-item');
+    let foundOpen = false;
+    accordionItems.forEach((item) => {
+        if (item.open && !foundOpen) {
+            foundOpen = true;
+            return;
+        }
+        item.open = false;
+    });
+
+    accordionItems.forEach((item) => {
+        item.addEventListener('toggle', () => {
+            if (!item.open) {
+                return;
+            }
+
+            accordionItems.forEach((otherItem) => {
+                if (otherItem !== item) {
+                    otherItem.open = false;
+                }
+            });
+        });
+    });
+}
 // ============================================================// INITIALIZATION// ============================================================
+renderAboutMarkdown();
+setupSingleOpenAccordion();
 updateTokenCounter(0, 0, currentModelName);
 updateServerActionButtons();
 updateRagActionButton();
