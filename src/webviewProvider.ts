@@ -615,7 +615,14 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                 shouldRunStructuredFlow
             );
             this.throwIfAborted(abortSignal);
-            const hasRepositoryAttachment = filesMetadata.some((file) => file.isRepository) || !this.hasManualAttachments(filesMetadata);
+            const hasExplicitFileContext = filesMetadata.some((file) => !file.isRepository);
+            const hasRepositoryAttachment = filesMetadata.some((file) => file.isRepository) || !hasExplicitFileContext;
+            this.logger.debug('prompt', 'Resolved prompt context source', {
+                explicitFileContext: hasExplicitFileContext,
+                repositoryAttachment: hasRepositoryAttachment,
+                ragSnippets: ragSnippets.length,
+                attachedFiles: filesMetadata.length
+            });
             const ragModeTemplate = PromptTemplateManager.getRagModeTemplate();
             const specificFilesModeTemplate = PromptTemplateManager.getSpecificFilesModeTemplate();
             const contextPrompt = buildPromptContext({
@@ -898,13 +905,23 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         endpointFlowPaths?: string[],
         shouldRunStructuredFlow = false
     ): Promise<RagContextSnippet[]> {
+        const hasExplicitFileContext = filesMetadata.some((file) => !file.isRepository);
         const hasRepositoryAttachment = filesMetadata.some((file) => file.isRepository);
-        const hasManualAttachments = this.hasManualAttachments(filesMetadata);
-        const shouldUseRepositoryScope = hasRepositoryAttachment || !hasManualAttachments;
+        const shouldUseRepositoryScope = hasRepositoryAttachment || !hasExplicitFileContext;
 
         if (!shouldUseRepositoryScope) {
+            this.logger.debug('rag', 'Skipping repository context because explicit file context is attached', {
+                attachedFiles: filesMetadata.length
+            });
             return [];
         }
+
+        this.logger.debug('rag', 'Using repository context for query', {
+            hasRepositoryAttachment,
+            explicitFileContext: hasExplicitFileContext,
+            attachedFiles: filesMetadata.length,
+            structured: shouldRunStructuredFlow
+        });
 
         this.logger.debug('rag', 'Resolving repository context', {
             structured: shouldRunStructuredFlow,
