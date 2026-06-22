@@ -64,8 +64,12 @@ export function buildServerParameterRows(config: LlamaServerLaunchConfig): Serve
 }
 
 export function buildChatApiUrl(config: LlamaServerLaunchConfig): string {
-    const normalizedPath = config.chatCompletionsPath.startsWith('/')
-        ? config.chatCompletionsPath
-        : `/${config.chatCompletionsPath}`;
+    const rawPath = config.chatCompletionsPath;
+
+    if (rawPath.includes('..')) {
+        throw new Error(`Invalid chatCompletionsPath: path traversal sequences are not allowed: "${rawPath}"`);
+    }
+
+    const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
     return `http://${config.host}:${config.port}${normalizedPath}`;
 }

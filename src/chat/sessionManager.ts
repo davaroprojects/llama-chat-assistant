@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as crypto from 'node:crypto';
 
 export interface ChatMessage {
     role: string;
@@ -115,7 +116,7 @@ export class SessionManager {
 
     public createSession(firstQuestion: string): ChatSession {
         const newSession: ChatSession = {
-            id: Date.now().toString(),
+            id: crypto.randomUUID(),
             title: this.truncateTitle(firstQuestion),
             createdAt: Date.now(),
             messages: []

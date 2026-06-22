@@ -183,7 +183,8 @@ export class LlamaService {
                         if (parsed.usage?.completion_tokens) {
                             serverUsageTokens = parsed.usage.completion_tokens;
                         }
-                    } catch {
+                    } catch (err) {
+                        this.logger?.warn('llama', 'Failed to parse SSE chunk', { chunk: cleanLine, error: String(err) });
                     }
                 }
             }

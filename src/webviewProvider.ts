@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'node:child_process';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SessionManager } from './chat/sessionManager';
@@ -570,7 +571,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                 return;
             }
 
-            const result = await indexAllWithChromaDb(workspaceRoot, chromaConfig);
+            const result = await indexAllWithChromaDb(workspaceRoot, chromaConfig, this.logger);
             this.logger.info('rag', 'Repository indexing completed', {
                 indexedAt: result.indexedAt,
                 indexedFiles: result.indexedFiles
@@ -804,12 +805,19 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         return path.join(workspaceRoot, '.prrrrr');
     }
 
+    private getWorkspaceCollectionPrefix(basePrefix: string): string {
+        const workspaceRoot = this.getWorkspaceRoot() || this.context.globalStorageUri.fsPath;
+        const hash = crypto.createHash('sha256').update(workspaceRoot).digest('hex').slice(0, 12);
+        return `${basePrefix}-${hash}`;
+    }
+
     private getChromaDbConfig(): ChromaDbConnectionConfig {
         const config = vscode.workspace.getConfiguration('llamaChat');
+        const basePrefix = this.getConfigValue(config, 'chromaDb.collectionPrefix', 'rag.collectionPrefix', 'llama-chat-ephemeral');
         return {
             url: this.getConfigValue(config, 'chromaDb.url', 'rag.chromaUrl', 'http://127.0.0.1'),
             port: this.getConfigValue(config, 'chromaDb.port', 'rag.chromaPort', 8000),
-            collectionPrefix: this.getConfigValue(config, 'chromaDb.collectionPrefix', 'rag.collectionPrefix', 'llama-chat-ephemeral'),
+            collectionPrefix: this.getWorkspaceCollectionPrefix(basePrefix),
             excludeDirs: this.getConfigValue(config, 'chromaDb.excludeDirs', 'rag.excludeDirs', [
                 '.git',
                 '.gradle',

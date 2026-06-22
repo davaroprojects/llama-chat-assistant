@@ -967,8 +967,8 @@ function handleRenderSessionsList(message) {
 }
 
 function handleFileSelected(message) {
-    const yaExiste = currentAttachedFiles.some(f => f.name === message.name);
-    if (!yaExiste) {
+    const alreadyExists = currentAttachedFiles.some(f => f.name === message.name);
+    if (!alreadyExists) {
         currentAttachedFiles.push({
             name: message.name,
             content: message.content,

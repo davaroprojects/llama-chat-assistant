@@ -316,9 +316,6 @@ async function processAndChunkFile(filePath: string, content: string, tuning?: C
     return chunks;
 }
 
-const obtenerSplitterPorArchivo = getSplitterForFile;
-const procesarYChunkearArchivo = processAndChunkFile;
-
 function buildEmbeddingInput(chunk: IndexedChunk): string {
     return [
         chunk.relativePath,
@@ -623,7 +620,7 @@ async function listTextFiles(
                 const language = detectLanguage(fileName);
                 const fileType = classifyFileType(fileName, language);
                 const ecosystemLanguage = getEcosystemLanguage(language, projectType);
-                const chunks = await procesarYChunkearArchivo(relativePath, content, {
+                const chunks = await processAndChunkFile(relativePath, content, {
                     chunkSizeChars: config.chunkSizeChars,
                     chunkOverlapChars: config.chunkOverlapChars
                 });
@@ -660,18 +657,21 @@ async function listTextFiles(
     return indexed;
 }
 
-async function cleanupEphemeralCollections(client: ChromaClient, collectionPrefix: string): Promise<void> {
+async function cleanupEphemeralCollections(client: ChromaClient, collectionPrefix: string, logger?: ChromaQueryLogger): Promise<void> {
     try {
         const collections = await client.listCollections({ limit: 500, offset: 0 });
         for (const collection of collections) {
             if (collection.name.startsWith(collectionPrefix)) {
                 try {
                     await client.deleteCollection({ name: collection.name });
-                } catch {
+                    logger?.info('rag', 'Deleted ephemeral collection', { name: collection.name });
+                } catch (err) {
+                    logger?.warn('rag', 'Failed to delete ephemeral collection', { name: collection.name, error: String(err) });
                 }
             }
         }
-    } catch {
+    } catch (err) {
+        logger?.warn('rag', 'Failed to list collections during cleanup', { error: String(err) });
     }
 }
 
@@ -706,12 +706,15 @@ export async function isChromaDbAvailable(config: ChromaDbConnectionConfig): Pro
 
 export async function indexAllWithChromaDb(
     workspaceRoot: string,
-    config: ChromaDbConnectionConfig
+    config: ChromaDbConnectionConfig,
+    logger?: ChromaQueryLogger
 ): Promise<RagIndexResult> {
     const indexedAt = Date.now();
     const client = getClient(config);
 
-    await cleanupEphemeralCollections(client, config.collectionPrefix);
+    logger?.info('rag', 'Starting workspace indexing', { collectionPrefix: config.collectionPrefix, workspaceRoot });
+
+    await cleanupEphemeralCollections(client, config.collectionPrefix, logger);
 
     const collectionName = `${config.collectionPrefix}-${indexedAt}`;
     const collection = await client.createCollection({
@@ -747,6 +750,8 @@ export async function indexAllWithChromaDb(
             }))
         });
     }
+
+    logger?.info('rag', 'Workspace indexing complete', { collectionName, indexedFiles: files.length });
 
     return {
         status: 'indexed',

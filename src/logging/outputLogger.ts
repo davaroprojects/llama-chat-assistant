@@ -5,6 +5,9 @@ export interface Logger {
     warn(scope: string, message: string, details?: unknown): void;
     error(scope: string, message: string, details?: unknown): void;
     debug(scope: string, message: string, details?: unknown): void;
+    logHttpRequest(method: string, url: string, scope?: string): void;
+    logHttpResponse(method: string, url: string, status: number, durationMs: number, scope?: string): void;
+    logChromaDbOperation(operation: string, details: unknown, scope?: string): void;
 }
 
 function stringifyDetails(details: unknown): string {
@@ -63,5 +66,18 @@ export class OutputLogger implements Logger, vscode.Disposable {
 
     dispose(): void {
         this.channel.dispose();
+    }
+
+    logHttpRequest(method: string, url: string, scope = 'http'): void {
+        this.info(scope, `${method} ${url}`);
+    }
+
+    logHttpResponse(method: string, url: string, status: number, durationMs: number, scope = 'http'): void {
+        const level = status >= 400 ? 'error' : 'info';
+        this[level](scope, `${method} ${url} → ${status} (${durationMs}ms)`);
+    }
+
+    logChromaDbOperation(operation: string, details: unknown, scope = 'rag'): void {
+        this.debug(scope, `ChromaDB ${operation}`, details);
     }
 }
