@@ -15,8 +15,14 @@ export interface ChatSession {
 export interface ChatUiState {
     activeTab: 'chat' | 'settings' | 'about';
     activeScreens: Array<'chat' | 'settings' | 'about'>;
+    settingsAccordionState: SettingsAccordionState;
     currentSessionId: string | null;
     ragIndexState: RagIndexState;
+}
+
+export interface SettingsAccordionState {
+    llamaOpen: boolean;
+    chromadbOpen: boolean;
 }
 
 export interface RagIndexState {
@@ -37,6 +43,10 @@ export class SessionManager {
     private uiState: ChatUiState = {
         activeTab: 'chat',
         activeScreens: ['chat'],
+        settingsAccordionState: {
+            llamaOpen: true,
+            chromadbOpen: false
+        },
         currentSessionId: null,
         ragIndexState: {
             status: 'idle',
@@ -73,6 +83,22 @@ export class SessionManager {
         if (this.uiState.activeScreens.length === 0) {
             this.uiState.activeScreens = [this.uiState.activeTab];
         }
+
+        const accordionState = this.uiState.settingsAccordionState || { llamaOpen: true, chromadbOpen: false };
+        const normalizedAccordionState: SettingsAccordionState = {
+            llamaOpen: !!accordionState.llamaOpen,
+            chromadbOpen: !!accordionState.chromadbOpen
+        };
+
+        if (normalizedAccordionState.llamaOpen && normalizedAccordionState.chromadbOpen) {
+            normalizedAccordionState.chromadbOpen = false;
+        }
+
+        if (!normalizedAccordionState.llamaOpen && !normalizedAccordionState.chromadbOpen) {
+            normalizedAccordionState.llamaOpen = true;
+        }
+
+        this.uiState.settingsAccordionState = normalizedAccordionState;
 
         this.currentSessionId = this.uiState.currentSessionId;
     }
@@ -137,6 +163,24 @@ export class SessionManager {
         if (!this.uiState.activeScreens.includes(activeTab)) {
             this.uiState.activeScreens.push(activeTab);
         }
+        this.saveToDisk();
+    }
+
+    public setSettingsAccordionState(state: SettingsAccordionState): void {
+        const nextState: SettingsAccordionState = {
+            llamaOpen: !!state.llamaOpen,
+            chromadbOpen: !!state.chromadbOpen
+        };
+
+        if (nextState.llamaOpen && nextState.chromadbOpen) {
+            nextState.chromadbOpen = false;
+        }
+
+        if (!nextState.llamaOpen && !nextState.chromadbOpen) {
+            nextState.llamaOpen = true;
+        }
+
+        this.uiState.settingsAccordionState = nextState;
         this.saveToDisk();
     }
 

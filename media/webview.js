@@ -92,7 +92,9 @@ const elements = {
     serverStartBtn: document.getElementById('server-start-btn'),
     serverStopBtn: document.getElementById('server-stop-btn'),
     ragIndexBtn: document.getElementById('rag-index-btn'),
-    serverParametersBody: document.getElementById('server-parameters-body'),
+    llamaSettingsAccordion: document.getElementById('llama-settings-accordion'),
+    chromadbSettingsAccordion: document.getElementById('chromadb-settings-accordion'),
+    serverParametersList: document.getElementById('server-parameters-list'),
     ragChromaUrlValue: document.getElementById('rag-chroma-url-value'),
     ragChromaPortValue: document.getElementById('rag-chroma-port-value'),
     ragChromaCollectionPrefixValue: document.getElementById('rag-chroma-collection-prefix-value'),
@@ -311,8 +313,47 @@ const uiState = {
     // Current model name reported by backend.
     currentModelName: 'local',
     // Current session token estimate.
-    currentSessionTokens: 0
+    currentSessionTokens: 0,
+    // Open state for settings accordion sections.
+    settingsAccordionState: {
+        llamaOpen: true,
+        chromadbOpen: false
+    }
 };
+
+function readSettingsAccordionState() {
+    return {
+        llamaOpen: !!elements.llamaSettingsAccordion?.open,
+        chromadbOpen: !!elements.chromadbSettingsAccordion?.open
+    };
+}
+
+function applySettingsAccordionState(state) {
+    if (!state || typeof state !== 'object') {
+        return;
+    }
+
+    const nextLlamaOpen = !!state.llamaOpen;
+    const nextChromadbOpen = !!state.chromadbOpen;
+
+    if (elements.llamaSettingsAccordion) {
+        elements.llamaSettingsAccordion.open = nextLlamaOpen;
+    }
+    if (elements.chromadbSettingsAccordion) {
+        elements.chromadbSettingsAccordion.open = nextChromadbOpen;
+    }
+
+    uiState.settingsAccordionState = {
+        llamaOpen: nextLlamaOpen,
+        chromadbOpen: nextChromadbOpen
+    };
+}
+
+function persistSettingsAccordionState() {
+    const state = readSettingsAccordionState();
+    uiState.settingsAccordionState = state;
+    elements.vscode.postMessage({ type: 'setSettingsAccordionState', state });
+}
 
 function setRagIndexingState(value) {
     isRagIndexing = !!value;
@@ -551,6 +592,9 @@ function handleExtensionMessage(event) {
             }
             if (typeof message.hasActiveSession === 'boolean') {
                 setHasActiveSession(message.hasActiveSession);
+            }
+            if (message.settingsAccordionState && typeof message.settingsAccordionState === 'object') {
+                applySettingsAccordionState(message.settingsAccordionState);
             }
             break;
         case 'updateServerState':
@@ -1484,20 +1528,23 @@ function renderServerState(message) {
         elements.serverStopBtn.style.display = isServerRunning ? 'inline-flex' : 'none';
     }
 
-    if (elements.serverParametersBody) {
-        elements.serverParametersBody.innerHTML = '';
+    if (elements.serverParametersList) {
+        elements.serverParametersList.innerHTML = '';
         (message.parameterRows || []).forEach((row) => {
-            const tr = document.createElement('tr');
+            const line = document.createElement('div');
+            line.className = 'server-parameter-row';
 
-            const propertyCell = document.createElement('td');
-            propertyCell.textContent = row.property;
+            const propertyLabel = document.createElement('span');
+            propertyLabel.className = 'server-parameter-label';
+            propertyLabel.textContent = String(row.property || '-');
 
-            const valueCell = document.createElement('td');
-            valueCell.textContent = row.value;
+            const valueLabel = document.createElement('span');
+            valueLabel.className = 'server-parameter-value';
+            valueLabel.textContent = String(row.value || '-');
 
-            tr.appendChild(propertyCell);
-            tr.appendChild(valueCell);
-            elements.serverParametersBody.appendChild(tr);
+            line.appendChild(propertyLabel);
+            line.appendChild(valueLabel);
+            elements.serverParametersList.appendChild(line);
         });
     }
 
@@ -1738,6 +1785,7 @@ function renderAboutMarkdown() {
 
     const parsedHtml = marked.parse(normalizedMarkdown, { breaks: true, gfm: true });
     elements.aboutMarkdownContent.innerHTML = sanitizeHtml(parsedHtml);
+    elements.aboutMarkdownContent.classList.add('markdown-content');
 }
 
 function setupSingleOpenAccordion() {
@@ -1754,6 +1802,7 @@ function setupSingleOpenAccordion() {
     accordionItems.forEach((item) => {
         item.addEventListener('toggle', () => {
             if (!item.open) {
+                persistSettingsAccordionState();
                 return;
             }
 
@@ -1762,8 +1811,12 @@ function setupSingleOpenAccordion() {
                     otherItem.open = false;
                 }
             });
+
+            persistSettingsAccordionState();
         });
     });
+
+    uiState.settingsAccordionState = readSettingsAccordionState();
 }
 // ============================================================// INITIALIZATION// ============================================================
 renderAboutMarkdown();

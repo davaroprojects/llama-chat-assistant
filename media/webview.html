@@ -85,7 +85,7 @@
 
     <div id="settings-tab-panel" class="tab-panel settings-tab-panel" style="display:none;">
         <div class="settings-accordion">
-            <details class="settings-accordion-item" open>
+            <details id="llama-settings-accordion" class="settings-accordion-item" open>
                 <summary>
                     <span class="accordion-title">{{settingsLlamaSectionTitle}}</span>
                     <button id="server-start-btn" class="accordion-header-action server-start-button" type="button" title="{{serverStartLabel}}" data-label="{{serverStartLabel}}" data-loading-label="{{serverStartLabel}}">
@@ -96,19 +96,11 @@
                     </button>
                 </summary>
                 <div class="server-parameters-panel">
-                    <table class="server-parameters-table">
-                        <thead>
-                            <tr>
-                                <th>{{propertyLabel}}</th>
-                                <th>{{valueLabel}}</th>
-                            </tr>
-                        </thead>
-                        <tbody id="server-parameters-body"></tbody>
-                    </table>
+                    <div id="server-parameters-list" class="server-parameters-list"></div>
                 </div>
             </details>
 
-            <details class="settings-accordion-item" open>
+            <details id="chromadb-settings-accordion" class="settings-accordion-item" open>
                 <summary>
                     <span class="accordion-title">{{settingsChromaSectionTitle}}</span>
                     <button id="rag-index-btn" class="accordion-header-action server-start-button" type="button" title="{{ragIndexLabel}}" data-label="{{ragIndexLabel}}" data-loading-label="{{ragIndexLabel}}">
@@ -116,58 +108,20 @@
                     </button>
                 </summary>
                 <div class="server-parameters-panel">
-                    <table class="server-parameters-table">
-                        <tbody>
-                            <tr>
-                                <td>{{ragChromaUrlLabel}}</td>
-                                <td id="rag-chroma-url-value">http://127.0.0.1</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaPortLabel}}</td>
-                                <td id="rag-chroma-port-value">8000</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaCollectionPrefixLabel}}</td>
-                                <td id="rag-chroma-collection-prefix-value">llama-chat-ephemeral</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaExcludeDirsLabel}}</td>
-                                <td id="rag-chroma-exclude-dirs-value">-</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaExcludeFileGlobsLabel}}</td>
-                                <td id="rag-chroma-exclude-file-globs-value">-</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaMaxFileSizeKbLabel}}</td>
-                                <td id="rag-chroma-max-file-size-kb-value">0</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaMaxIndexedFilesLabel}}</td>
-                                <td id="rag-chroma-max-indexed-files-value">0</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaChunkSizeCharsLabel}}</td>
-                                <td id="rag-chroma-chunk-size-chars-value">0</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaChunkOverlapCharsLabel}}</td>
-                                <td id="rag-chroma-chunk-overlap-chars-value">0</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaVectorCandidatePoolLabel}}</td>
-                                <td id="rag-chroma-vector-candidate-pool-value">0</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaMaxQueryResultsLabel}}</td>
-                                <td id="rag-chroma-max-query-results-value">0</td>
-                            </tr>
-                            <tr>
-                                <td>{{ragChromaQueryModeLabel}}</td>
-                                <td id="rag-chroma-query-mode-value">semantic</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="server-parameters-list">
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaUrlLabel}}</span><span id="rag-chroma-url-value" class="server-parameter-value">http://127.0.0.1</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaPortLabel}}</span><span id="rag-chroma-port-value" class="server-parameter-value">8000</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaCollectionPrefixLabel}}</span><span id="rag-chroma-collection-prefix-value" class="server-parameter-value">llama-chat-ephemeral</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaExcludeDirsLabel}}</span><span id="rag-chroma-exclude-dirs-value" class="server-parameter-value">-</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaExcludeFileGlobsLabel}}</span><span id="rag-chroma-exclude-file-globs-value" class="server-parameter-value">-</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaMaxFileSizeKbLabel}}</span><span id="rag-chroma-max-file-size-kb-value" class="server-parameter-value">0</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaMaxIndexedFilesLabel}}</span><span id="rag-chroma-max-indexed-files-value" class="server-parameter-value">0</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaChunkSizeCharsLabel}}</span><span id="rag-chroma-chunk-size-chars-value" class="server-parameter-value">0</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaChunkOverlapCharsLabel}}</span><span id="rag-chroma-chunk-overlap-chars-value" class="server-parameter-value">0</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaVectorCandidatePoolLabel}}</span><span id="rag-chroma-vector-candidate-pool-value" class="server-parameter-value">0</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaMaxQueryResultsLabel}}</span><span id="rag-chroma-max-query-results-value" class="server-parameter-value">0</span></div>
+                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaQueryModeLabel}}</span><span id="rag-chroma-query-mode-value" class="server-parameter-value">semantic</span></div>
+                    </div>
                 </div>
             </details>
         </div>

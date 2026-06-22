@@ -66,12 +66,21 @@ interface SetActiveTabMessage extends BaseWebviewMessage {
     tab: 'chat' | 'settings' | 'about';
 }
 
+interface SetSettingsAccordionStateMessage extends BaseWebviewMessage {
+    type: 'setSettingsAccordionState';
+    state: {
+        llamaOpen: boolean;
+        chromadbOpen: boolean;
+    };
+}
+
 type IncomingWebviewMessage =
     | AskLlamaMessage
     | SelectSessionMessage
     | DeleteSessionMessage
     | ApplyCodeMessage
     | SetActiveTabMessage
+    | SetSettingsAccordionStateMessage
     | { type: 'webviewReady' }
     | { type: 'stopGeneration' }
     | { type: 'startServer' }
@@ -128,6 +137,10 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
             return true;
         case 'setActiveTab':
             return data.tab === 'chat' || data.tab === 'settings' || data.tab === 'about';
+        case 'setSettingsAccordionState':
+            return isRecord(data.state)
+                && typeof data.state.llamaOpen === 'boolean'
+                && typeof data.state.chromadbOpen === 'boolean';
         case 'selectSession':
             return data.sessionId === null || typeof data.sessionId === 'string';
         case 'deleteSession':
@@ -223,6 +236,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             case 'setActiveTab':
                 this.sessionManager.setActiveTab(data.tab);
                 break;
+            case 'setSettingsAccordionState':
+                this.sessionManager.setSettingsAccordionState(data.state);
+                break;
             case 'askLlama':
                 await this.handleAskLlama(data, webviewView);
                 break;
@@ -263,6 +279,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             type: 'restoreUiState',
             activeTab: uiState.activeTab,
             activeScreens: uiState.activeScreens,
+            settingsAccordionState: uiState.settingsAccordionState,
             hasActiveSession: !!uiState.currentSessionId
         });
 
@@ -908,7 +925,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                     chromaConfig.maxQueryResults,
                     queryMode,
                     abortSignal,
-                    endpointFlowPaths
+                    endpointFlowPaths,
+                    this.logger
                 );
 
                 if (results.length === 0 && queryMode !== 'semantic') {
@@ -918,7 +936,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                         chromaConfig.maxQueryResults,
                         'semantic',
                         abortSignal,
-                        endpointFlowPaths
+                        endpointFlowPaths,
+                        this.logger
                     );
                 }
 
@@ -929,7 +948,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                         chromaConfig.maxQueryResults,
                         'lexical',
                         abortSignal,
-                        endpointFlowPaths
+                        endpointFlowPaths,
+                        this.logger
                     );
                 }
 
@@ -939,14 +959,17 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                         chromaConfig,
                         chromaConfig.maxQueryResults,
                         queryMode,
-                        abortSignal
+                        abortSignal,
+                        undefined,
+                        this.logger
                     );
                 }
             } else {
                 const conceptualOptions: ChromaConceptualKnnOptions = {
                     topK: chromaConfig.maxQueryResults,
                     minCosineSimilarity: chromaConfig.minCosineSimilarity,
-                    signal: abortSignal
+                    signal: abortSignal,
+                    logger: this.logger
                 };
                 results = await queryRelevantContextFromChromaDbConceptualKnn(
                     userPrompt,
@@ -971,7 +994,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                         chromaConfig,
                         chromaConfig.maxQueryResults,
                         'semantic',
-                        abortSignal
+                        abortSignal,
+                        undefined,
+                        this.logger
                     );
                 }
 
@@ -981,7 +1006,9 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                         chromaConfig,
                         chromaConfig.maxQueryResults,
                         'lexical',
-                        abortSignal
+                        abortSignal,
+                        undefined,
+                        this.logger
                     );
                 }
             }

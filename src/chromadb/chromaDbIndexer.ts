@@ -34,9 +34,17 @@ export interface ChromaConceptualKnnOptions {
     topK?: number;
     minCosineSimilarity?: number;
     signal?: AbortSignal;
+    logger?: ChromaQueryLogger;
 }
 
 export type ChromaQueryMode = 'semantic' | 'lexical';
+
+export interface ChromaQueryLogger {
+    debug(scope: string, message: string, details?: unknown): void;
+    info(scope: string, message: string, details?: unknown): void;
+    warn(scope: string, message: string, details?: unknown): void;
+    error(scope: string, message: string, details?: unknown): void;
+}
 
 const EMBEDDING_DIM = 64;
 
@@ -753,13 +761,21 @@ export async function queryRelevantContextFromChromaDb(
     maxResults = config.maxQueryResults,
     mode: ChromaQueryMode = 'semantic',
     signal?: AbortSignal,
-    filePathFilter?: string[]
+    filePathFilter?: string[],
+    logger?: ChromaQueryLogger
 ): Promise<ChromaSearchResult[]> {
+    logger?.debug('rag', 'Chroma query dispatch', {
+        mode,
+        maxResults,
+        queryLength: queryText.length,
+        filterPaths: filePathFilter?.length ?? 0
+    });
+
     if (mode === 'lexical') {
-        return queryRelevantContextFromChromaDbLexical(queryText, config, maxResults, signal, filePathFilter);
+        return queryRelevantContextFromChromaDbLexical(queryText, config, maxResults, signal, filePathFilter, logger);
     }
 
-    return queryRelevantContextFromChromaDbSemantic(queryText, config, maxResults, signal, filePathFilter);
+    return queryRelevantContextFromChromaDbSemantic(queryText, config, maxResults, signal, filePathFilter, logger);
 }
 
 export async function queryRelevantContextFromChromaDbSemantic(
@@ -767,73 +783,103 @@ export async function queryRelevantContextFromChromaDbSemantic(
     config: ChromaDbConnectionConfig,
     maxResults = config.maxQueryResults,
     signal?: AbortSignal,
-    filePathFilter?: string[]
+    filePathFilter?: string[],
+    logger?: ChromaQueryLogger
 ): Promise<ChromaSearchResult[]> {
     if (!queryText.trim()) {
+        logger?.debug('rag', 'Skipped semantic query: empty query text');
         return [];
     }
 
     if (signal?.aborted) {
+        logger?.warn('rag', 'Aborted semantic query before execution');
         throw new DOMException('Aborted', 'AbortError');
     }
+
+    logger?.debug('rag', 'Starting semantic Chroma query', {
+        maxResults,
+        vectorCandidatePool: config.vectorCandidatePool,
+        filterPaths: filePathFilter?.length ?? 0
+    });
 
     const client = getClient(config, signal);
     const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
     if (!collectionName) {
+        logger?.warn('rag', 'Semantic query skipped: no indexed Chroma collection found', {
+            collectionPrefix: config.collectionPrefix
+        });
         return [];
     }
 
+    logger?.debug('rag', 'Using Chroma collection for semantic query', { collectionName });
+
     if (signal?.aborted) {
+        logger?.warn('rag', 'Aborted semantic query before collection query');
         throw new DOMException('Aborted', 'AbortError');
     }
 
-    const collection = await client.getCollection({
-        name: collectionName,
-        embeddingFunction: createLocalEmbeddingFunction()
-    } as any);
-    const where = buildWhereFilter(filePathFilter);
-    const queryResult = await collection.query({
-        queryEmbeddings: [computeEmbedding(queryText)],
-        nResults: Math.max(maxResults, config.vectorCandidatePool),
-        include: ['documents', 'metadatas', 'distances'],
-        where
-    } as any);
+    try {
+        const collection = await client.getCollection({
+            name: collectionName,
+            embeddingFunction: createLocalEmbeddingFunction()
+        } as any);
+        const where = buildWhereFilter(filePathFilter);
+        const queryResult = await collection.query({
+            queryEmbeddings: [computeEmbedding(queryText)],
+            nResults: Math.max(maxResults, config.vectorCandidatePool),
+            include: ['documents', 'metadatas', 'distances'],
+            where
+        } as any);
 
-    const documents = queryResult.documents?.[0] ?? [];
-    const metadatas = queryResult.metadatas?.[0] ?? [];
-    const distances = queryResult.distances?.[0] ?? [];
+        const documents = queryResult.documents?.[0] ?? [];
+        const metadatas = queryResult.metadatas?.[0] ?? [];
+        const distances = queryResult.distances?.[0] ?? [];
 
-    const ranked: Array<ChromaSearchResult & { vectorScore: number }> = [];
-    documents.forEach((content, index) => {
-        if (typeof content !== 'string') {
-            return;
-        }
+        const ranked: Array<ChromaSearchResult & { vectorScore: number }> = [];
+        documents.forEach((content, index) => {
+            if (typeof content !== 'string') {
+                return;
+            }
 
-        const metadata = metadatas[index] as Record<string, unknown> | undefined;
-        const pathValue = getMetadataString(metadata, 'path', `document-${index + 1}`);
-        const distance = typeof distances[index] === 'number' ? distances[index] : undefined;
-        const vectorScore = distance === undefined ? 0 : 1 / (1 + Math.max(0, distance));
+            const metadata = metadatas[index] as Record<string, unknown> | undefined;
+            const pathValue = getMetadataString(metadata, 'path', `document-${index + 1}`);
+            const distance = typeof distances[index] === 'number' ? distances[index] : undefined;
+            const vectorScore = distance === undefined ? 0 : 1 / (1 + Math.max(0, distance));
 
-        const chunkIndex = getMetadataString(metadata, 'chunkIndex');
-        const chunkCount = getMetadataString(metadata, 'chunkCount');
-        const chunkSuffix = chunkIndex && chunkCount
-            ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
-            : '';
+            const chunkIndex = getMetadataString(metadata, 'chunkIndex');
+            const chunkCount = getMetadataString(metadata, 'chunkCount');
+            const chunkSuffix = chunkIndex && chunkCount
+                ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
+                : '';
 
-        ranked.push({
-            path: `${pathValue}${chunkSuffix}`,
-            content,
-            distance,
-            vectorScore
+            ranked.push({
+                path: `${pathValue}${chunkSuffix}`,
+                content,
+                distance,
+                vectorScore
+            });
         });
-    });
 
-    ranked.sort((a, b) => b.vectorScore - a.vectorScore);
-    return ranked.slice(0, maxResults).map((item) => ({
-        path: item.path,
-        content: item.content,
-        distance: item.distance
-    }));
+        ranked.sort((a, b) => b.vectorScore - a.vectorScore);
+        const results = ranked.slice(0, maxResults).map((item) => ({
+            path: item.path,
+            content: item.content,
+            distance: item.distance
+        }));
+
+        logger?.info('rag', 'Semantic Chroma query finished', {
+            collectionName,
+            retrievedDocuments: documents.length,
+            rankedMatches: ranked.length,
+            returnedResults: results.length,
+            filteredByPath: !!buildWhereFilter(filePathFilter)
+        });
+
+        return results;
+    } catch (error) {
+        logger?.error('rag', 'Semantic Chroma query failed', error);
+        throw error;
+    }
 }
 
 export async function queryRelevantContextFromChromaDbLexical(
@@ -841,89 +887,120 @@ export async function queryRelevantContextFromChromaDbLexical(
     config: ChromaDbConnectionConfig,
     maxResults = config.maxQueryResults,
     signal?: AbortSignal,
-    filePathFilter?: string[]
+    filePathFilter?: string[],
+    logger?: ChromaQueryLogger
 ): Promise<ChromaSearchResult[]> {
     if (!queryText.trim()) {
+        logger?.debug('rag', 'Skipped lexical query: empty query text');
         return [];
     }
 
     if (signal?.aborted) {
+        logger?.warn('rag', 'Aborted lexical query before execution');
         throw new DOMException('Aborted', 'AbortError');
     }
+
+    logger?.debug('rag', 'Starting lexical Chroma query', {
+        maxResults,
+        filterPaths: filePathFilter?.length ?? 0
+    });
 
     const client = getClient(config, signal);
     const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
     if (!collectionName) {
+        logger?.warn('rag', 'Lexical query skipped: no indexed Chroma collection found', {
+            collectionPrefix: config.collectionPrefix
+        });
         return [];
     }
 
-    const collection = await client.getCollection({
-        name: collectionName,
-        embeddingFunction: createLocalEmbeddingFunction()
-    } as any);
-    const where = buildWhereFilter(filePathFilter);
-    const pageSize = 500;
-    let offset = 0;
-    const matches: Array<ChromaSearchResult & { lexicalScore: number }> = [];
+    logger?.debug('rag', 'Using Chroma collection for lexical query', { collectionName });
 
-    while (true) {
-        if (signal?.aborted) {
-            throw new DOMException('Aborted', 'AbortError');
-        }
-
-        const page = await collection.get({
-            limit: pageSize,
-            offset,
-            include: ['documents', 'metadatas'],
-            where
+    try {
+        const collection = await client.getCollection({
+            name: collectionName,
+            embeddingFunction: createLocalEmbeddingFunction()
         } as any);
+        const where = buildWhereFilter(filePathFilter);
+        const pageSize = 500;
+        let offset = 0;
+        let scannedDocuments = 0;
+        const matches: Array<ChromaSearchResult & { lexicalScore: number }> = [];
 
-        const ids = page.ids ?? [];
-        const documents = page.documents ?? [];
-        const metadatas = page.metadatas ?? [];
-        if (ids.length === 0) {
-            break;
-        }
-
-        for (let i = 0; i < ids.length; i += 1) {
-            const content = documents[i];
-            if (typeof content !== 'string') {
-                continue;
+        while (true) {
+            if (signal?.aborted) {
+                logger?.warn('rag', 'Aborted lexical query while paging', { offset });
+                throw new DOMException('Aborted', 'AbortError');
             }
 
-            const metadata = metadatas[i] as Record<string, unknown> | undefined;
-            const lexicalScore = lexicalPathScore(queryText, metadata);
-            if (lexicalScore <= 0) {
-                continue;
+            const page = await collection.get({
+                limit: pageSize,
+                offset,
+                include: ['documents', 'metadatas'],
+                where
+            } as any);
+
+            const ids = page.ids ?? [];
+            const documents = page.documents ?? [];
+            const metadatas = page.metadatas ?? [];
+            scannedDocuments += ids.length;
+            if (ids.length === 0) {
+                break;
             }
 
-            const pathValue = getMetadataString(metadata, 'path', `document-${i + offset + 1}`);
-            const chunkIndex = getMetadataString(metadata, 'chunkIndex');
-            const chunkCount = getMetadataString(metadata, 'chunkCount');
-            const chunkSuffix = chunkIndex && chunkCount
-                ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
-                : '';
+            for (let i = 0; i < ids.length; i += 1) {
+                const content = documents[i];
+                if (typeof content !== 'string') {
+                    continue;
+                }
 
-            matches.push({
-                path: `${pathValue}${chunkSuffix}`,
-                content,
-                lexicalScore
-            });
+                const metadata = metadatas[i] as Record<string, unknown> | undefined;
+                const lexicalScore = lexicalPathScore(queryText, metadata);
+                if (lexicalScore <= 0) {
+                    continue;
+                }
+
+                const pathValue = getMetadataString(metadata, 'path', `document-${i + offset + 1}`);
+                const chunkIndex = getMetadataString(metadata, 'chunkIndex');
+                const chunkCount = getMetadataString(metadata, 'chunkCount');
+                const chunkSuffix = chunkIndex && chunkCount
+                    ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
+                    : '';
+
+                matches.push({
+                    path: `${pathValue}${chunkSuffix}`,
+                    content,
+                    lexicalScore
+                });
+            }
+
+            if (ids.length < pageSize) {
+                break;
+            }
+
+            offset += pageSize;
         }
 
-        if (ids.length < pageSize) {
-            break;
-        }
+        matches.sort((a, b) => b.lexicalScore - a.lexicalScore);
+        const results = matches.slice(0, maxResults).map((item) => ({
+            path: item.path,
+            content: item.content,
+            distance: undefined
+        }));
 
-        offset += pageSize;
+        logger?.info('rag', 'Lexical Chroma query finished', {
+            collectionName,
+            scannedDocuments,
+            lexicalMatches: matches.length,
+            returnedResults: results.length,
+            filteredByPath: !!buildWhereFilter(filePathFilter)
+        });
+
+        return results;
+    } catch (error) {
+        logger?.error('rag', 'Lexical Chroma query failed', error);
+        throw error;
     }
-
-    matches.sort((a, b) => b.lexicalScore - a.lexicalScore);
-    return matches.slice(0, maxResults).map((item) => ({
-        path: item.path,
-        content: item.content,
-        distance: undefined
-    }));
 }
 
 export async function queryRelevantContextFromChromaDbConceptualKnn(
@@ -940,82 +1017,112 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
     const signal = options?.signal;
 
     if (signal?.aborted) {
+        (options as { logger?: ChromaQueryLogger } | undefined)?.logger?.warn('rag', 'Aborted conceptual KNN query before execution');
         throw new DOMException('Aborted', 'AbortError');
     }
+
+    const logger = (options as { logger?: ChromaQueryLogger } | undefined)?.logger;
+    logger?.debug('rag', 'Starting conceptual KNN Chroma query', {
+        topK,
+        minCosineSimilarity
+    });
 
     const client = getClient(config, signal);
     const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
     if (!collectionName) {
+        logger?.warn('rag', 'Conceptual KNN query skipped: no indexed Chroma collection found', {
+            collectionPrefix: config.collectionPrefix
+        });
         return [];
     }
 
-    const collection = await client.getCollection({
-        name: collectionName,
-        embeddingFunction: createLocalEmbeddingFunction()
-    } as any);
-    const queryEmbedding = computeEmbedding(queryText);
+    logger?.debug('rag', 'Using Chroma collection for conceptual KNN query', { collectionName });
 
-    const pageSize = 500;
-    let offset = 0;
-    const ranked: Array<ChromaSearchResult & { cosineScore: number }> = [];
-
-    while (true) {
-        if (signal?.aborted) {
-            throw new DOMException('Aborted', 'AbortError');
-        }
-
-        const page = await collection.get({
-            limit: pageSize,
-            offset,
-            include: ['documents', 'metadatas']
+    try {
+        const collection = await client.getCollection({
+            name: collectionName,
+            embeddingFunction: createLocalEmbeddingFunction()
         } as any);
+        const queryEmbedding = computeEmbedding(queryText);
 
-        const ids = page.ids ?? [];
-        const documents = page.documents ?? [];
-        const metadatas = page.metadatas ?? [];
-        if (ids.length === 0) {
-            break;
-        }
+        const pageSize = 500;
+        let offset = 0;
+        let scannedDocuments = 0;
+        const ranked: Array<ChromaSearchResult & { cosineScore: number }> = [];
 
-        for (let i = 0; i < ids.length; i += 1) {
-            const content = documents[i];
-            if (typeof content !== 'string') {
-                continue;
+        while (true) {
+            if (signal?.aborted) {
+                logger?.warn('rag', 'Aborted conceptual KNN query while paging', { offset });
+                throw new DOMException('Aborted', 'AbortError');
             }
 
-            const metadata = metadatas[i] as Record<string, unknown> | undefined;
-            const docEmbedding = computeEmbedding(buildEmbeddingInputFromDocument(content, metadata));
-            const cosineScore = cosineSimilarity(queryEmbedding, docEmbedding);
-            if (cosineScore < minCosineSimilarity) {
-                continue;
+            const page = await collection.get({
+                limit: pageSize,
+                offset,
+                include: ['documents', 'metadatas']
+            } as any);
+
+            const ids = page.ids ?? [];
+            const documents = page.documents ?? [];
+            const metadatas = page.metadatas ?? [];
+            scannedDocuments += ids.length;
+            if (ids.length === 0) {
+                break;
             }
 
-            const pathValue = getMetadataString(metadata, 'path', `document-${offset + i + 1}`);
-            const chunkIndex = getMetadataString(metadata, 'chunkIndex');
-            const chunkCount = getMetadataString(metadata, 'chunkCount');
-            const chunkSuffix = chunkIndex && chunkCount
-                ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
-                : '';
+            for (let i = 0; i < ids.length; i += 1) {
+                const content = documents[i];
+                if (typeof content !== 'string') {
+                    continue;
+                }
 
-            ranked.push({
-                path: `${pathValue}${chunkSuffix}`,
-                content,
-                distance: 1 - cosineScore,
-                cosineScore
-            });
+                const metadata = metadatas[i] as Record<string, unknown> | undefined;
+                const docEmbedding = computeEmbedding(buildEmbeddingInputFromDocument(content, metadata));
+                const cosineScore = cosineSimilarity(queryEmbedding, docEmbedding);
+                if (cosineScore < minCosineSimilarity) {
+                    continue;
+                }
+
+                const pathValue = getMetadataString(metadata, 'path', `document-${offset + i + 1}`);
+                const chunkIndex = getMetadataString(metadata, 'chunkIndex');
+                const chunkCount = getMetadataString(metadata, 'chunkCount');
+                const chunkSuffix = chunkIndex && chunkCount
+                    ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
+                    : '';
+
+                ranked.push({
+                    path: `${pathValue}${chunkSuffix}`,
+                    content,
+                    distance: 1 - cosineScore,
+                    cosineScore
+                });
+            }
+
+            if (ids.length < pageSize) {
+                break;
+            }
+
+            offset += pageSize;
         }
 
-        if (ids.length < pageSize) {
-            break;
-        }
+        ranked.sort((a, b) => b.cosineScore - a.cosineScore);
+        const results = ranked.slice(0, topK).map((item) => ({
+            path: item.path,
+            content: item.content,
+            distance: item.distance
+        }));
 
-        offset += pageSize;
+        logger?.info('rag', 'Conceptual KNN Chroma query finished', {
+            collectionName,
+            scannedDocuments,
+            minCosineSimilarity,
+            rankedMatches: ranked.length,
+            returnedResults: results.length
+        });
+
+        return results;
+    } catch (error) {
+        logger?.error('rag', 'Conceptual KNN Chroma query failed', error);
+        throw error;
     }
-
-    ranked.sort((a, b) => b.cosineScore - a.cosineScore);
-    return ranked.slice(0, topK).map((item) => ({
-        path: item.path,
-        content: item.content,
-        distance: item.distance
-    }));
 }
