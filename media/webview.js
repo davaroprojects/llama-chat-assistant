@@ -89,6 +89,7 @@ const elements = {
     settingsTabPanel: document.getElementById('settings-tab-panel'),
     aboutTabPanel: document.getElementById('about-tab-panel'),
     aboutMarkdownContent: document.getElementById('about-markdown-content'),
+    llamaStatusBadge: document.getElementById('llama-status-badge'),
     serverStartBtn: document.getElementById('server-start-btn'),
     serverStopBtn: document.getElementById('server-stop-btn'),
     ragIndexBtn: document.getElementById('rag-index-btn'),
@@ -107,6 +108,13 @@ const elements = {
     ragChromaVectorCandidatePoolValue: document.getElementById('rag-chroma-vector-candidate-pool-value'),
     ragChromaMaxQueryResultsValue: document.getElementById('rag-chroma-max-query-results-value'),
     ragChromaQueryModeValue: document.getElementById('rag-chroma-query-mode-value'),
+    serverActionStartIcon: document.getElementById('server-action-start-icon'),
+    serverActionStopIcon: document.getElementById('server-action-stop-icon'),
+    serverActionText: document.getElementById('server-action-text'),
+    serverActionLoader: document.getElementById('server-action-loader'),
+    ragActionRefreshIcon: document.getElementById('rag-action-refresh-icon'),
+    ragActionText: document.getElementById('rag-action-text'),
+    ragActionLoader: document.getElementById('rag-action-loader'),
     chat: document.getElementById('chat'),
     prompt: document.getElementById('prompt'),
     sessionsContainer: document.getElementById('sessions-container'),
@@ -288,6 +296,127 @@ let isRagIndexing = false;
 let isChromaAvailable = false;
 let hasActiveSession = false;
 let currentSessionTokens = 0;
+let serverLaunchCommandLine = '';
+let sequentialDotFrame = 0;
+let sequentialDotTimer = null;
+
+const serverActionStartIconMarkup = elements.serverActionStartIcon?.innerHTML || '';
+const serverActionStopIconMarkup = elements.serverActionStopIcon?.innerHTML || '';
+const ragActionRefreshIconMarkup = elements.ragActionRefreshIcon?.innerHTML || '';
+
+function getServerControlState() {
+    const isPendingStart = pendingServerAction === 'starting';
+    const isPendingStop = pendingServerAction === 'stopping';
+    const isStopBlocked = isServerRunning && !wasServerStartedByPlugin;
+
+    return {
+        isPendingStart,
+        isPendingStop,
+        isStopBlocked,
+        canStart: !pendingServerAction && !isServerRunning,
+        canStop: !pendingServerAction && isServerRunning && !isStopBlocked
+    };
+}
+
+function getRagControlState() {
+    const isUnavailable = !isChromaAvailable;
+
+    return {
+        isUnavailable,
+        isIndexing: isRagIndexing,
+        canIndex: !isRagIndexing && !isUnavailable
+    };
+}
+
+function updateLlamaStatusBadge() {
+    if (!elements.llamaStatusBadge) {
+        return;
+    }
+
+    const state = getServerControlState();
+    let text = 'stopped';
+    let statusClass = 'is-stopped';
+
+    if (state.isPendingStart) {
+        text = 'started';
+        statusClass = 'is-started';
+    } else if (isServerRunning) {
+        text = 'running';
+        statusClass = 'is-running';
+    }
+
+    elements.llamaStatusBadge.textContent = text;
+    elements.llamaStatusBadge.classList.remove('is-started', 'is-running', 'is-stopped');
+    elements.llamaStatusBadge.classList.add(statusClass);
+}
+
+function requestServerStart(triggerElement) {
+    const state = getServerControlState();
+    if (!state.canStart) {
+        return;
+    }
+
+    setPendingServerAction('starting');
+    triggerElement?.blur();
+    elements.vscode.postMessage({ type: 'startServer' });
+}
+
+function requestServerStop(triggerElement) {
+    const state = getServerControlState();
+    if (!state.canStop) {
+        return;
+    }
+
+    setPendingServerAction('stopping');
+    triggerElement?.blur();
+    elements.vscode.postMessage({ type: 'stopServer' });
+}
+
+function requestRagIndex(triggerElement) {
+    const state = getRagControlState();
+    if (!state.canIndex) {
+        return;
+    }
+
+    setRagIndexingState(true);
+    triggerElement?.blur();
+    elements.vscode.postMessage({ type: 'indexAll' });
+}
+
+function getSequentialDotsText() {
+    return '.'.repeat((sequentialDotFrame % 3) + 1);
+}
+
+function refreshSequentialIndicators() {
+    const dots = getSequentialDotsText();
+
+    if (pendingServerAction === 'starting' && elements.serverActionStartIcon) {
+        elements.serverActionStartIcon.textContent = dots;
+    }
+
+    if (isRagIndexing && elements.ragActionRefreshIcon) {
+        elements.ragActionRefreshIcon.textContent = dots;
+    }
+}
+
+function updateSequentialDotTimer() {
+    const shouldAnimate = pendingServerAction === 'starting' || isRagIndexing;
+
+    if (shouldAnimate && !sequentialDotTimer) {
+        refreshSequentialIndicators();
+        sequentialDotTimer = window.setInterval(() => {
+            sequentialDotFrame += 1;
+            refreshSequentialIndicators();
+        }, 350);
+        return;
+    }
+
+    if (!shouldAnimate && sequentialDotTimer) {
+        window.clearInterval(sequentialDotTimer);
+        sequentialDotTimer = null;
+        sequentialDotFrame = 0;
+    }
+}
 
 const uiState = {
     // Current visible tab in the UI.
@@ -348,6 +477,70 @@ function applySettingsAccordionState(state) {
         chromadbOpen: nextChromadbOpen
     };
 }
+function updateServerActionPanel() {
+    if (!elements.serverActionStartIcon || !elements.serverActionStopIcon || !elements.serverActionText || !elements.serverActionLoader) {
+        return;
+    }
+
+    const state = getServerControlState();
+
+    if (state.isPendingStart) {
+        elements.serverActionStartIcon.style.display = 'flex';
+        elements.serverActionStartIcon.disabled = true;
+        elements.serverActionStartIcon.title = 'Starting';
+        elements.serverActionStartIcon.textContent = getSequentialDotsText();
+        elements.serverActionStopIcon.style.display = 'none';
+        elements.serverActionText.textContent = serverLaunchCommandLine || 'start';
+        elements.serverActionLoader.style.display = 'none';
+        updateSequentialDotTimer();
+        return;
+    }
+
+    elements.serverActionStartIcon.innerHTML = serverActionStartIconMarkup;
+    elements.serverActionStartIcon.disabled = false;
+    elements.serverActionStartIcon.title = 'Start';
+    elements.serverActionLoader.style.display = 'none';
+
+    if (isServerRunning) {
+        elements.serverActionStartIcon.style.display = 'none';
+        elements.serverActionStopIcon.style.display = 'flex';
+        elements.serverActionStopIcon.disabled = !state.canStop;
+        elements.serverActionStopIcon.title = state.isStopBlocked
+            ? labels.externalServerBlockedLabel
+            : 'Stop';
+        elements.serverActionStopIcon.innerHTML = serverActionStopIconMarkup;
+        elements.serverActionText.textContent = serverLaunchCommandLine || 'running';
+    } else {
+        elements.serverActionStartIcon.style.display = 'flex';
+        elements.serverActionStopIcon.style.display = 'none';
+        elements.serverActionText.textContent = serverLaunchCommandLine || 'start';
+    }
+
+    updateSequentialDotTimer();
+}
+
+function updateRagActionPanel() {
+    if (!elements.ragActionRefreshIcon || !elements.ragActionText || !elements.ragActionLoader) {
+        return;
+    }
+
+    const state = getRagControlState();
+
+    if (state.isIndexing) {
+        elements.ragActionText.textContent = 'indexing';
+        elements.ragActionRefreshIcon.textContent = getSequentialDotsText();
+        elements.ragActionRefreshIcon.disabled = true;
+        elements.ragActionLoader.style.display = 'none';
+    } else {
+        elements.ragActionText.textContent = 'index';
+        elements.ragActionRefreshIcon.innerHTML = ragActionRefreshIconMarkup;
+        elements.ragActionLoader.style.display = 'none';
+        elements.ragActionRefreshIcon.disabled = state.isUnavailable;
+    }
+
+    updateSequentialDotTimer();
+}
+
 
 function persistSettingsAccordionState() {
     const state = readSettingsAccordionState();
@@ -359,6 +552,7 @@ function setRagIndexingState(value) {
     isRagIndexing = !!value;
     uiState.isRagIndexing = isRagIndexing;
     updateRagActionButton();
+    updateRagActionPanel();
 }
 
 function createAutoContextKey(name, content) {
@@ -466,28 +660,22 @@ elements.chatTabBtn?.addEventListener('click', () => switchTab('chat'));
 elements.settingsTabBtn?.addEventListener('click', () => switchTab('settings'));
 elements.aboutTabBtn?.addEventListener('click', () => switchTab('about'));
 elements.serverStartBtn?.addEventListener('click', () => {
-    if (pendingServerAction || isServerRunning) {
-        return;
-    }
-    setPendingServerAction('starting');
-    elements.serverStartBtn.blur();
-    elements.vscode.postMessage({ type: 'startServer' });
+    requestServerStart(elements.serverStartBtn);
 });
 elements.serverStopBtn?.addEventListener('click', () => {
-    if (pendingServerAction || !isServerRunning) {
-        return;
-    }
-    setPendingServerAction('stopping');
-    elements.serverStopBtn.blur();
-    elements.vscode.postMessage({ type: 'stopServer' });
+    requestServerStop(elements.serverStopBtn);
 });
 elements.ragIndexBtn?.addEventListener('click', () => {
-    if (isRagIndexing || !isChromaAvailable) {
-        return;
-    }
-    setRagIndexingState(true);
-    elements.ragIndexBtn.blur();
-    elements.vscode.postMessage({ type: 'indexAll' });
+    requestRagIndex(elements.ragIndexBtn);
+});
+elements.serverActionStartIcon?.addEventListener('click', () => {
+    requestServerStart(elements.serverActionStartIcon);
+});
+elements.serverActionStopIcon?.addEventListener('click', () => {
+    requestServerStop(elements.serverActionStopIcon);
+});
+elements.ragActionRefreshIcon?.addEventListener('click', () => {
+    requestRagIndex(elements.ragActionRefreshIcon);
 });
 elements.backToSessionsBtn.addEventListener('click', handleBackToSessions);
 elements.sendBtn.addEventListener('click', sendMessage);
@@ -611,15 +799,15 @@ function updateRagActionButton() {
         return;
     }
 
-    const isUnavailable = !isChromaAvailable;
-    elements.ragIndexBtn.disabled = isRagIndexing || isUnavailable;
-    elements.ragIndexBtn.classList.toggle('is-pending', isRagIndexing);
-    elements.ragIndexBtn.classList.toggle('is-disabled', isUnavailable);
-    elements.ragIndexBtn.title = isUnavailable
+    const state = getRagControlState();
+    elements.ragIndexBtn.disabled = !state.canIndex;
+    elements.ragIndexBtn.classList.toggle('is-pending', state.isIndexing);
+    elements.ragIndexBtn.classList.toggle('is-disabled', state.isUnavailable);
+    elements.ragIndexBtn.title = state.isUnavailable
         ? labels.ragChromaUnavailableLabel
         : (elements.ragIndexBtn.dataset.label || labels.ragIndexedLabel);
 
-    const label = isRagIndexing
+    const label = state.isIndexing
         ? (elements.ragIndexBtn.dataset.loadingLabel || labels.ragIndexingLabel)
         : (elements.ragIndexBtn.dataset.label || labels.ragIndexedLabel);
 
@@ -631,6 +819,7 @@ function renderRagState(message) {
     isChromaAvailable = !!message.chromaAvailable;
     uiState.isChromaAvailable = isChromaAvailable;
     updateRagActionButton();
+    updateRagActionPanel();
 
     if (elements.ragChromaUrlValue) {
         elements.ragChromaUrlValue.textContent = typeof message.chromaUrl === 'string' && message.chromaUrl
@@ -721,7 +910,6 @@ function handleClearActiveEditorContext() {
 
 function handleRestoreActiveChat(message) {
     setHasActiveSession(true);
-    showChatView();
     elements.activeSessionTitle.innerText = message.title;
     elements.chat.innerHTML = '';
 
@@ -1367,40 +1555,41 @@ function setPendingServerAction(action) {
     pendingServerAction = action;
     uiState.pendingServerAction = pendingServerAction;
     updateServerActionButtons();
+    updateServerActionPanel();
 }
 
 function clearPendingServerAction() {
     pendingServerAction = null;
     uiState.pendingServerAction = pendingServerAction;
     updateServerActionButtons();
+    updateServerActionPanel();
 }
 
 function updateServerActionButtons() {
+    const state = getServerControlState();
+    updateLlamaStatusBadge();
+
     if (elements.serverStartBtn) {
-        const isPendingStart = pendingServerAction === 'starting';
-        elements.serverStartBtn.disabled = !!pendingServerAction;
-        elements.serverStartBtn.classList.toggle('is-pending', isPendingStart);
-        const label = isPendingStart
+        elements.serverStartBtn.disabled = !state.canStart;
+        elements.serverStartBtn.classList.toggle('is-pending', state.isPendingStart);
+        const label = state.isPendingStart
             ? (elements.serverStartBtn.dataset.loadingLabel || 'Start')
             : (elements.serverStartBtn.dataset.label || 'Start');
-        setServerButtonContent(elements.serverStartBtn, label, 'start', isPendingStart);
+        setServerButtonContent(elements.serverStartBtn, label, 'start', state.isPendingStart);
     }
 
 
     if (elements.serverStopBtn) {
-        const isPendingStop = pendingServerAction === 'stopping';
-        // Block stop button if server was started externally
-        const isBlocked = isServerRunning && !wasServerStartedByPlugin;
-        elements.serverStopBtn.disabled = !!pendingServerAction || isBlocked;
-        elements.serverStopBtn.classList.toggle('is-pending', isPendingStop);
-        elements.serverStopBtn.classList.toggle('is-disabled', isBlocked);
-        elements.serverStopBtn.title = isBlocked
+        elements.serverStopBtn.disabled = !state.canStop;
+        elements.serverStopBtn.classList.toggle('is-pending', state.isPendingStop);
+        elements.serverStopBtn.classList.toggle('is-disabled', state.isStopBlocked);
+        elements.serverStopBtn.title = state.isStopBlocked
             ? labels.externalServerBlockedLabel
             : (elements.serverStopBtn.dataset.label || 'Detener');
-        const label = isPendingStop
+        const label = state.isPendingStop
             ? (elements.serverStopBtn.dataset.loadingLabel || 'Stop')
             : (elements.serverStopBtn.dataset.label || 'Stop');
-        setServerButtonContent(elements.serverStopBtn, label, 'stop', isPendingStop);
+        setServerButtonContent(elements.serverStopBtn, label, 'stop', state.isPendingStop);
     }
 }
 function syncServerStoppedNotice() {
@@ -1518,7 +1707,16 @@ function renderServerState(message) {
     wasServerStartedByPlugin = !!message.wasServerStartedByPlugin;
     uiState.isServerRunning = isServerRunning;
     uiState.wasServerStartedByPlugin = wasServerStartedByPlugin;
-    clearPendingServerAction();
+
+    if (typeof message.commandLine === 'string' && message.commandLine.trim()) {
+        serverLaunchCommandLine = message.commandLine.trim();
+    }
+
+    if (pendingServerAction === 'starting' && isServerRunning) {
+        clearPendingServerAction();
+    } else if (pendingServerAction === 'stopping' && !isServerRunning) {
+        clearPendingServerAction();
+    }
 
     if (elements.serverStartBtn) {
         elements.serverStartBtn.style.display = isServerRunning ? 'none' : 'inline-flex';
@@ -1546,9 +1744,43 @@ function renderServerState(message) {
             line.appendChild(valueLabel);
             elements.serverParametersList.appendChild(line);
         });
+
+        if (!serverLaunchCommandLine) {
+            const rowsByProperty = new Map((message.parameterRows || []).map((row) => [String(row.property), String(row.value)]));
+            const binaryPath = rowsByProperty.get('binaryPath');
+            const model = rowsByProperty.get('model');
+            const ngl = rowsByProperty.get('ngl');
+            const contextSize = rowsByProperty.get('c');
+            const flashAttn = rowsByProperty.get('flash-attn');
+            const host = rowsByProperty.get('host');
+            const port = rowsByProperty.get('port');
+            const tools = rowsByProperty.get('tools');
+            const jinja = rowsByProperty.get('jinja');
+
+            if (binaryPath && model) {
+                const parts = [
+                    binaryPath,
+                    '-m', model,
+                    '-ngl', ngl || '99',
+                    '-c', contextSize || '16384',
+                    '--flash-attn', flashAttn || 'on',
+                    '--host', host || '127.0.0.1',
+                    '--port', port || '8033',
+                    '--tools', tools || 'all',
+                    '--chat-template', 'chatml'
+                ];
+
+                if (String(jinja).toLowerCase() === 'true') {
+                    parts.push('--jinja');
+                }
+
+                serverLaunchCommandLine = parts.join(' ');
+            }
+        }
     }
 
     updateServerActionButtons();
+    updateServerActionPanel();
     applyControlState();
     syncServerStoppedNotice();
     syncSessionCardsAvailability();

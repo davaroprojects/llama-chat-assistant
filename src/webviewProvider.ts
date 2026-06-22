@@ -1052,11 +1052,16 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     }
 
     private postServerState(webviewView: vscode.WebviewView): void {
+        const launchConfig = this.getServerLaunchConfig();
+        const launchCommand = buildServerLaunchCommand(launchConfig, this.getWorkspaceRoot());
+        const commandLine = [launchCommand.command, ...launchCommand.args].join(' ');
+
         webviewView.webview.postMessage({
             type: 'updateServerState',
             isRunning: this.serverProps !== null,
             wasServerStartedByPlugin: this.wasServerStartedByPlugin,
-            parameterRows: buildServerParameterRows(this.getServerLaunchConfig())
+            parameterRows: buildServerParameterRows(launchConfig),
+            commandLine
         });
     }
 

@@ -77,23 +77,10 @@
 
     <div id="about-tab-panel" class="tab-panel about-tab-panel" style="display:none;">
         <div id="about-markdown-content" class="about-markdown-content"></div>
-    </div>
-
-    <div id="context-window" class="quick-context-window" style="display:none;">
-        <div id="context-window-content" class="quick-context-window-content"></div>
-    </div>
-
-    <div id="settings-tab-panel" class="tab-panel settings-tab-panel" style="display:none;">
-        <div class="settings-accordion">
+        <div class="settings-accordion about-settings-accordion">
             <details id="llama-settings-accordion" class="settings-accordion-item" open>
                 <summary>
                     <span class="accordion-title">{{settingsLlamaSectionTitle}}</span>
-                    <button id="server-start-btn" class="accordion-header-action server-start-button" type="button" title="{{serverStartLabel}}" data-label="{{serverStartLabel}}" data-loading-label="{{serverStartLabel}}">
-                        <span class="server-action-button-label">{{serverStartLabel}}</span>
-                    </button>
-                    <button id="server-stop-btn" class="accordion-header-action server-stop-button" type="button" title="{{serverStopLabel}}" style="display:none;" data-label="{{serverStopLabel}}" data-loading-label="{{serverStopLabel}}">
-                        <span class="server-action-button-label">{{serverStopLabel}}</span>
-                    </button>
                 </summary>
                 <div class="server-parameters-panel">
                     <div id="server-parameters-list" class="server-parameters-list"></div>
@@ -103,9 +90,6 @@
             <details id="chromadb-settings-accordion" class="settings-accordion-item" open>
                 <summary>
                     <span class="accordion-title">{{settingsChromaSectionTitle}}</span>
-                    <button id="rag-index-btn" class="accordion-header-action server-start-button" type="button" title="{{ragIndexLabel}}" data-label="{{ragIndexLabel}}" data-loading-label="{{ragIndexLabel}}">
-                        <span class="server-action-button-label">{{ragIndexLabel}}</span>
-                    </button>
                 </summary>
                 <div class="server-parameters-panel">
                     <div class="server-parameters-list">
@@ -124,6 +108,54 @@
                     </div>
                 </div>
             </details>
+        </div>
+    </div>
+
+    <div id="context-window" class="quick-context-window" style="display:none;">
+        <div id="context-window-content" class="quick-context-window-content"></div>
+    </div>
+
+    <div id="settings-tab-panel" class="tab-panel settings-tab-panel" style="display:none;">
+        <div class="settings-components">
+            <div class="action-panel">
+                <div class="action-header">
+                    <span class="action-header-title">Llama.cpp</span>
+                    <span id="llama-status-badge" class="llama-status-badge is-stopped">stopped</span>
+                </div>
+                <div class="action-content">
+                    <span id="server-action-text" class="action-text">Not running</span><span id="server-action-loader" class="action-loader" style="display:none;"></span>
+                </div>
+                <div class="action-buttons">
+                    <button id="server-action-start-icon" class="action-icon-btn" type="button" title="Start" style="display:none;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <polygon points="5 3 19 12 5 21"></polygon>
+                        </svg>
+                    </button>
+                    <button id="server-action-stop-icon" class="action-icon-btn" type="button" title="Stop" style="display:none;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="action-panel">
+                <div class="action-header">
+                    <span class="action-header-title">ChromaDB</span>
+                </div>
+                <div class="action-content">
+                    <span id="rag-action-text" class="action-text">index</span><span id="rag-action-loader" class="action-loader" style="display:none;"></span>
+                </div>
+                <div class="action-buttons">
+                    <button id="rag-action-refresh-icon" class="action-icon-btn" type="button" title="Index">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36M20.49 15a9 9 0 0 1-14.85 3.36"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
