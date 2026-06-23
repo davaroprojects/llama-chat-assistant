@@ -22,7 +22,7 @@ export interface WebviewLabels {
     ragIndexedFilesLabel: string;
     ragChromaUrlLabel: string;
     ragChromaPortLabel: string;
-    ragChromaCollectionPrefixLabel: string;
+    ragChromaCollectionIdLabel: string;
     ragChromaExcludeDirsLabel: string;
     ragChromaExcludeFileGlobsLabel: string;
     ragChromaMaxFileSizeKbLabel: string;
@@ -94,7 +94,7 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
         ragIndexedFilesLabel: 'Indexed files',
         ragChromaUrlLabel: 'ChromaDB URL',
         ragChromaPortLabel: 'ChromaDB port',
-        ragChromaCollectionPrefixLabel: 'ChromaDB collection prefix',
+        ragChromaCollectionIdLabel: 'ChromaDB collection ID',
         ragChromaExcludeDirsLabel: 'Excluded folders',
         ragChromaExcludeFileGlobsLabel: 'Excluded files (glob)',
         ragChromaMaxFileSizeKbLabel: 'Max file size (KB)',

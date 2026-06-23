@@ -1,5 +1,5 @@
+import * as path from 'node:path';
 import * as vscode from 'vscode';
-import * as crypto from 'node:crypto';
 import { ChromaDbConnectionConfig, ChromaQueryMode } from '../../core/model/chroma';
 
 function getConfigValue<T>(
@@ -21,18 +21,33 @@ function getConfigValue<T>(
     return fallback;
 }
 
-function getWorkspaceCollectionPrefix(basePrefix: string, workspaceRoot: string): string {
-    const hash = crypto.createHash('sha256').update(workspaceRoot).digest('hex').slice(0, 12);
-    return `${basePrefix}-${hash}`;
+function sanitizeCollectionSegment(value: string): string {
+    return value
+        .trim()
+        .replace(/[\s-]+/g, '_')
+        .replace(/[^A-Za-z0-9_]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toLowerCase();
 }
 
-export function readChromaDbConfig(workspaceRoot: string): ChromaDbConnectionConfig {
+export function createWorkspaceCollectionId(workspaceRoot: string, timestamp = Date.now()): string {
+    const projectName = path.basename(workspaceRoot) || 'workspace';
+    const normalizedProjectName = sanitizeCollectionSegment(projectName) || 'workspace';
+    return `${normalizedProjectName}_${timestamp}`;
+}
+
+export function readChromaDbConfig(
+    workspaceRoot: string,
+    collectionId: string | null = null,
+    previousCollectionId: string | null = null
+): ChromaDbConnectionConfig {
     const config = vscode.workspace.getConfiguration('llamaChat');
-    const basePrefix = getConfigValue(config, 'chromaDb.collectionPrefix', 'rag.collectionPrefix', 'llama-chat-ephemeral');
     return {
         url: getConfigValue(config, 'chromaDb.url', 'rag.chromaUrl', 'http://127.0.0.1'),
         port: getConfigValue(config, 'chromaDb.port', 'rag.chromaPort', 8000),
-        collectionPrefix: getWorkspaceCollectionPrefix(basePrefix, workspaceRoot),
+        collectionId,
+        previousCollectionId,
         excludeDirs: getConfigValue(config, 'chromaDb.excludeDirs', 'rag.excludeDirs', [
             '.git',
             '.gradle',

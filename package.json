@@ -36,12 +36,6 @@
             "maximum": 16384,
             "description": "%config.maxTokens.description%"
           },
-          "llamaChat.chat.systemPrompt": {
-            "type": "string",
-            "default": "You are a Principal Software Engineer specialized in code navigation and architecture. Explain execution flows strictly from the provided context.\nRULES:\n1. Answer using only the architecture map and the code inside <contexto_codigo>.\n2. If the answer is not explicitly present in the provided code, say: \"Insufficient information in indexed files\". Do not invent logic.\n3. Structure the response chronologically (Step 1, Step 2, Step 3) and show transitions between files.\n4. Respond in markdown format",
-            "description": "%config.systemPrompt.description%",
-            "editPresentation": "multilineText"
-          },
           "llamaChat.chat.debug": {
             "type": "boolean",
             "default": false,
@@ -53,6 +47,26 @@
             "minimum": 1,
             "maximum": 4096,
             "description": "%config.maxAttachedFileSizeKb.description%"
+          },
+          "llamaChat.chat.directLlmTemplate": {
+            "type": "object",
+            "default": {},
+            "description": "%config.chat.directLlmTemplate.description%"
+          },
+          "llamaChat.chat.globalReactTemplate": {
+            "type": "object",
+            "default": {},
+            "description": "%config.chat.globalReactTemplate.description%"
+          },
+          "llamaChat.chat.localRagTemplate": {
+            "type": "object",
+            "default": {},
+            "description": "%config.chat.localRagTemplate.description%"
+          },
+          "llamaChat.chat.deepReactTemplate": {
+            "type": "object",
+            "default": {},
+            "description": "%config.chat.deepReactTemplate.description%"
           },
           "llamaChat.chat.ragModeTemplate": {
             "type": "object",

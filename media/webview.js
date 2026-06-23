@@ -98,7 +98,7 @@ const elements = {
     serverParametersList: document.getElementById('server-parameters-list'),
     ragChromaUrlValue: document.getElementById('rag-chroma-url-value'),
     ragChromaPortValue: document.getElementById('rag-chroma-port-value'),
-    ragChromaCollectionPrefixValue: document.getElementById('rag-chroma-collection-prefix-value'),
+    ragChromaCollectionIdValue: document.getElementById('rag-chroma-collection-id-value'),
     ragChromaExcludeDirsValue: document.getElementById('rag-chroma-exclude-dirs-value'),
     ragChromaExcludeFileGlobsValue: document.getElementById('rag-chroma-exclude-file-globs-value'),
     ragChromaMaxFileSizeKbValue: document.getElementById('rag-chroma-max-file-size-kb-value'),
@@ -170,7 +170,7 @@ function buildChromaPanelCopyText() {
         `Action: ${elements.ragActionText?.textContent?.trim() || '-'}`,
         `URL: ${elements.ragChromaUrlValue?.textContent?.trim() || '-'}`,
         `Port: ${elements.ragChromaPortValue?.textContent?.trim() || '-'}`,
-        `Collection Prefix: ${elements.ragChromaCollectionPrefixValue?.textContent?.trim() || '-'}`
+        `Collection ID: ${elements.ragChromaCollectionIdValue?.textContent?.trim() || '-'}`
     ].join('\n');
 }
 
@@ -878,8 +878,8 @@ function renderRagState(message) {
         elements.ragChromaPortValue.textContent = String(Number(message.chromaPort) || 8000);
     }
 
-    if (elements.ragChromaCollectionPrefixValue) {
-        elements.ragChromaCollectionPrefixValue.textContent = String(message.chromaCollectionPrefix || '-');
+    if (elements.ragChromaCollectionIdValue) {
+        elements.ragChromaCollectionIdValue.textContent = String(message.chromaCollectionId || '-');
     }
 
     if (elements.ragChromaExcludeDirsValue) {
@@ -2017,7 +2017,12 @@ function sendMessage() {
     const hasManualFiles = currentAttachedFiles.some(f => !f.isAutomatic);
     
     if (text || hasManualFiles) {
-        elements.vscode.postMessage({ type: 'askLlama', value: text, attachedFiles: currentAttachedFiles });
+        elements.vscode.postMessage({
+            type: 'askLlama',
+            value: text,
+            attachedFiles: currentAttachedFiles,
+            ragEnabled: !!elements.ragEnabledCheckbox?.checked
+        });
         elements.prompt.value = '';
         autoResizePrompt();
         setTimeout(() => {

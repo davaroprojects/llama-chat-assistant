@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { spawn, ChildProcess } from 'node:child_process';
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { SesionGateway } from './core/gateways/sesionGateway';
 import {
     SessionPayloadBuilder,
@@ -21,15 +20,12 @@ import {
     ChromaAdapter
 } from './adapters/chroma/chromaAdapter';
 import { ChromaDbConnectionConfig } from './core/model/chroma';
-import { EndpointFlowResolver } from './helpers/endpointFlowResolver';
-import { classifyUserIntent, QueryIntentType } from './core/model/queryIntent';
 import { Logger } from './adapters/vscode/outputLogger';
-import { ResolveContextStrategyUseCase } from './core/usecases/resolveContextStrategyUseCase';
 import { RagGateway } from './core/gateways/ragGateway';
 import { LlamaGateway } from './core/gateways/llamaGateway';
 import { GenerateAssistantReplyUseCase } from './core/usecases/generateAssistantReplyUseCase';
 import { readLlamaRuntimeConfig, readLlamaServerLaunchConfig } from './adapters/llama/llamaConfig';
-import { readChromaDbConfig } from './adapters/chroma/chromaConfig';
+import { createWorkspaceCollectionId, readChromaDbConfig } from './adapters/chroma/chromaConfig';
 import { RepositoryIndexGateway } from './core/gateways/repositoryIndexGateway';
 import { IndexWorkspaceUseCase } from './core/usecases/indexWorkspaceUseCase';
 
@@ -41,6 +37,7 @@ interface AskLlamaMessage extends BaseWebviewMessage {
     type: 'askLlama';
     value: string;
     attachedFiles?: FileMetadata[];
+    ragEnabled?: boolean;
 }
 
 interface SelectSessionMessage extends BaseWebviewMessage {
@@ -148,7 +145,8 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
             if (typeof data.value !== 'string' || data.value.length > 100_000) {
                 return false;
             }
-            return data.attachedFiles === undefined || isFileMetadataArray(data.attachedFiles);
+            return (data.attachedFiles === undefined || isFileMetadataArray(data.attachedFiles))
+                && (data.ragEnabled === undefined || typeof data.ragEnabled === 'boolean');
         default:
             return false;
     }
@@ -170,7 +168,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         totalErrors: 0,
         totalDurationMs: 0
     };
-    private readonly resolveContextStrategyUseCase = new ResolveContextStrategyUseCase();
     private readonly ragGateway: RagGateway;
     private readonly repositoryIndexGateway: RepositoryIndexGateway;
     private readonly llamaGateway: LlamaGateway;
@@ -190,7 +187,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         this.generateAssistantReplyUseCase = new GenerateAssistantReplyUseCase(
             this.ragGateway,
             this.llamaGateway,
-            this.resolveContextStrategyUseCase,
             this.logger
         );
         this.indexWorkspaceUseCase = new IndexWorkspaceUseCase(
@@ -439,18 +435,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             const generationStart = performance.now();
             try {
                 const userPrompt = data.value;
-                const queryIntent = classifyUserIntent(userPrompt);
-                const shouldRunStructuredFlow = queryIntent === QueryIntentType.STRUCTURED_FOCUSED;
-
-                let endpointFlow: string[] = [];
-                let promptWithEndpointFlow = userPrompt;
-
-                if (shouldRunStructuredFlow) {
-                    const endpointFlowResolver = new EndpointFlowResolver(this.getProjectGraphCacheRoot());
-                    endpointFlow = await endpointFlowResolver.resolveFlowFromPrompt(userPrompt);
-                    promptWithEndpointFlow = this.buildPromptWithEndpointFlow(userPrompt, endpointFlow);
-                }
-
+                const ragEnabled = !!data.ragEnabled;
                 const filesMetadata = this.collectFilesMetadata(data.attachedFiles || []);
 
                 const userPayload = SessionPayloadBuilder.createUserMessagePayload(userPrompt, filesMetadata);
@@ -465,11 +450,10 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                 webviewView.webview.postMessage({ type: 'startStreaming' });
 
                 await this.generateLlamaResponse(
-                    promptWithEndpointFlow,
+                    userPrompt,
                     filesMetadata,
                     webviewView,
-                    endpointFlow,
-                    shouldRunStructuredFlow
+                    ragEnabled
                 );
             } catch (error: unknown) {
                 this.metrics.totalErrors += 1;
@@ -494,20 +478,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         });
 
         await this.generationLock;
-    }
-
-    private buildPromptWithEndpointFlow(userPrompt: string, endpointFlow: string[]): string {
-        if (endpointFlow.length === 0) {
-            return userPrompt;
-        }
-
-        const flowLines = endpointFlow.map((filePath, index) => `${index + 1}. ${filePath}`).join('\n');
-        return [
-            'Detected endpoint call flow:',
-            flowLines,
-            '',
-            userPrompt
-        ].join('\n');
     }
 
     private handleApplyCode(data: ApplyCodeMessage): void {
@@ -560,30 +530,36 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
 
         this.isRagIndexing = true;
         const previousState = this.sessionManager.getRagIndexState();
+        const workspaceRoot = this.getWorkspaceRoot() || this.context.globalStorageUri.fsPath;
+        const collectionId = createWorkspaceCollectionId(workspaceRoot);
         this.sessionManager.setRagIndexState({
             ...previousState,
-            status: 'indexing'
+            status: 'indexing',
+            indexedAt: null,
+            indexedFiles: 0,
+            collectionId
         });
         this.postRagState(webviewView);
 
         try {
-            const workspaceRoot = this.getWorkspaceRoot();
-            if (!workspaceRoot) {
+            const resolvedWorkspaceRoot = this.getWorkspaceRoot();
+            if (!resolvedWorkspaceRoot) {
                 throw new Error('No workspace folder is open.');
             }
 
-            const chromaConfig = this.getChromaDbConfig();
+            const chromaConfig = this.getChromaDbConfig(collectionId, previousState.collectionId);
             const useCaseResult = await this.indexWorkspaceUseCase.execute({
-                workspaceRoot,
-                cacheRoot: this.getProjectGraphCacheRoot(),
+                workspaceRoot: resolvedWorkspaceRoot,
                 chromaConfig
             });
 
             this.isChromaAvailable = useCaseResult.availability;
             if (!useCaseResult.availability || !useCaseResult.result) {
                 this.sessionManager.setRagIndexState({
-                    ...previousState,
-                    status: 'idle'
+                    status: 'idle',
+                    indexedAt: null,
+                    indexedFiles: 0,
+                    collectionId
                 });
                 return;
             }
@@ -591,15 +567,18 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             this.sessionManager.setRagIndexState({
                 status: useCaseResult.result.status,
                 indexedAt: useCaseResult.result.indexedAt,
-                indexedFiles: useCaseResult.result.indexedFiles
+                indexedFiles: useCaseResult.result.indexedFiles,
+                collectionId: useCaseResult.result.collectionId
             });
         } catch (error) {
             this.logger.error('rag', 'RAG indexing failed', error);
             const message = error instanceof Error ? error.message : 'Unknown indexing error';
             vscode.window.showErrorMessage(`RAG indexing failed: ${message}`);
             this.sessionManager.setRagIndexState({
-                ...previousState,
-                status: 'idle'
+                status: 'idle',
+                indexedAt: null,
+                indexedFiles: 0,
+                collectionId
             });
         } finally {
             this.isRagIndexing = false;
@@ -611,8 +590,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         userPrompt: string,
         filesMetadata: FileMetadata[],
         webviewView: vscode.WebviewView,
-        endpointFlowPaths: string[] = [],
-        shouldRunStructuredFlow = false
+        ragEnabled: boolean
     ): Promise<void> {
         try {
             this.currentAbortController = new AbortController();
@@ -624,8 +602,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                 userPrompt,
                 filesMetadata,
                 baseMessages,
-                endpointFlowPaths,
-                shouldRunStructuredFlow,
+                ragEnabled,
                 abortSignal,
                 llamaConfig: this.getLlamaConfig(),
                 chromaConfig: this.getChromaDbConfig(),
@@ -764,14 +741,14 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || this._extensionUri.fsPath;
     }
 
-    private getProjectGraphCacheRoot(): string {
+    private getChromaDbConfig(collectionId?: string | null, previousCollectionId?: string | null): ChromaDbConnectionConfig {
+        const ragState = this.sessionManager.getRagIndexState();
         const workspaceRoot = this.getWorkspaceRoot() || this.context.globalStorageUri.fsPath;
-        return path.join(workspaceRoot, '.prrrrr');
-    }
-
-    private getChromaDbConfig(): ChromaDbConnectionConfig {
-        const workspaceRoot = this.getWorkspaceRoot() || this.context.globalStorageUri.fsPath;
-        return readChromaDbConfig(workspaceRoot);
+        return readChromaDbConfig(
+            workspaceRoot,
+            collectionId ?? ragState.collectionId,
+            previousCollectionId ?? null
+        );
     }
 
     private async refreshServerProps(retries = 1, delayMs = 0): Promise<void> {
@@ -833,7 +810,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             status: ragState.status,
             chromaUrl: chromaConfig.url,
             chromaPort: chromaConfig.port,
-            chromaCollectionPrefix: chromaConfig.collectionPrefix,
+            chromaCollectionId: ragState.collectionId,
             chromaExcludeDirs: chromaConfig.excludeDirs.join(', '),
             chromaExcludeFileGlobs: chromaConfig.excludeFileGlobs.join(', '),
             chromaMaxFileSizeKb: chromaConfig.maxFileSizeKb,

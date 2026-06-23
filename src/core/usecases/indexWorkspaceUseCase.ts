@@ -5,7 +5,6 @@ import { RepositoryIndexGateway } from '../gateways/repositoryIndexGateway';
 
 export interface IndexWorkspaceInput {
     workspaceRoot: string;
-    cacheRoot: string;
     chromaConfig: ChromaDbConnectionConfig;
 }
 
@@ -24,12 +23,6 @@ export class IndexWorkspaceUseCase {
     async execute(input: IndexWorkspaceInput): Promise<IndexWorkspaceResult> {
         this.logger.info('rag', 'Starting repository indexing');
 
-        await this.repositoryIndexGateway.buildWorkspaceGraph(
-            input.workspaceRoot,
-            input.chromaConfig,
-            input.cacheRoot
-        );
-
         const available = await this.ragGateway.isAvailable(input.chromaConfig);
         if (!available) {
             this.logger.warn('rag', 'Skipping indexing because ChromaDB is unavailable');
@@ -38,6 +31,7 @@ export class IndexWorkspaceUseCase {
 
         const result = await this.repositoryIndexGateway.indexAll(input.workspaceRoot, input.chromaConfig);
         this.logger.info('rag', 'Repository indexing completed', {
+            collectionId: result.collectionId,
             indexedAt: result.indexedAt,
             indexedFiles: result.indexedFiles
         });

@@ -1,7 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import * as crypto from 'node:crypto';
-import { readChromaDbConfig, readChromaQueryMode } from '../../../adapters/chroma/chromaConfig';
+import { createWorkspaceCollectionId, readChromaDbConfig, readChromaQueryMode } from '../../../adapters/chroma/chromaConfig';
 
 function mockVscodeConfig(settings: Record<string, unknown>): void {
     const original = vscode.workspace.getConfiguration;
@@ -34,17 +33,10 @@ suite('readChromaDbConfig - defaults', () => {
         assert.strictEqual(config.minCosineSimilarity, 0.2);
     });
 
-    test('Collection prefix includes SHA256 hash of workspace root', () => {
+    test('Collection ID defaults to null before session persistence injects it', () => {
         mockVscodeConfig({});
         const config = readChromaDbConfig(WORKSPACE_ROOT);
-        const hash = crypto.createHash('sha256').update(WORKSPACE_ROOT).digest('hex').slice(0, 12);
-        assert.ok(config.collectionPrefix.endsWith(`-${hash}`));
-    });
-
-    test('Collection prefix starts with default base prefix', () => {
-        mockVscodeConfig({});
-        const config = readChromaDbConfig(WORKSPACE_ROOT);
-        assert.ok(config.collectionPrefix.startsWith('llama-chat-ephemeral-'));
+        assert.strictEqual(config.collectionId, null);
     });
 });
 
@@ -69,15 +61,10 @@ suite('readChromaDbConfig - overrides', () => {
         assert.strictEqual(config.port, 7777);
     });
 
-    test('Custom collectionPrefix is hashed with workspace root', () => {
-        mockVscodeConfig({
-            'chromaDb.collectionPrefix': 'my-project'
-        });
-        const config1 = readChromaDbConfig('/workspace/a');
-        const config2 = readChromaDbConfig('/workspace/b');
-        assert.ok(config1.collectionPrefix.startsWith('my-project-'));
-        assert.ok(config2.collectionPrefix.startsWith('my-project-'));
-        assert.notStrictEqual(config1.collectionPrefix, config2.collectionPrefix);
+    test('Reads injected collectionId from session state', () => {
+        mockVscodeConfig({});
+        const config = readChromaDbConfig('/workspace/a', 'project_a_1710000000000');
+        assert.strictEqual(config.collectionId, 'project_a_1710000000000');
     });
 
     test('Reads excludeDirs from primary config key', () => {
@@ -86,6 +73,18 @@ suite('readChromaDbConfig - overrides', () => {
         });
         const config = readChromaDbConfig(WORKSPACE_ROOT);
         assert.deepStrictEqual(config.excludeDirs, ['custom-dir']);
+    });
+});
+
+suite('createWorkspaceCollectionId', () => {
+    test('Builds normalized project-based collection id', () => {
+        const collectionId = createWorkspaceCollectionId('/home/user/My Project-Name', 1710000000000);
+        assert.strictEqual(collectionId, 'my_project_name_1710000000000');
+    });
+
+    test('Removes unsupported characters from project name', () => {
+        const collectionId = createWorkspaceCollectionId('/home/user/Project (API) v2', 1710000000000);
+        assert.strictEqual(collectionId, 'project_api_v2_1710000000000');
     });
 });
 

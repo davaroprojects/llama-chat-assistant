@@ -8,7 +8,6 @@ export interface LlamaConfig {
     model: string;
     maxTokens: number;
     temperature: number;
-    systemPrompt: string;
     debug: boolean;
 }
 

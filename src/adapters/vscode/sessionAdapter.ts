@@ -28,7 +28,8 @@ export class SessionAdapter implements SesionGateway {
         ragIndexState: {
             status: 'idle',
             indexedAt: null,
-            indexedFiles: 0
+            indexedFiles: 0,
+            collectionId: null
         }
     };
 

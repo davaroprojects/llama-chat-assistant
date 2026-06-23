@@ -1,19 +1,21 @@
 import { FileMetadata } from '../model/sessionPayload';
-import { buildPromptContext, RagContextSnippet } from '../../helpers/promptContextBuilder';
 import { PromptTemplateManager } from '../../adapters/vscode/promptTemplateManager';
+import { buildConversationUserPrompt } from '../../helpers/conversationPromptBuilder';
 import { LlamaMessageBuilder } from '../../helpers/llamaMessageBuilder';
-import { ChromaConceptualKnnOptions, ChromaDbConnectionConfig } from '../model/chroma';
+import { ChromaDbConnectionConfig } from '../model/chroma';
+import { ConversationFlowDecision, ConversationFlowType } from '../model/conversationFlow';
 import { Logger } from '../../adapters/vscode/outputLogger';
 import { LlamaGateway, LlmGenerationConfig, LlmGenerationResult, LlmMessage } from '../gateways/llamaGateway';
-import { RagContextMatch, RagGateway } from '../gateways/ragGateway';
-import { ResolveContextStrategyUseCase } from './resolveContextStrategyUseCase';
+import { RagGateway } from '../gateways/ragGateway';
+import { LlamaChatAgentSearchUseCase } from './llamaChatAgentSearchUseCase';
+import { ResolveConversationFlowUseCase } from './resolveConversationFlowUseCase';
+import { RunReactAgentConversationUseCase } from './runReactAgentConversationUseCase';
 
 export interface GenerateAssistantReplyInput {
     userPrompt: string;
     filesMetadata: FileMetadata[];
     baseMessages: Array<{ role: string; content: unknown }>;
-    endpointFlowPaths?: string[];
-    shouldRunStructuredFlow: boolean;
+    ragEnabled: boolean;
     abortSignal?: AbortSignal;
     llamaConfig: LlmGenerationConfig;
     chromaConfig: ChromaDbConnectionConfig;
@@ -23,41 +25,49 @@ export interface GenerateAssistantReplyInput {
 export interface GenerateAssistantReplyResult extends LlmGenerationResult {
     durationSeconds: string;
     ragSnippetsCount: number;
-    contextStrategy: {
-        hasExplicitFileContext: boolean;
-        hasRepositoryAttachment: boolean;
-        shouldUseRepositoryScope: boolean;
-    };
+    flow: ConversationFlowDecision;
 }
 
 export class GenerateAssistantReplyUseCase {
+    private readonly resolveConversationFlowUseCase = new ResolveConversationFlowUseCase();
+    private readonly reactAgentConversationUseCase: RunReactAgentConversationUseCase;
+
     constructor(
         private readonly ragGateway: RagGateway,
         private readonly llamaGateway: LlamaGateway,
-        private readonly contextStrategyUseCase: ResolveContextStrategyUseCase,
         private readonly logger: Logger
-    ) {}
+    ) {
+        this.reactAgentConversationUseCase = new RunReactAgentConversationUseCase(
+            this.llamaGateway,
+            new LlamaChatAgentSearchUseCase(this.ragGateway, this.logger),
+            this.logger
+        );
+    }
 
     async execute(input: GenerateAssistantReplyInput): Promise<GenerateAssistantReplyResult> {
         const startedAt = Date.now();
-        const ragSnippets = await this.resolveRagContext(input);
         this.throwIfAborted(input.abortSignal);
 
-        const contextStrategy = this.contextStrategyUseCase.execute(input.filesMetadata);
-        this.logger.debug('prompt', 'Resolved prompt context source', {
-            explicitFileContext: contextStrategy.hasExplicitFileContext,
-            repositoryAttachment: contextStrategy.hasRepositoryAttachment,
-            ragSnippets: ragSnippets.length,
+        const flow = this.resolveConversationFlowUseCase.execute(input.filesMetadata, input.ragEnabled);
+        const template = this.getPromptTemplate(flow.type);
+        const contextPrompt = buildConversationUserPrompt(
+            flow.type,
+            template,
+            input.userPrompt,
+            input.filesMetadata
+        );
+
+        this.logger.debug('prompt', 'Resolved conversation flow', {
+            flow: flow.type,
+            ragEnabled: flow.ragEnabled,
+            explicitCodeContext: flow.hasExplicitCodeContext,
             attachedFiles: input.filesMetadata.length
         });
 
-        const contextPrompt = buildPromptContext({
-            userPrompt: input.userPrompt,
-            attachedFiles: input.filesMetadata,
-            ragSnippets,
-            hasRepositoryAttachment: contextStrategy.hasRepositoryAttachment,
-            ragModeTemplate: PromptTemplateManager.getRagModeTemplate(),
-            specificFilesModeTemplate: PromptTemplateManager.getSpecificFilesModeTemplate()
+        this.logger.debug('prompt', 'Built flow-specific prompt payload', {
+            flow: flow.type,
+            systemPromptPreview: template.systemPrompt.slice(0, 240),
+            userPromptPreview: contextPrompt.slice(0, 240)
         });
 
         this.throwIfAborted(input.abortSignal);
@@ -71,155 +81,73 @@ export class GenerateAssistantReplyUseCase {
             return { role: message.role, content: String(content ?? '') };
         });
 
+        const generationResult = this.isReactFlow(flow.type)
+            ? await this.reactAgentConversationUseCase.execute({
+                baseMessages: normalizedBaseMessages,
+                userPrompt: contextPrompt,
+                systemPrompt: template.systemPrompt,
+                llamaConfig: input.llamaConfig,
+                chromaConfig: input.chromaConfig,
+                onToken: input.onToken,
+                abortSignal: input.abortSignal
+            })
+            : await this.runDirectConversation(
+                normalizedBaseMessages,
+                contextPrompt,
+                template.systemPrompt,
+                input
+            );
+
+        const ragSnippetsCount = 'retrievedMatches' in generationResult && typeof generationResult.retrievedMatches === 'number'
+            ? generationResult.retrievedMatches
+            : 0;
+        const durationSeconds = ((Date.now() - startedAt) / 1000).toFixed(2);
+        return {
+            ...generationResult,
+            durationSeconds,
+            ragSnippetsCount,
+            flow
+        };
+    }
+
+    private getPromptTemplate(flowType: ConversationFlowType) {
+        switch (flowType) {
+            case ConversationFlowType.DIRECT_LLM:
+                return PromptTemplateManager.getDirectLlmTemplate();
+            case ConversationFlowType.GLOBAL_REACT_AGENT:
+                return PromptTemplateManager.getGlobalReactTemplate();
+            case ConversationFlowType.LOCAL_RAG:
+                return PromptTemplateManager.getLocalRagTemplate();
+            case ConversationFlowType.DEEP_REACT_AGENT:
+                return PromptTemplateManager.getDeepReactTemplate();
+            default:
+                return PromptTemplateManager.getDirectLlmTemplate();
+        }
+    }
+
+    private isReactFlow(flowType: ConversationFlowType): boolean {
+        return flowType === ConversationFlowType.GLOBAL_REACT_AGENT
+            || flowType === ConversationFlowType.DEEP_REACT_AGENT;
+    }
+
+    private async runDirectConversation(
+        baseMessages: LlmMessage[],
+        userPrompt: string,
+        systemPrompt: string,
+        input: GenerateAssistantReplyInput
+    ): Promise<LlmGenerationResult> {
         const messagesForLlama = LlamaMessageBuilder.prepareMessagesForLlama(
-            normalizedBaseMessages,
-            contextPrompt,
-            input.llamaConfig.systemPrompt
+            baseMessages,
+            userPrompt,
+            systemPrompt
         ) as LlmMessage[];
 
-        const generationResult = await this.llamaGateway.streamResponse(
+        return this.llamaGateway.streamResponse(
             messagesForLlama,
             input.llamaConfig,
             input.onToken,
             input.abortSignal
         );
-
-        const durationSeconds = ((Date.now() - startedAt) / 1000).toFixed(2);
-        return {
-            ...generationResult,
-            durationSeconds,
-            ragSnippetsCount: ragSnippets.length,
-            contextStrategy
-        };
-    }
-
-    private async resolveRagContext(input: GenerateAssistantReplyInput): Promise<RagContextSnippet[]> {
-        const contextStrategy = this.contextStrategyUseCase.execute(input.filesMetadata);
-
-        if (!contextStrategy.shouldUseRepositoryScope) {
-            this.logger.debug('rag', 'Skipping repository context because explicit file context is attached', {
-                attachedFiles: input.filesMetadata.length
-            });
-            return [];
-        }
-
-        this.logger.debug('rag', 'Using repository context for query', {
-            hasRepositoryAttachment: contextStrategy.hasRepositoryAttachment,
-            explicitFileContext: contextStrategy.hasExplicitFileContext,
-            attachedFiles: input.filesMetadata.length,
-            structured: input.shouldRunStructuredFlow
-        });
-
-        this.logger.debug('rag', 'Resolving repository context', {
-            structured: input.shouldRunStructuredFlow,
-            endpointFlowPaths: input.endpointFlowPaths?.length ?? 0
-        });
-
-        this.throwIfAborted(input.abortSignal);
-
-        const isAvailable = await this.ragGateway.isAvailable(input.chromaConfig);
-        if (!isAvailable) {
-            return [];
-        }
-
-        try {
-            this.throwIfAborted(input.abortSignal);
-            let results: RagContextMatch[] = [];
-
-            if (input.shouldRunStructuredFlow) {
-                results = await this.ragGateway.queryByMode(
-                    input.userPrompt,
-                    input.chromaConfig,
-                    input.chromaConfig.maxQueryResults,
-                    'semantic',
-                    input.abortSignal,
-                    input.endpointFlowPaths
-                );
-
-                if (results.length === 0) {
-                    results = await this.ragGateway.queryByMode(
-                        input.userPrompt,
-                        input.chromaConfig,
-                        input.chromaConfig.maxQueryResults,
-                        'lexical',
-                        input.abortSignal,
-                        input.endpointFlowPaths
-                    );
-                }
-
-                if (results.length === 0 && input.endpointFlowPaths && input.endpointFlowPaths.length > 0) {
-                    results = await this.ragGateway.queryByMode(
-                        input.userPrompt,
-                        input.chromaConfig,
-                        input.chromaConfig.maxQueryResults,
-                        'semantic',
-                        input.abortSignal,
-                        undefined
-                    );
-                }
-            } else {
-                const conceptualOptions: ChromaConceptualKnnOptions = {
-                    topK: input.chromaConfig.maxQueryResults,
-                    minCosineSimilarity: input.chromaConfig.minCosineSimilarity,
-                    signal: input.abortSignal,
-                    logger: this.logger
-                };
-
-                results = await this.ragGateway.queryConceptual(
-                    input.userPrompt,
-                    input.chromaConfig,
-                    conceptualOptions
-                );
-
-                if (results.length === 0 && input.chromaConfig.minCosineSimilarity > 0) {
-                    results = await this.ragGateway.queryConceptual(
-                        input.userPrompt,
-                        input.chromaConfig,
-                        {
-                            ...conceptualOptions,
-                            minCosineSimilarity: 0
-                        }
-                    );
-                }
-
-                if (results.length === 0) {
-                    results = await this.ragGateway.queryByMode(
-                        input.userPrompt,
-                        input.chromaConfig,
-                        input.chromaConfig.maxQueryResults,
-                        'semantic',
-                        input.abortSignal,
-                        undefined
-                    );
-                }
-
-                if (results.length === 0) {
-                    results = await this.ragGateway.queryByMode(
-                        input.userPrompt,
-                        input.chromaConfig,
-                        input.chromaConfig.maxQueryResults,
-                        'lexical',
-                        input.abortSignal,
-                        undefined
-                    );
-                }
-            }
-
-            this.logger.debug('rag', 'RAG retrieval completed', {
-                structured: input.shouldRunStructuredFlow,
-                results: results.length
-            });
-
-            this.throwIfAborted(input.abortSignal);
-            return results.map((result) => ({
-                path: result.path,
-                content: result.content,
-                distance: result.distance
-            }));
-        } catch (error) {
-            this.logger.error('rag', 'RAG query failed', error);
-            return [];
-        }
     }
 
     private throwIfAborted(abortSignal?: AbortSignal): void {

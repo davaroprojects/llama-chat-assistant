@@ -10,7 +10,6 @@ import {
 } from '../../core/model/chroma';
 import { RagGateway } from '../../core/gateways/ragGateway';
 import { RepositoryIndexGateway } from '../../core/gateways/repositoryIndexGateway';
-import { WorkspaceDependencyGraphBuilder } from './workspaceDependencyGraphBuilder';
 import { Logger } from '../vscode/outputLogger';
 
 // Import utils - embeddings
@@ -49,7 +48,7 @@ import {
 
 // Import utils - chroma
 import { getClient } from './utils/chroma/chromaClient';
-import { cleanupEphemeralCollections, getLatestEphemeralCollectionName } from './utils/chroma/chromaCollections';
+import { clearCollection, collectionExists } from './utils/chroma/chromaCollections';
 
 
 type ChromaWhereFilter = {
@@ -191,14 +190,24 @@ export async function indexAllWithChromaDb(
     config: ChromaDbConnectionConfig,
     logger?: ChromaQueryLogger
 ): Promise<RagIndexResult> {
+    if (!config.collectionId) {
+        throw new Error('Chroma collection ID is not configured for this workspace session.');
+    }
+
     const indexedAt = Date.now();
     const client = getClient(config);
+    const collectionName = config.collectionId;
 
-    logger?.info('rag', 'Starting workspace indexing', { collectionPrefix: config.collectionPrefix, workspaceRoot });
+    logger?.info('rag', 'Starting workspace indexing', { collectionName, workspaceRoot });
 
-    await cleanupEphemeralCollections(client, config.collectionPrefix, logger);
+    if (config.previousCollectionId && config.previousCollectionId !== collectionName && await collectionExists(client, config.previousCollectionId)) {
+        await clearCollection(client, config.previousCollectionId, logger);
+    }
 
-    const collectionName = `${config.collectionPrefix}-${indexedAt}`;
+    if (await collectionExists(client, collectionName)) {
+        await clearCollection(client, collectionName, logger);
+    }
+
     const collection = await client.createCollection({
         name: collectionName,
         embeddingFunction: createHuggingFaceEmbeddingFunction()
@@ -241,7 +250,8 @@ export async function indexAllWithChromaDb(
     return {
         status: 'indexed',
         indexedAt,
-        indexedFiles: files.length
+        indexedFiles: files.length,
+        collectionId: collectionName
     };
 }
 
@@ -292,11 +302,16 @@ export async function queryRelevantContextFromChromaDbSemantic(
         filterPaths: filePathFilter?.length ?? 0
     });
 
-    const client = getClient(config, signal);
-    const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
+    const collectionName = config.collectionId;
     if (!collectionName) {
-        logger?.warn('rag', 'Semantic query skipped: no indexed Chroma collection found', {
-            collectionPrefix: config.collectionPrefix
+        logger?.warn('rag', 'Semantic query skipped: no collection ID stored for this workspace session');
+        return [];
+    }
+
+    const client = getClient(config, signal);
+    if (!(await collectionExists(client, collectionName))) {
+        logger?.warn('rag', 'Semantic query skipped: stored Chroma collection was not found', {
+            collectionName
         });
         return [];
     }
@@ -396,11 +411,16 @@ export async function queryRelevantContextFromChromaDbLexical(
         filterPaths: filePathFilter?.length ?? 0
     });
 
-    const client = getClient(config, signal);
-    const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
+    const collectionName = config.collectionId;
     if (!collectionName) {
-        logger?.warn('rag', 'Lexical query skipped: no indexed Chroma collection found', {
-            collectionPrefix: config.collectionPrefix
+        logger?.warn('rag', 'Lexical query skipped: no collection ID stored for this workspace session');
+        return [];
+    }
+
+    const client = getClient(config, signal);
+    if (!(await collectionExists(client, collectionName))) {
+        logger?.warn('rag', 'Lexical query skipped: stored Chroma collection was not found', {
+            collectionName
         });
         return [];
     }
@@ -518,11 +538,16 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
         minCosineSimilarity
     });
 
-    const client = getClient(config, signal);
-    const collectionName = await getLatestEphemeralCollectionName(client, config.collectionPrefix);
+    const collectionName = config.collectionId;
     if (!collectionName) {
-        logger?.warn('rag', 'Conceptual KNN query skipped: no indexed Chroma collection found', {
-            collectionPrefix: config.collectionPrefix
+        logger?.warn('rag', 'Conceptual KNN query skipped: no collection ID stored for this workspace session');
+        return [];
+    }
+
+    const client = getClient(config, signal);
+    if (!(await collectionExists(client, collectionName))) {
+        logger?.warn('rag', 'Conceptual KNN query skipped: stored Chroma collection was not found', {
+            collectionName
         });
         return [];
     }
@@ -653,11 +678,6 @@ export class ChromaAdapter implements RagGateway, RepositoryIndexGateway {
             filePathFilter,
             this.logger
         );
-    }
-
-    async buildWorkspaceGraph(workspaceRoot: string, chromaConfig: ChromaDbConnectionConfig, cacheRoot: string): Promise<void> {
-        const graphBuilder = new WorkspaceDependencyGraphBuilder(workspaceRoot, chromaConfig, cacheRoot);
-        await graphBuilder.build();
     }
 
     async indexAll(workspaceRoot: string, chromaConfig: ChromaDbConnectionConfig): Promise<RagIndexResult> {

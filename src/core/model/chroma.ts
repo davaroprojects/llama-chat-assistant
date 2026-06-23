@@ -2,12 +2,14 @@ export interface RagIndexResult {
     status: 'indexed';
     indexedAt: number;
     indexedFiles: number;
+    collectionId: string;
 }
 
 export interface ChromaDbConnectionConfig {
     url: string;
     port: number;
-    collectionPrefix: string;
+    collectionId: string | null;
+    previousCollectionId?: string | null;
     excludeDirs: string[];
     excludeFileGlobs: string[];
     maxFileSizeKb: number;

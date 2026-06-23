@@ -45,7 +45,6 @@ export function readLlamaRuntimeConfig(serverConfig: LlamaServerLaunchConfig): L
         model: getConfigValue(config, 'chat.model', 'model', 'local'),
         maxTokens: getConfigValue(config, 'chat.maxTokens', 'maxTokens', 2048),
         temperature: getConfigValue(config, 'chat.temperature', 'temperature', 0.1),
-        systemPrompt: getConfigValue(config, 'chat.systemPrompt', 'systemPrompt', ''),
         debug: getConfigValue(config, 'chat.debug', 'debug', false)
     };
 }

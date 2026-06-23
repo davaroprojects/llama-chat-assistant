@@ -16,6 +16,7 @@ export interface RagIndexState {
     status: 'idle' | 'indexing' | 'indexed';
     indexedAt: number | null;
     indexedFiles: number;
+    collectionId: string | null;
 }
 
 export interface ChatUiState {
