@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { SessionAdapter } from './adapters/vscode/sessionAdapter';
 import { LlamaChatViewProvider } from './webviewProvider';
-import { OutputLogger } from './logging/outputLogger';
+import { OutputLogger } from './adapters/logging/outputLogger';
 import { LlamaAdapter } from './adapters/llama/llamaAdapter';
 
 let activeProvider: LlamaChatViewProvider | undefined;

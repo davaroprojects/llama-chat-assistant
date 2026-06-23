@@ -4,8 +4,8 @@ import {
     buildServerLaunchCommand,
     buildServerParameterRows,
     resolveWorkspacePath
-} from '../adapters/llama/llamaServerConfig';
-import { LlamaServerLaunchConfig } from '../core/domain/llamaServer';
+} from '../../../adapters/llama/llamaServerConfig';
+import { LlamaServerLaunchConfig } from '../../../core/domain/llamaServer';
 
 const SERVER_CONFIG: LlamaServerLaunchConfig = {
     executablePath: './build/bin/llama-server',

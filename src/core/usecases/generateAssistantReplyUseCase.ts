@@ -1,9 +1,9 @@
 import { FileMetadata } from '../domain/sessionPayload';
-import { buildPromptContext, RagContextSnippet } from '../../chat/promptContextBuilder';
-import { PromptTemplateManager } from '../../chat/promptTemplateManager';
-import { LlamaMessageBuilder } from '../../chat/llamaMessageBuilder';
+import { buildPromptContext, RagContextSnippet } from '../../helpers/promptContextBuilder';
+import { PromptTemplateManager } from '../../adapters/vscode/promptTemplateManager';
+import { LlamaMessageBuilder } from '../../helpers/llamaMessageBuilder';
 import { ChromaConceptualKnnOptions, ChromaDbConnectionConfig, ChromaQueryMode } from '../domain/chroma';
-import { Logger } from '../../logging/outputLogger';
+import { Logger } from '../../adapters/logging/outputLogger';
 import { LlamaGateway, LlmGenerationConfig, LlmGenerationResult, LlmMessage } from '../gateways/llamaGateway';
 import { RagContextMatch, RagGateway } from '../gateways/ragGateway';
 import { ResolveContextStrategyUseCase } from './resolveContextStrategyUseCase';

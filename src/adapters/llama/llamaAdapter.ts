@@ -1,4 +1,4 @@
-import { Logger } from '../../logging/outputLogger';
+import { Logger } from '../logging/outputLogger';
 import { LlamaGateway, LlmGenerationConfig, LlmGenerationResult, LlmMessage } from '../../core/gateways/llamaGateway';
 import { ChatMessage, LlamaConfig, LlamaServerProps } from '../../core/domain/llama';
 

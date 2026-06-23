@@ -1,5 +1,5 @@
 import { ChromaDbConnectionConfig, RagIndexResult } from '../domain/chroma';
-import { Logger } from '../../logging/outputLogger';
+import { Logger } from '../../adapters/logging/outputLogger';
 import { RagGateway } from '../gateways/ragGateway';
 import { RepositoryIndexGateway } from '../gateways/repositoryIndexGateway';
 

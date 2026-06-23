@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { LlamaAdapter } from '../adapters/llama/llamaAdapter';
+import { LlamaAdapter } from '../../../adapters/llama/llamaAdapter';
 
 suite('LlamaAdapter - server props', () => {
     test('Extracts n_ctx from full /props payload', () => {

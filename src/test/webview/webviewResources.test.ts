@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { getWebviewLabels } from '../webview/webviewResources';
+import { getWebviewLabels } from '../../webview/webviewResources';
 
 suite('webviewResources', () => {
     test('Returns English labels for any locale', () => {

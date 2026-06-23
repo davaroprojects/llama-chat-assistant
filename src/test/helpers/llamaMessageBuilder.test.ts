@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { LlamaMessageBuilder } from '../chat/llamaMessageBuilder';
+import { LlamaMessageBuilder } from '../../helpers/llamaMessageBuilder';
 
 const BASE_CONFIG = {
     apiUrl: '',

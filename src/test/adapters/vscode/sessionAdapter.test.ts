@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { SessionAdapter } from '../adapters/vscode/sessionAdapter';
+import { SessionAdapter } from '../../../adapters/vscode/sessionAdapter';
 
 function createMockContext(storedSessions: unknown[] = []): vscode.ExtensionContext {
     const store = new Map<string, unknown>([['llamaChatSessions', storedSessions]]);

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
-import { LlamaAdapter } from '../adapters/llama/llamaAdapter';
-import { LlamaMessageBuilder } from '../chat/llamaMessageBuilder';
+import { LlamaAdapter } from '../../../adapters/llama/llamaAdapter';
+import { LlamaMessageBuilder } from '../../../helpers/llamaMessageBuilder';
 
 const BASE_CONFIG = {
     apiUrl: '',

@@ -13,7 +13,7 @@ import {
 import { RagGateway } from '../../core/gateways/ragGateway';
 import { RepositoryIndexGateway } from '../../core/gateways/repositoryIndexGateway';
 import { WorkspaceDependencyGraphBuilder } from './workspaceDependencyGraphBuilder';
-import { Logger } from '../../logging/outputLogger';
+import { Logger } from '../logging/outputLogger';
 
 const EMBEDDING_DIM = 64;
 

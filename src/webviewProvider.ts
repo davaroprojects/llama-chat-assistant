@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { SesionGateway } from './core/gateways/sesionGateway';
 import {
     SessionPayloadBuilder,
-} from './chat/sessionPayloadBuilder';
+} from './helpers/sessionPayloadBuilder';
 import { FileMetadata, UserMessagePayload, AssistantMessagePayload } from './core/domain/sessionPayload';
 import { LlamaServerProps } from './core/domain/llama';
 import { LlamaAdapter } from './adapters/llama/llamaAdapter';
@@ -21,9 +21,9 @@ import {
     ChromaAdapter
 } from './adapters/chroma/chromaAdapter';
 import { ChromaDbConnectionConfig, ChromaQueryMode } from './core/domain/chroma';
-import { EndpointFlowResolver } from './chat/endpointFlowResolver';
+import { EndpointFlowResolver } from './helpers/endpointFlowResolver';
 import { classifyUserIntent, QueryIntentType } from './core/domain/queryIntent';
-import { Logger } from './logging/outputLogger';
+import { Logger } from './adapters/logging/outputLogger';
 import { ResolveContextStrategyUseCase } from './core/usecases/resolveContextStrategyUseCase';
 import { RagGateway } from './core/gateways/ragGateway';
 import { LlamaGateway } from './core/gateways/llamaGateway';

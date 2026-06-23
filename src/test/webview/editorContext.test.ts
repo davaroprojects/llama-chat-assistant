@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { buildEditorContextMessage } from '../webview/editorContext';
+import { buildEditorContextMessage } from '../../webview/editorContext';
 
 function createMockEditor(fullText: string, selectedText: string): vscode.TextEditor {
     return {

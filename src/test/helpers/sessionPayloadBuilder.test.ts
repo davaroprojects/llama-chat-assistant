@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { SessionPayloadBuilder } from '../chat/sessionPayloadBuilder';
+import { SessionPayloadBuilder } from '../../helpers/sessionPayloadBuilder';
 
 suite('SessionPayloadBuilder', () => {
     test('Deduplicates file attachments by name, last occurrence wins', () => {
