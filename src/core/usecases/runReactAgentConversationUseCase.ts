@@ -39,6 +39,7 @@ export interface RunReactAgentConversationInput {
 export interface RunReactAgentConversationResult extends LlmGenerationResult {
     toolCalls: number;
     retrievedMatches: number;
+    references: string[];
 }
 
 function extractFinalAnswer(text: string): string | null {
@@ -81,6 +82,10 @@ function extractActionQuery(text: string): string | null {
 
 function buildObservationPrompt(observationText: string): string {
     return REACT_CONTINUATION_PROMPT.replace('{{observation}}', observationText);
+}
+
+function buildSortedReferences(paths: Set<string>): string[] {
+    return Array.from(paths).sort();
 }
 
 export class RunReactAgentConversationUseCase {
@@ -166,6 +171,7 @@ export class RunReactAgentConversationUseCase {
             const finalAnswer = extractFinalAnswer(generation.totalText);
             // Only accept Final Answer if at least one tool call (search) has been executed
             if (finalAnswer && !isPlaceholderFinalAnswer(finalAnswer) && toolCalls > 0) {
+                const references = buildSortedReferences(consultedFilePaths);
                 this.logger.info('rag', 'ReAct agent finished with final answer', {
                     step: step + 1,
                     toolCalls,
@@ -178,7 +184,8 @@ export class RunReactAgentConversationUseCase {
                     tokenCount: totalTokens,
                     serverUsageTokens: totalServerUsageTokens,
                     toolCalls,
-                    retrievedMatches
+                    retrievedMatches,
+                    references
                 };
             }
 
@@ -281,19 +288,7 @@ export class RunReactAgentConversationUseCase {
         totalTokens += finalGeneration.tokenCount;
         totalServerUsageTokens += finalGeneration.serverUsageTokens;
         let extractedFinalAnswer = extractFinalAnswer(finalGeneration.totalText);
-
-        // Append consulted files references to Final Answer if any searches were performed
-        if (extractedFinalAnswer && consultedFilePaths.size > 0) {
-            const sortedPaths = Array.from(consultedFilePaths).sort();
-            const fileReferences = sortedPaths.map(path => `- ${path}`).join('\n');
-            extractedFinalAnswer = [
-                extractedFinalAnswer,
-                '',
-                '---',
-                '**Files consulted:**',
-                fileReferences
-            ].join('\n');
-        }
+        const references = buildSortedReferences(consultedFilePaths);
 
         const finalAnswer = extractedFinalAnswer && !isPlaceholderFinalAnswer(extractedFinalAnswer)
             ? extractedFinalAnswer
@@ -312,7 +307,8 @@ export class RunReactAgentConversationUseCase {
             tokenCount: totalTokens,
             serverUsageTokens: totalServerUsageTokens,
             toolCalls,
-            retrievedMatches
+            retrievedMatches,
+            references
         };
     }
 

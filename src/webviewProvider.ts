@@ -620,7 +620,8 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             const assistantPayload = SessionPayloadBuilder.createAssistantMessagePayload(
                 result.totalText,
                 result.durationSeconds,
-                result.tokenCount
+                result.tokenCount,
+                result.references || []
             );
             this.sessionManager.addMessageToCurrentSession('assistant', assistantPayload);
 

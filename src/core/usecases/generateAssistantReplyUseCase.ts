@@ -29,6 +29,7 @@ export interface GenerateAssistantReplyResult extends LlmGenerationResult {
     durationSeconds: string;
     ragSnippetsCount: number;
     flow: ConversationFlowDecision;
+    references?: string[];
 }
 
 export class GenerateAssistantReplyUseCase {

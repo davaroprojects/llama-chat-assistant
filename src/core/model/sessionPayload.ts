@@ -14,4 +14,5 @@ export interface AssistantMessagePayload {
     text: string;
     time: string;
     tokens: number;
+    references?: string[];
 }

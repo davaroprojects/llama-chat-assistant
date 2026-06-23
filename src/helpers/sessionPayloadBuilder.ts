@@ -16,12 +16,14 @@ export class SessionPayloadBuilder {
     static createAssistantMessagePayload(
         assistantText: string,
         durationSeconds: string,
-        tokenCount: number
+        tokenCount: number,
+        references: string[] = []
     ): AssistantMessagePayload {
         return {
             text: assistantText,
             time: durationSeconds,
-            tokens: tokenCount
+            tokens: tokenCount,
+            references
         };
     }
 
