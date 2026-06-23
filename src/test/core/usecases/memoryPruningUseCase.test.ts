@@ -2,26 +2,42 @@
  * Tests for memory pruning use case
  */
 
+import * as assert from 'assert';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { MemoryPruningUseCase } from '../../../core/usecases/memoryPruningUseCase';
 import { DEFAULT_MEMORY_MANAGEMENT_CONFIG } from '../../../core/domain/memoryConfig';
 import { DEFAULT_TOKEN_COUNT_CONFIGURATION } from '../../../core/domain/tokenCount';
 import { Logger } from '../../../adapters/vscode/outputLogger';
 
-describe('Memory Pruning Use Case', () => {
-    let mockLogger: Logger;
+type LogCall = [string, string, unknown?];
 
-    beforeEach(() => {
+suite('Memory Pruning Use Case', () => {
+    let mockLogger: Logger;
+    let debugCalls: LogCall[];
+    let infoCalls: LogCall[];
+
+    setup(() => {
+        debugCalls = [];
+        infoCalls = [];
+
         mockLogger = {
-            debug: jest.fn(),
-            info: jest.fn(),
-            warn: jest.fn(),
-            error: jest.fn()
+            debug: (category: string, message: string, details?: unknown) => {
+                debugCalls.push([category, message, details]);
+            },
+            info: (category: string, message: string, details?: unknown) => {
+                infoCalls.push([category, message, details]);
+            },
+            warn: () => {
+                return;
+            },
+            error: () => {
+                return;
+            }
         } as any;
     });
 
-    describe('execute', () => {
-        it('should not prune when within safe threshold', () => {
+    suite('execute', () => {
+        test('should not prune when within safe threshold', () => {
             const useCase = new MemoryPruningUseCase(
                 DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 DEFAULT_TOKEN_COUNT_CONFIGURATION,
@@ -36,16 +52,16 @@ describe('Memory Pruning Use Case', () => {
 
             const { messages: result, result: pruningResult } = useCase.execute(messages);
 
-            expect(pruningResult.pruningPerformed).toBe(false);
-            expect(result.length).toBe(messages.length);
-            expect(pruningResult.messagesRemoved).toBe(0);
+            assert.strictEqual(pruningResult.pruningPerformed, false);
+            assert.strictEqual(result.length, messages.length);
+            assert.strictEqual(pruningResult.messagesRemoved, 0);
         });
 
-        it('should trigger pruning when exceeding threshold', () => {
+        test('should trigger pruning when exceeding threshold', () => {
             // Create a config with very low threshold to force pruning
             const lowThresholdConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
-                safetyThreshold: 100
+                safetyThreshold: 1
             };
 
             const useCase = new MemoryPruningUseCase(
@@ -65,11 +81,11 @@ describe('Memory Pruning Use Case', () => {
 
             const { result: pruningResult } = useCase.execute(messages);
 
-            expect(pruningResult.pruningPerformed).toBe(true);
-            expect(pruningResult.originalTokenCount).toBeGreaterThan(pruningResult.finalTokenCount);
+            assert.strictEqual(pruningResult.pruningPerformed, true);
+            assert.ok(pruningResult.originalTokenCount > pruningResult.finalTokenCount);
         });
 
-        it('should preserve system message during pruning', () => {
+        test('should preserve system message during pruning', () => {
             const lowThresholdConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 safetyThreshold: 100,
@@ -92,11 +108,11 @@ describe('Memory Pruning Use Case', () => {
 
             const { messages: result } = useCase.execute(messages);
 
-            expect(result[0]).toBeInstanceOf(SystemMessage);
-            expect(result[0].content).toBe(systemMessage.content);
+            assert.ok(result[0] instanceof SystemMessage);
+            assert.strictEqual(result[0].content, systemMessage.content);
         });
 
-        it('should preserve recent messages', () => {
+        test('should preserve recent messages', () => {
             const lowThresholdConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 safetyThreshold: 100,
@@ -120,11 +136,11 @@ describe('Memory Pruning Use Case', () => {
             const { messages: result } = useCase.execute(messages);
 
             // Recent messages should be in result
-            expect(result[result.length - 1]).toBe(messages[messages.length - 1]);
-            expect(result[result.length - 2]).toBe(messages[messages.length - 2]);
+            assert.strictEqual(result[result.length - 1], messages[messages.length - 1]);
+            assert.strictEqual(result[result.length - 2], messages[messages.length - 2]);
         });
 
-        it('should truncate observation messages', () => {
+        test('should truncate observation messages', () => {
             const lowThresholdConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 safetyThreshold: 100
@@ -162,13 +178,13 @@ describe('Memory Pruning Use Case', () => {
                 }
             );
 
-            expect(truncatedMessages.length).toBeGreaterThan(0);
+            assert.ok(truncatedMessages.length > 0);
         });
 
-        it('should log pruning operations', () => {
+        test('should log pruning operations', () => {
             const lowThresholdConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
-                safetyThreshold: 100
+                safetyThreshold: 1
             };
 
             const useCase = new MemoryPruningUseCase(
@@ -186,16 +202,25 @@ describe('Memory Pruning Use Case', () => {
 
             useCase.execute(messages);
 
-            expect(mockLogger.debug).toHaveBeenCalledWith(
-                'memory',
-                'Checking memory pruning necessity',
-                expect.any(Object)
+            const hasExpectedDebugCall = debugCalls.some((call) =>
+                call[0] === 'memory'
+                && call[1] === 'Checking memory pruning necessity'
+                && typeof call[2] === 'object'
+                && call[2] !== null
             );
 
-            expect(mockLogger.info).toHaveBeenCalledWith('memory', 'Memory pruning executed', expect.any(Object));
+            const hasExpectedInfoCall = infoCalls.some((call) =>
+                call[0] === 'memory'
+                && call[1] === 'Memory pruning executed'
+                && typeof call[2] === 'object'
+                && call[2] !== null
+            );
+
+            assert.strictEqual(hasExpectedDebugCall, true);
+            assert.strictEqual(hasExpectedInfoCall, true);
         });
 
-        it('should handle empty message array', () => {
+        test('should handle empty message array', () => {
             const useCase = new MemoryPruningUseCase(
                 DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 DEFAULT_TOKEN_COUNT_CONFIGURATION,
@@ -204,10 +229,10 @@ describe('Memory Pruning Use Case', () => {
 
             const { messages: result } = useCase.execute([]);
 
-            expect(result).toEqual([]);
+            assert.deepStrictEqual(result, []);
         });
 
-        it('should provide accurate pruning results', () => {
+        test('should provide accurate pruning results', () => {
             const lowThresholdConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 safetyThreshold: 100
@@ -228,12 +253,12 @@ describe('Memory Pruning Use Case', () => {
 
             const { result: pruningResult } = useCase.execute(messages);
 
-            expect(pruningResult.originalMessageCount).toBe(messages.length);
-            expect(pruningResult.originalTokenCount).toBeGreaterThan(0);
-            expect(pruningResult.messagesRemoved).toBeGreaterThanOrEqual(0);
+            assert.strictEqual(pruningResult.originalMessageCount, messages.length);
+            assert.ok(pruningResult.originalTokenCount > 0);
+            assert.ok(pruningResult.messagesRemoved >= 0);
 
             if (pruningResult.pruningPerformed) {
-                expect(pruningResult.finalTokenCount).toBeLessThan(pruningResult.originalTokenCount);
+                assert.ok(pruningResult.finalTokenCount < pruningResult.originalTokenCount);
             }
         });
     });

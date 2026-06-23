@@ -2,45 +2,46 @@
  * Tests for memory management configuration
  */
 
+import * as assert from 'assert';
 import {
     isMemoryPruningNeeded,
     calculatePruningTarget,
     DEFAULT_MEMORY_MANAGEMENT_CONFIG
 } from '../../../core/domain/memoryConfig';
 
-describe('Memory Management Configuration', () => {
-    describe('isMemoryPruningNeeded', () => {
-        it('should return false when under threshold', () => {
+suite('Memory Management Configuration', () => {
+    suite('isMemoryPruningNeeded', () => {
+        test('should return false when under threshold', () => {
             const needed = isMemoryPruningNeeded(5000, DEFAULT_MEMORY_MANAGEMENT_CONFIG);
 
-            expect(needed).toBe(false);
+            assert.strictEqual(needed, false);
         });
 
-        it('should return true when exceeding threshold', () => {
+        test('should return true when exceeding threshold', () => {
             const needed = isMemoryPruningNeeded(7000, DEFAULT_MEMORY_MANAGEMENT_CONFIG);
 
-            expect(needed).toBe(true);
+            assert.strictEqual(needed, true);
         });
 
-        it('should use config safety threshold', () => {
+        test('should use config safety threshold', () => {
             const customConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 safetyThreshold: 5000
             };
 
-            expect(isMemoryPruningNeeded(4999, customConfig)).toBe(false);
-            expect(isMemoryPruningNeeded(5000, customConfig)).toBe(true);
+            assert.strictEqual(isMemoryPruningNeeded(4999, customConfig), false);
+            assert.strictEqual(isMemoryPruningNeeded(5000, customConfig), false);
         });
     });
 
-    describe('calculatePruningTarget', () => {
-        it('should return 60% of safety threshold', () => {
+    suite('calculatePruningTarget', () => {
+        test('should return 60% of safety threshold', () => {
             const target = calculatePruningTarget(DEFAULT_MEMORY_MANAGEMENT_CONFIG);
 
-            expect(target).toBe(3900); // 60% of 6500
+            assert.strictEqual(target, 3900); // 60% of 6500
         });
 
-        it('should respect custom safety thresholds', () => {
+        test('should respect custom safety thresholds', () => {
             const customConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 safetyThreshold: 10000
@@ -48,10 +49,10 @@ describe('Memory Management Configuration', () => {
 
             const target = calculatePruningTarget(customConfig);
 
-            expect(target).toBe(6000); // 60% of 10000
+            assert.strictEqual(target, 6000); // 60% of 10000
         });
 
-        it('should floor the result', () => {
+        test('should floor the result', () => {
             const customConfig = {
                 ...DEFAULT_MEMORY_MANAGEMENT_CONFIG,
                 safetyThreshold: 5555
@@ -59,20 +60,20 @@ describe('Memory Management Configuration', () => {
 
             const target = calculatePruningTarget(customConfig);
 
-            expect(Number.isInteger(target)).toBe(true);
+            assert.strictEqual(Number.isInteger(target), true);
         });
     });
 
-    describe('DEFAULT_MEMORY_MANAGEMENT_CONFIG', () => {
-        it('should have reasonable defaults', () => {
-            expect(DEFAULT_MEMORY_MANAGEMENT_CONFIG.contextWindowSize).toBe(8192);
-            expect(DEFAULT_MEMORY_MANAGEMENT_CONFIG.safetyThreshold).toBe(6500);
-            expect(DEFAULT_MEMORY_MANAGEMENT_CONFIG.preserveSystemPrompt).toBe(true);
-            expect(DEFAULT_MEMORY_MANAGEMENT_CONFIG.preserveRecentMessagesCount).toBe(2);
+    suite('DEFAULT_MEMORY_MANAGEMENT_CONFIG', () => {
+        test('should have reasonable defaults', () => {
+            assert.strictEqual(DEFAULT_MEMORY_MANAGEMENT_CONFIG.contextWindowSize, 8192);
+            assert.strictEqual(DEFAULT_MEMORY_MANAGEMENT_CONFIG.safetyThreshold, 6500);
+            assert.strictEqual(DEFAULT_MEMORY_MANAGEMENT_CONFIG.preserveSystemPrompt, true);
+            assert.strictEqual(DEFAULT_MEMORY_MANAGEMENT_CONFIG.preserveRecentMessagesCount, 2);
         });
 
-        it('should have truncation marker defined', () => {
-            expect(DEFAULT_MEMORY_MANAGEMENT_CONFIG.truncationMarker).toContain('[Code snippet truncated');
+        test('should have truncation marker defined', () => {
+            assert.ok(DEFAULT_MEMORY_MANAGEMENT_CONFIG.truncationMarker.includes('[Code snippet truncated'));
         });
     });
 });

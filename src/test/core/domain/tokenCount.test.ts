@@ -2,86 +2,87 @@
  * Tests for token count domain model
  */
 
+import * as assert from 'assert';
 import {
     calculateSafetyThreshold,
     isTokenCountExceeded,
     DEFAULT_TOKEN_COUNT_CONFIGURATION
 } from '../../../core/domain/tokenCount';
 
-describe('Token Count Domain Model', () => {
-    describe('calculateSafetyThreshold', () => {
-        it('should calculate 80% of context window by default', () => {
+suite('Token Count Domain Model', () => {
+    suite('calculateSafetyThreshold', () => {
+        test('should calculate 80% of context window by default', () => {
             const contextLimit = 8192;
             const threshold = calculateSafetyThreshold(contextLimit);
 
-            expect(threshold).toBe(6553); // 80% of 8192
+            assert.strictEqual(threshold, 6553); // 80% of 8192
         });
 
-        it('should apply custom safety margin', () => {
+        test('should apply custom safety margin', () => {
             const contextLimit = 8192;
             const margin = 0.75;
             const threshold = calculateSafetyThreshold(contextLimit, margin);
 
-            expect(threshold).toBe(6144); // 75% of 8192
+            assert.strictEqual(threshold, 6144); // 75% of 8192
         });
 
-        it('should handle small context windows', () => {
+        test('should handle small context windows', () => {
             const contextLimit = 1000;
             const threshold = calculateSafetyThreshold(contextLimit);
 
-            expect(threshold).toBe(800); // 80% of 1000
+            assert.strictEqual(threshold, 800); // 80% of 1000
         });
 
-        it('should handle very large context windows', () => {
+        test('should handle very large context windows', () => {
             const contextLimit = 128000;
             const threshold = calculateSafetyThreshold(contextLimit);
 
-            expect(threshold).toBe(102400); // 80% of 128000
+            assert.strictEqual(threshold, 102400); // 80% of 128000
         });
 
-        it('should floor the result', () => {
+        test('should floor the result', () => {
             const contextLimit = 1000;
             const threshold = calculateSafetyThreshold(contextLimit, 0.777);
 
-            expect(Number.isInteger(threshold)).toBe(true);
+            assert.strictEqual(Number.isInteger(threshold), true);
         });
     });
 
-    describe('isTokenCountExceeded', () => {
-        it('should return false when under threshold', () => {
+    suite('isTokenCountExceeded', () => {
+        test('should return false when under threshold', () => {
             const exceeded = isTokenCountExceeded(5000, 6500);
 
-            expect(exceeded).toBe(false);
+            assert.strictEqual(exceeded, false);
         });
 
-        it('should return true when exceeding threshold', () => {
+        test('should return true when exceeding threshold', () => {
             const exceeded = isTokenCountExceeded(7000, 6500);
 
-            expect(exceeded).toBe(true);
+            assert.strictEqual(exceeded, true);
         });
 
-        it('should return true when equal to threshold', () => {
+        test('should return false when equal to threshold', () => {
             const exceeded = isTokenCountExceeded(6500, 6500);
 
-            expect(exceeded).toBe(true);
+            assert.strictEqual(exceeded, false);
         });
 
-        it('should handle zero tokens', () => {
+        test('should handle zero tokens', () => {
             const exceeded = isTokenCountExceeded(0, 6500);
 
-            expect(exceeded).toBe(false);
+            assert.strictEqual(exceeded, false);
         });
 
-        it('should handle zero threshold', () => {
+        test('should handle zero threshold', () => {
             const exceeded = isTokenCountExceeded(100, 0);
 
-            expect(exceeded).toBe(true);
+            assert.strictEqual(exceeded, true);
         });
     });
 
-    describe('DEFAULT_TOKEN_COUNT_CONFIGURATION', () => {
-        it('should use cl100k_base encoding model', () => {
-            expect(DEFAULT_TOKEN_COUNT_CONFIGURATION.encodingModel).toBe('cl100k_base');
+    suite('DEFAULT_TOKEN_COUNT_CONFIGURATION', () => {
+        test('should use cl100k_base encoding model', () => {
+            assert.strictEqual(DEFAULT_TOKEN_COUNT_CONFIGURATION.encodingModel, 'cl100k_base');
         });
     });
 });

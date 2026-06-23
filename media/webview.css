@@ -1,7 +1,7 @@
 body { 
-    font-family: var(--vscode-editor-font-family, sans-serif); 
-    font-size: calc(var(--vscode-editor-font-size, 13px) * 0.88); 
-    font-weight: var(--vscode-editor-font-weight, normal);
+    font-family: var(--vscode-font-family, sans-serif); 
+    font-size: var(--vscode-font-size, 13px); 
+    font-weight: var(--vscode-font-weight, normal);
     padding: 12px; 
     display: flex; 
     flex-direction: column; 
@@ -80,7 +80,7 @@ body {
     list-style: none;
     cursor: pointer;
     padding: 10px 12px;
-    font-size: calc(var(--vscode-font-size, 13px) * 0.95);
+    font-size: 1em;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -113,7 +113,7 @@ body {
     padding: 2px 8px;
     border-radius: 999px;
     border: 1px solid var(--vscode-panel-border);
-    font-size: calc(var(--vscode-font-size, 13px) * 0.78);
+    font-size: 1em;
     font-weight: 600;
     text-transform: lowercase;
     line-height: 1.2;
@@ -138,7 +138,7 @@ body {
     margin-left: auto;
     padding: 4px 10px;
     border-radius: 999px;
-    font-size: calc(var(--vscode-font-size, 13px) * 0.86);
+    font-size: 1em;
     line-height: 1.2;
 }
 
@@ -213,7 +213,7 @@ body {
 
 .settings-accordion-item summary .accordion-header-action {
     padding: 2px 8px;
-    font-size: calc(var(--vscode-font-size, 13px) * 0.8);
+    font-size: 1em;
     font-weight: 500;
     min-height: 20px;
     gap: 4px;
@@ -236,7 +236,7 @@ body {
 
 .server-parameters-title {
     padding: 10px 12px;
-    font-size: 11px;
+    font-size: 1em;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -254,7 +254,7 @@ body {
     gap: 6px;
     padding: 8px 12px;
     border-top: 1px solid var(--vscode-panel-border);
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.82);
+    font-size: 1em;
     line-height: 1.45;
 }
 
@@ -298,7 +298,7 @@ body {
 
 /* Encabezados de autor estilo Copilot */
 .author-label {
-    font-size: 11px;
+    font-size: 1em;
     font-weight: 600;
     text-transform: uppercase;
     margin-bottom: 6px;
@@ -362,7 +362,7 @@ body {
 }
 
 .assistant .message > div {
-    font-family: var(--vscode-editor-font-family, sans-serif);
+    font-family: inherit;
     font-size: 1em;
     line-height: 1.5;
     margin: 2px 0;
@@ -488,7 +488,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     margin: 8px 0;
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.9);
+    font-size: 1em;
 }
 
 .assistant .message th,
@@ -525,7 +525,7 @@ pre {
 
 pre code {
     font-family: var(--vscode-editor-font-family, monospace);
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.85);
+    font-size: 1em;
     color: var(--vscode-textCodeBlock-foreground, var(--vscode-foreground));
     background: none !important;
     text-shadow: none !important;
@@ -536,7 +536,7 @@ pre code {
 
 .inline-code {
     font-family: var(--vscode-editor-font-family, monospace);
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.82);
+    font-size: 1em;
     color: #ffffff;
     background: var(--vscode-textCodeBlock-background, rgba(128, 128, 128, 0.15));
     border: 1px solid var(--vscode-panel-border);
@@ -561,7 +561,7 @@ pre code {
 
 .code-block-language {
     font-family: var(--vscode-editor-font-family, monospace);
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.7);
+    font-size: 1em;
     color: var(--vscode-descriptionForeground, #888888);
     font-weight: 500;
     white-space: nowrap;
@@ -642,8 +642,8 @@ textarea {
     border: none;
     padding: 4px 0; 
     resize: none; 
-    font-family: var(--vscode-editor-font-family);
-    font-size: calc(var(--vscode-editor-font-size) * 0.88); 
+    font-family: inherit;
+    font-size: 1em; 
     outline: none;
     margin-bottom: 4px;
     min-height: 48px;
@@ -702,7 +702,7 @@ textarea {
     cursor: pointer;
     user-select: none;
     color: var(--vscode-foreground);
-    font-size: 12px;
+    font-size: 1em;
     opacity: 0.7;
     transition: opacity 0.15s ease;
 }
@@ -794,16 +794,16 @@ textarea {
 
 /* Fuente de métricas actualizada según la escala ampliada */
 .chat-stats {
-    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.78);
-    font-family: var(--vscode-editor-font-family, sans-serif);
+    font-size: 1em;
+    font-family: inherit;
     opacity: 0.5;
     letter-spacing: 0.4px;
     user-select: none;
 }
 
 .token-counter {
-    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.75);
-    font-family: var(--vscode-editor-font-family, sans-serif);
+    font-size: 1em;
+    font-family: inherit;
     color: var(--vscode-foreground);
     display: flex !important;
     flex-direction: row !important;
@@ -883,7 +883,7 @@ textarea {
 }
 
 .token-usage-percentage {
-    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.75);
+    font-size: 1em;
     font-weight: 500;
     color: var(--vscode-foreground);
     white-space: nowrap;
@@ -927,7 +927,7 @@ textarea {
 
 .about-markdown-content code {
     font-family: var(--vscode-editor-font-family, monospace);
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.85);
+    font-size: 1em;
 }
 
 .about-markdown-content p,
@@ -982,7 +982,7 @@ textarea {
     width: 100%;
     border-collapse: collapse;
     margin: 8px 0;
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.9);
+    font-size: 1em;
 }
 
 .about-markdown-content th,
@@ -1016,7 +1016,7 @@ textarea {
 
 .quick-context-item {
     color: var(--vscode-quickInput-foreground, var(--vscode-foreground));
-    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.84);
+    font-size: 1em;
     line-height: 1.35;
     white-space: nowrap;
     overflow: hidden;
@@ -1025,7 +1025,7 @@ textarea {
 
 .token-usage-window-values {
     color: var(--vscode-quickInput-foreground, var(--vscode-foreground));
-    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.84);
+    font-size: 1em;
     line-height: 1.35;
     white-space: nowrap;
 }
@@ -1099,7 +1099,7 @@ textarea {
 }
 
 .sessions-header {
-    font-size: 11px;
+    font-size: 1em;
     font-weight: 600;
     text-transform: uppercase;
     opacity: 0.5;
@@ -1140,8 +1140,8 @@ textarea {
 }
 
 .session-card-title {
-    font-family: var(--vscode-editor-font-family, sans-serif);
-    font-size: calc(var(--vscode-editor-font-size, 13px) * 0.88);
+    font-family: inherit;
+    font-size: 1em;
     color: var(--vscode-foreground);
     white-space: nowrap;
     overflow: hidden;
@@ -1150,7 +1150,7 @@ textarea {
 }
 
 .session-card-time {
-    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.62);
+    font-size: 1em;
     opacity: 0.35;
     letter-spacing: 0.2px;
     user-select: none;
@@ -1176,8 +1176,8 @@ textarea {
 }
 
 .server-stopped-notice-message {
-    font-family: var(--vscode-editor-font-family, sans-serif);
-    font-size: calc(var(--vscode-editor-font-size, 13px) * 0.88);
+    font-family: inherit;
+    font-size: 1em;
     color: var(--vscode-foreground);
     opacity: 0.7;
     white-space: normal;
@@ -1251,8 +1251,8 @@ textarea {
 
 /* Texto del título de la sesión activa en el encabezado */
 .active-session-title-text {
-    font-family: var(--vscode-editor-font-family, sans-serif);
-    font-size: calc(var(--vscode-editor-font-size, 13px) * 0.88);
+    font-family: inherit;
+    font-size: 1em;
     font-weight: 600;
     color: var(--vscode-foreground);
     white-space: nowrap;
@@ -1356,8 +1356,8 @@ textarea:disabled {
     border: 1px solid var(--vscode-panel-border);
     padding: 4px 8px;
     border-radius: 6px;
-    font-family: var(--vscode-editor-font-family, sans-serif);
-    font-size: calc(var(--vscode-editor-font-size, 11px) * 0.75);
+    font-family: inherit;
+    font-size: 1em;
     user-select: none;
     max-width: 100%;
     color: var(--vscode-foreground);
@@ -1370,7 +1370,7 @@ textarea:disabled {
     border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
     background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
     color: var(--vscode-descriptionForeground);
-    font-size: 10px;
+    font-size: 1em;
     font-weight: 600;
     letter-spacing: 0.01em;
 }
@@ -1467,8 +1467,8 @@ textarea:disabled {
 }
 
 .action-header-title {
-    font-family: var(--vscode-editor-font-family, monospace);
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.95);
+    font-family: inherit;
+    font-size: 1em;
     font-weight: 600;
     color: var(--vscode-foreground);
 }
@@ -1480,8 +1480,8 @@ textarea:disabled {
     padding: 8px 10px 4px;
     min-height: 20px;
     width: 100%;
-    font-family: var(--vscode-editor-font-family, monospace);
-    font-size: calc(var(--vscode-editor-font-size, 12px) * 0.88);
+    font-family: inherit;
+    font-size: 1em;
     color: var(--vscode-input-foreground);
     margin-bottom: 4px;
     box-sizing: border-box;

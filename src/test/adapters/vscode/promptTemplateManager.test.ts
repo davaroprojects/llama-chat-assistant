@@ -8,7 +8,7 @@ function mockVscodeConfig(settings: Record<string, unknown>): void {
     (vscode.workspace as unknown as Record<string, unknown>).getConfiguration = () => ({
         get: <T>(key: string): T | undefined => settings[key] as T | undefined
     });
-    after(() => {
+    suiteTeardown(() => {
         (vscode.workspace as unknown as Record<string, unknown>).getConfiguration = original;
     });
 }

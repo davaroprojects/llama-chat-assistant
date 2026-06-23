@@ -1,5 +1,5 @@
 {
-  "ext.displayName": "Llama Chat",
+  "ext.displayName": "La Llama Chat",
   "ext.description": "Llama Chat local chat and RAG assistant for VS Code.",
 
   "config.chat.title": "Llama Chat › Chat",

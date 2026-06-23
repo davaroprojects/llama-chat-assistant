@@ -1,8 +1,8 @@
-# Llama Chat Assistant
+# La Llama Chat
 
-![Version](https://img.shields.io/badge/version-0.0.1-blue?style=flat-square) ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.120.0-007ACC?style=flat-square&logo=visualstudiocode) ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square) ![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.0.1-blue?style=flat-square) ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.120.0-007ACC?style=flat-square&logo=visualstudiocode) ![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square) ![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)
 
-**Llama Chat Assistant** is a VS Code extension that brings AI-powered code intelligence directly into your editor — running entirely on your local machine, with no data leaving your environment.
+**La Llama Chat** is a VS Code extension that brings AI-powered code intelligence directly into your editor — running entirely on your local machine, with no data leaving your environment.
 
 Chat with your codebase, explore execution flows, and retrieve semantically relevant context using [llama.cpp](https://github.com/ggerganov/llama.cpp) as the LLM backend and [ChromaDB](https://www.trychroma.com/) as the vector store.
 
@@ -29,7 +29,7 @@ Chat with your codebase, explore execution flows, and retrieve semantically rele
 ### 1. llama.cpp server
 
 ```bash
-git clone https://github.com/ggerganov/llama.cpp
+git clone https://github.com/ggml-org/llama.cpp
 cd llama.cpp
 cmake -B build -DLLAMA_CURL=ON
 cmake --build build --config Release -j$(nproc)
@@ -65,12 +65,12 @@ Minimum version: `1.120.0`.
 
 1. Open VS Code.
 2. Press `Ctrl+Shift+X` to open the Extensions view.
-3. Search for **Llama Chat Assistant** and click **Install**.
+3. Search for **La Llama Chat** and click **Install**.
 
 ### From a `.vsix` file
 
 ```bash
-code --install-extension llama-chat-assistant-0.0.1.vsix
+code --install-extension llama-chat-0.0.1.vsix
 ```
 
 ---
@@ -187,7 +187,7 @@ Click **Start Server** in the extension panel, or run manually:
 
 ### Step 2 — Index your workspace into ChromaDB
 
-Open the Llama Chat Assistant panel in the Activity Bar and click **Index Workspace**. The extension will:
+Open the La Llama Chat panel in the Activity Bar and click **Index Workspace**. The extension will:
 
 1. Walk your project files (respecting `excludeDirs` and `excludeFileGlobs`).
 2. Chunk file contents into overlapping segments.
@@ -232,7 +232,7 @@ Click the **Attach** button (📎) to add individual files to the context:
 
 ## 🖥️ Interface
 
-Llama Chat Assistant adds a sidebar panel with three tabs:
+La Llama Chat adds a sidebar panel with three tabs:
 
 | Tab | Description |
 |---|---|
@@ -344,6 +344,21 @@ Legacy Spanish keys (`modoEjecucion`, `archivosObjetivo`, `contextoRecuperado`, 
 
 ---
 
+## Donate
+
+If this extension helps your workflow and you want to support its growth, you can donate here:
+
+[Donate via PayPal](https://www.paypal.com/donate/?business=RMF78A8HF9NTG&no_recurring=1&item_name=I+would+greatly+appreciate+it+if+you+could+make+a+donation+to+support+the+development+of+new+features+for+this+plugin.&currency_code=USD)
+
+I want to bring new capabilities to this plugin, including:
+
+- Content replacement directly in files
+- Sub-agent management
+- Graphical/UI improvements
+- New chat interaction flows
+
+---
+
 ## 🤝 Contributing
 
 1. Fork the repository and create a feature branch.
@@ -445,11 +460,11 @@ npm run test      # run unit tests
 
 ## Tests
 
-Unit tests cover: session relative time, editor context labels, payload deduplication, prompt template normalization, token counting and memory pruning thresholds, LlamaAdapter server props extraction, EndpointFlowResolver DFS traversal.
+Unit tests cover: session timing/state persistence, editor context labels, payload deduplication, conversation flow resolution, prompt template normalization/interpolation, token counting and memory pruning thresholds, ChromaDB config defaults/overrides, llamaServerConfig command/url generation, and LlamaAdapter server props extraction.
 
 ## 📄 License
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for full text.
+Distributed under the **GNU GPL v3.0 License**. See [`LICENSE`](LICENSE) for full text.
 
 ## Third-Party Notice
 

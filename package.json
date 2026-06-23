@@ -1,5 +1,6 @@
 {
   "name": "llama-chat",
+  "publisher": "davaro",
   "displayName": "%ext.displayName%",
   "description": "%ext.description%",
   "version": "0.0.1",
@@ -12,6 +13,10 @@
   "activationEvents": [],
   "main": "./dist/extension.js",
   "icon": "resources/marketplace-icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/davaroprojects/llama-chat-assistant.git"
+  },
   "contributes": {
     "configuration": [
       {
@@ -312,8 +317,8 @@
     "watch:esbuild": "node esbuild.js --watch",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "package": "npm run check-types && npm run lint && node esbuild.js --production && npm run copy-media",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
+    "compile-tests": "tsc -p tsconfig.test.json",
+    "watch-tests": "tsc -p tsconfig.test.json -w",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",

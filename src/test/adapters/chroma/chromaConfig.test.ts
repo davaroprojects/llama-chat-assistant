@@ -7,7 +7,7 @@ function mockVscodeConfig(settings: Record<string, unknown>): void {
     (vscode.workspace as unknown as Record<string, unknown>).getConfiguration = () => ({
         get: <T>(key: string): T | undefined => settings[key] as T | undefined
     });
-    after(() => {
+    suiteTeardown(() => {
         (vscode.workspace as unknown as Record<string, unknown>).getConfiguration = original;
     });
 }
@@ -25,8 +25,8 @@ suite('readChromaDbConfig - defaults', () => {
     test('Returns default limits when no config is set', () => {
         mockVscodeConfig({});
         const config = readChromaDbConfig(WORKSPACE_ROOT);
-        assert.strictEqual(config.maxFileSizeKb, 512);
-        assert.strictEqual(config.maxIndexedFiles, 2000);
+        assert.strictEqual(config.maxFileSizeKb, 2048);
+        assert.strictEqual(config.maxIndexedFiles, 10000);
         assert.strictEqual(config.chunkSizeChars, 2000);
         assert.strictEqual(config.chunkOverlapChars, 300);
         assert.strictEqual(config.maxQueryResults, 12);

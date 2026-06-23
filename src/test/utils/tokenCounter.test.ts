@@ -4,10 +4,15 @@ import {
     countTokensInMessages,
     countTokensInText,
     estimateMessageTokens,
-    getTokenCountBreakdown
+    getTokenCountBreakdown,
+    initializeTokenCounter
 } from '../../utils/tokenCounter';
 
 suite('tokenCounter', () => {
+    suiteSetup(async () => {
+        await initializeTokenCounter();
+    });
+
     test('countTokensInText returns token count for simple text', () => {
         const count = countTokensInText('Hello world');
         assert.ok(count > 0);
