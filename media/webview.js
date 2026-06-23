@@ -1,6 +1,3 @@
-// ============================================================
-// HTML TEMPLATES (Static HTML without value injection)
-// ============================================================
 const HTML_TEMPLATES = {
     copyIcon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
@@ -77,9 +74,6 @@ function setServerButtonContent(button, label, kind, isPending) {
     }
 }
 
-// ============================================================
-// DOM ELEMENTS CACHE
-// ============================================================
 const elements = {
     vscode: acquireVsCodeApi(),
     chatTabBtn: document.getElementById('chat-tab-btn'),
@@ -261,7 +255,6 @@ function sanitizeHtml(unsafeHtml) {
     });
 }
 
-// Lazy load attachedFilesContainer
 function getAttachedFilesContainer() {
     if (!elements.attachedFilesContainer) {
         elements.attachedFilesContainer = document.getElementById('attached-files-container');
@@ -269,9 +262,6 @@ function getAttachedFilesContainer() {
     return elements.attachedFilesContainer;
 }
 
-// ============================================================
-// STATE MANAGEMENT
-// ============================================================
 let currentAttachedFiles = [];
 let activeContextMenu = null;
 let activeContextAnchor = null;
@@ -417,31 +407,18 @@ function updateSequentialDotTimer() {
 }
 
 const uiState = {
-    // Current visible tab in the UI.
     activeTab: 'chat',
-    // Tabs visited by the user during this webview lifecycle.
     activeScreens: ['chat'],
-    // Whether llama.cpp server is currently running.
     isServerRunning: false,
-    // Whether the running server process was started by this extension.
     wasServerStartedByPlugin: false,
-    // Current pending server action (starting/stopping) if any.
     pendingServerAction: null,
-    // Whether repository indexing is currently running.
     isRagIndexing: false,
-    // Whether ChromaDB is reachable.
     isChromaAvailable: false,
-    // Whether a chat session is currently active.
     hasActiveSession: false,
-    // Whether assistant generation transaction is active.
     isInTransaction: false,
-    // Current context window reported by backend.
     currentContextWindow: 0,
-    // Current model name reported by backend.
     currentModelName: 'local',
-    // Current session token estimate.
     currentSessionTokens: 0,
-    // Open state for settings accordion sections.
     settingsAccordionState: {
         llamaOpen: true,
         chromadbOpen: false
@@ -607,7 +584,6 @@ function applyControlState() {
     elements.attachBtn.setAttribute('aria-disabled', String(!allowMainActions));
     elements.backToSessionsBtn.setAttribute('aria-disabled', String(!allowMainActions));
 
-    // Apply same blocking logic to RAG checkbox as attach button
     if (elements.ragEnabledCheckbox) {
         elements.ragEnabledCheckbox.disabled = !allowMainActions;
     }
@@ -656,9 +632,6 @@ function setHasActiveSession(value) {
     applyControlState();
 }
 
-// ============================================================
-// EVENT LISTENERS
-// ============================================================
 elements.chatTabBtn?.addEventListener('click', () => switchTab('chat'));
 elements.settingsTabBtn?.addEventListener('click', () => switchTab('settings'));
 elements.aboutTabBtn?.addEventListener('click', () => switchTab('about'));
@@ -722,9 +695,6 @@ window.addEventListener('blur', () => {
     hideContextWindow();
 });
 
-// ============================================================
-// MESSAGE HANDLERS - MAIN DISPATCHER
-// ============================================================
 function handleExtensionMessage(event) {
     const message = event.data;
 
@@ -878,9 +848,6 @@ function renderRagState(message) {
 
 }
 
-// ============================================================
-// MESSAGE HANDLER IMPLEMENTATIONS
-// ============================================================
 
 function handleCodeSelectionCaptured(message) {
     const baseName = message.baseName || getBaseFileName(message.name);
@@ -1157,9 +1124,6 @@ function handleStopStreaming() {
     elements.vscode.postMessage({ type: 'requestActiveEditorRefresh' });
 }
 
-// ============================================================
-// UI RENDERING FUNCTIONS
-// ============================================================
 
 function renderAllBadges() {
     const container = getAttachedFilesContainer();
@@ -1501,9 +1465,6 @@ function createServerStoppedSessionsNotice() {
     elements.sessionsList.appendChild(noticeCard);
 }
 
-// ============================================================
-// UI STATE HELPERS
-// ============================================================
 
 function showChatView() {
     switchTab('chat');
@@ -1666,9 +1627,6 @@ function handleBackToSessions() {
     }
 }
 
-// ============================================================
-// TOKEN COUNTER
-// ============================================================
 
 function updateTokenCounter(sessionTokens, contextWindow, modelName = currentModelName) {
     if (!elements.tokenCounter) { return; }
@@ -1913,9 +1871,6 @@ function closeTokenUsageMenu() {
     }
 }
 
-// ============================================================
-// MESSAGE PROCESSING HELPERS
-// ============================================================
 
 function parseUserMessage(msg) {
     let text = "";
@@ -2060,7 +2015,6 @@ function setupSingleOpenAccordion() {
 
     uiState.settingsAccordionState = readSettingsAccordionState();
 }
-// ============================================================// INITIALIZATION// ============================================================
 renderAboutMarkdown();
 setupSingleOpenAccordion();
 updateTokenCounter(0, 0, currentModelName);

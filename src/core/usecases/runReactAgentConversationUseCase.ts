@@ -61,7 +61,6 @@ function isPlaceholderFinalAnswer(text: string): boolean {
 }
 
 function extractActionQuery(text: string): string | null {
-    // Accept any search method name (agent_search, llamachat_agent_search, search, etc.)
     const match = text.match(/Action:\s*[a-z_]*(?:agent_search|search)\s*\(\s*["']?([^"'\)]+)["']?\s*\)/i);
     if (!match) {
         return null;
@@ -72,7 +71,6 @@ function extractActionQuery(text: string): string | null {
         return null;
     }
 
-    // Remove surrounding quotes if present
     if ((rawValue.startsWith('"') && rawValue.endsWith('"')) || (rawValue.startsWith("'") && rawValue.endsWith("'"))) {
         return rawValue.slice(1, -1).trim();
     }
@@ -122,7 +120,6 @@ export class RunReactAgentConversationUseCase {
                 throw new DOMException('Aborted', 'AbortError');
             }
 
-            // Check and perform memory pruning before llama.cpp call
             const messageObjectsForPruning = this.convertToBaseMessages(workingMessages);
             const tokenCountResult = await countTokensInMessages(messageObjectsForPruning, this.tokenCountConfig);
             const preRequestTokens = tokenCountResult.totalTokens;
@@ -135,7 +132,6 @@ export class RunReactAgentConversationUseCase {
                 tokenCount: preRequestTokens
             });
 
-            // Perform memory pruning if necessary
             const { messages: prunedMessageObjects, result: pruningResult } = this.memoryPruningUseCase.execute(
                 messageObjectsForPruning
             );
@@ -169,7 +165,6 @@ export class RunReactAgentConversationUseCase {
             });
 
             const finalAnswer = extractFinalAnswer(generation.totalText);
-            // Only accept Final Answer if at least one tool call (search) has been executed
             if (finalAnswer && !isPlaceholderFinalAnswer(finalAnswer) && toolCalls > 0) {
                 const references = buildSortedReferences(consultedFilePaths);
                 this.logger.info('rag', 'ReAct agent finished with final answer', {
@@ -189,7 +184,6 @@ export class RunReactAgentConversationUseCase {
                 };
             }
 
-            // If Final Answer detected but toolCalls is 0, reject it and force iteration
             if (finalAnswer && !isPlaceholderFinalAnswer(finalAnswer) && toolCalls === 0) {
                 this.logger.warn('rag', 'ReAct agent attempted Final Answer before first tool call; forcing action iteration', {
                     step: step + 1,
@@ -245,7 +239,6 @@ export class RunReactAgentConversationUseCase {
                 const searchResult = await this.agentSearchUseCase.execute(actionQuery, input.chromaConfig, input.abortSignal);
                 observationText = searchResult.observationText;
                 matchesCount = searchResult.matches.length;
-                // Track consulted files for Final Answer references
                 searchResult.matches.forEach(match => consultedFilePaths.add(match.path));
             }
 
@@ -270,7 +263,6 @@ export class RunReactAgentConversationUseCase {
             retrievedMatches
         });
 
-        // Perform final memory pruning before last generation call
         const finalMessageObjectsForPruning = this.convertToBaseMessages(workingMessages);
         const { messages: finalPrunedMessageObjects } = this.memoryPruningUseCase.execute(finalMessageObjectsForPruning);
         const finalWorkingMessages = this.convertFromBaseMessages(finalPrunedMessageObjects);
@@ -312,24 +304,17 @@ export class RunReactAgentConversationUseCase {
         };
     }
 
-    /**
-     * Convert LlmMessage format to BaseMessage for token counting
-     */
     private convertToBaseMessages(messages: LlmMessage[]): BaseMessage[] {
         return messages.map((msg) => {
             if (msg.role === 'assistant') {
                 return new AIMessage(msg.content);
             } else if (msg.role === 'system') {
-                // System messages are treated as human messages for compatibility
                 return new HumanMessage(msg.content);
             }
             return new HumanMessage(msg.content);
         });
     }
 
-    /**
-     * Convert BaseMessage format back to LlmMessage
-     */
     private convertFromBaseMessages(messages: BaseMessage[]): LlmMessage[] {
         return messages.map((msg) => {
             const role = msg._getType() === 'ai' ? 'assistant' : 'user';

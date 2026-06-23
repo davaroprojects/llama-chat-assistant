@@ -1,7 +1,7 @@
 # prrrrr — Architecture Reference
 
-> **Document type:** Architecture Decision Record + Technical Design  
-> **Status:** Living document — authoritative source of truth for the development team  
+> **Document type:** Architecture Decision Record + Technical Design
+> **Status:** Living document — authoritative source of truth for the development team
 > **Version:** 0.0.1 · June 2026
 
 ---
@@ -10,12 +10,14 @@
 
 1. [System Overview](#1-system-overview)
 2. [Layered Architecture](#2-layered-architecture)
-3. [Data Model: Session Objects](#3-data-model-session-objects)
-4. [Workflow 1: Indexation Pipeline](#4-workflow-1-indexation-pipeline)
-5. [Workflow 2: Retrieval Stage (ChromaDB)](#5-workflow-2-retrieval-stage-chromadb)
-6. [Workflow 3: Prompt Construction and LLM Inference](#6-workflow-3-prompt-construction-and-llm-inference)
-7. [Cross-Cutting Concerns](#7-cross-cutting-concerns)
-8. [Dependency Graph](#8-dependency-graph)
+3. [Conversation Flow Routing](#3-conversation-flow-routing)
+4. [Indexation Pipeline — Detail](#4-indexation-pipeline--detail)
+5. [ChromaDB Query Mechanics — Detail](#5-chromadb-query-mechanics--detail)
+6. [LLM Inference and ReAct Loop — Detail](#6-llm-inference-and-react-loop--detail)
+7. [Memory Pruning](#7-memory-pruning)
+8. [Data Model: Session Objects](#8-data-model-session-objects)
+9. [Cross-Cutting Concerns](#9-cross-cutting-concerns)
+10. [Dependency Graph](#10-dependency-graph)
 
 ---
 
@@ -51,42 +53,34 @@ prrrrr is a VS Code extension that implements a **local Retrieval-Augmented Gene
 
 ## 2. Layered Architecture
 
-The codebase follows the **Hexagonal (Ports & Adapters)** pattern with an explicit Domain layer. Dependencies always point inward: outer layers depend on inner layers, never the reverse.
+The codebase follows the **Hexagonal (Ports & Adapters)** pattern with an explicit Domain layer. Dependencies always point inward.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │  PRESENTATION LAYER                                              │
 │  src/webview/  ·  media/webview.{html,css,js}                    │
-│  VS Code Webview (Chat · Settings · About)                       │
 │  src/webviewProvider.ts  ·  src/extension.ts                     │
 └──────────────────────────┬───────────────────────────────────────┘
-                           │ messages (postMessage protocol)
+                           │ postMessage protocol
 ┌──────────────────────────▼───────────────────────────────────────┐
 │  APPLICATION / ORCHESTRATION LAYER                               │
 │  src/core/usecases/                                              │
-│  ├── generateAssistantReplyUseCase.ts   ← RAG + inference        │
-│  ├── indexWorkspaceUseCase.ts           ← ingestion pipeline     │
-│  └── resolveContextStrategyUseCase.ts  ← context mode selector  │
+│  ├── generateAssistantReplyUseCase.ts                            │
+│  ├── resolveConversationFlowUseCase.ts                           │
+│  ├── runReactAgentConversationUseCase.ts                         │
+│  ├── llamaChatAgentSearchUseCase.ts                              │
+│  ├── indexWorkspaceUseCase.ts                                    │
+│  └── memoryPruningUseCase.ts                                     │
 │  src/helpers/                                                    │
-│  ├── promptContextBuilder.ts           ← prompt assembly         │
-│  ├── llamaMessageBuilder.ts            ← history normalizer      │
-│  ├── sessionPayloadBuilder.ts          ← payload factory         │
-│  └── endpointFlowResolver.ts           ← DFS graph traversal     │
+│  ├── conversationPromptBuilder.ts                                │
+│  ├── llamaMessageBuilder.ts                                      │
+│  └── sessionPayloadBuilder.ts                                    │
 └──────────────────────────┬───────────────────────────────────────┘
                            │ interfaces (Ports)
 ┌──────────────────────────▼───────────────────────────────────────┐
 │  DOMAIN LAYER                                                    │
-│  src/core/domain/        ← pure types, no side effects           │
-│  ├── session.ts          ChatSession, RagIndexState, ChatUiState │
-│  ├── llama.ts            ChatMessage, LlamaConfig, ServerProps   │
-│  ├── chroma.ts           ChromaDbConnectionConfig, QueryMode     │
-│  ├── sessionPayload.ts   FileMetadata, UserMessagePayload        │
-│  ├── prompt.ts           RagContextSnippet, PromptContextOptions │
-│  ├── promptTemplate.ts   Template types + interpolation fns      │
-│  ├── queryIntent.ts      QueryIntentType enum + classifier       │
-│  ├── workspace.ts        ProjectComponent, WorkspaceGraph        │
-│  └── llamaServer.ts      LlamaServerLaunchConfig                 │
-│  src/core/gateways/      ← interface contracts (Ports)           │
+│  src/core/model/   ← pure types, no side effects                 │
+│  src/core/gateways/ ← interface contracts                        │
 │  ├── llamaGateway.ts                                             │
 │  ├── ragGateway.ts                                               │
 │  ├── repositoryIndexGateway.ts                                   │
@@ -95,224 +89,51 @@ The codebase follows the **Hexagonal (Ports & Adapters)** pattern with an explic
                            │ implements (Adapters)
 ┌──────────────────────────▼───────────────────────────────────────┐
 │  INFRASTRUCTURE / ADAPTER LAYER                                  │
-│  src/adapters/                                                   │
-│  ├── llama/                                                      │
-│  │   ├── llamaAdapter.ts        HTTP streaming client            │
-│  │   ├── llamaConfig.ts         vscode.workspace.getConfiguration│
-│  │   └── llamaServerConfig.ts   CLI command builder              │
-│  ├── chroma/                                                     │
-│  │   ├── chromaAdapter.ts       ChromaDB REST client + indexer   │
-│  │   ├── chromaConfig.ts        vscode.workspace.getConfiguration│
-│  │   └── workspaceDependencyGraphBuilder.ts  FS walker + parser  │
-│  ├── vscode/                                                     │
-│  │   ├── sessionAdapter.ts      globalState persistence          │
-│  │   └── promptTemplateManager.ts  config-driven template loader │
-│  └── logging/                                                    │
-│      └── outputLogger.ts        VS Code OutputChannel wrapper    │
+│  src/adapters/llama/   ← HTTP streaming, server config           │
+│  src/adapters/chroma/  ← ChromaDB REST + indexer + embeddings    │
+│  src/adapters/vscode/  ← globalState persistence, config loaders │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 2.1 Presentation Layer
+---
 
-**Components:**
+## 3. Conversation Flow Routing
 
-- **`extension.ts`** — VS Code activation entry point. Registers the `LlamaChatViewProvider`, commands, and wires together all adapters and use cases via constructor injection.
-- **`webviewProvider.ts`** (`LlamaChatViewProvider`) — Central message dispatcher. Handles the `postMessage` contract between the Webview and the TypeScript backend. Routes messages by `command` key:
-  - `askLlama` → triggers `GenerateAssistantReplyUseCase`
-  - `indexWorkspace` → triggers `IndexWorkspaceUseCase`
-  - `selectSession`, `deleteSession` → delegates to `SesionGateway`
-  - `applyCode`, `setActiveTab`, `setSettingsAccordionState` → UI state mutations
-- **`media/webview.{html,css,js}`** — Self-contained front-end. Communicates exclusively via `acquireVsCodeApi().postMessage()` / `window.addEventListener('message')`.
-- **`src/webview/`** — VS Code API adapters for the extension side:
-  - `editorContext.ts` — captures active editor selection or full file.
-  - `filePicker.ts` — opens native VS Code file picker.
-  - `webviewResources.ts` — resolves Webview URIs and injects CSP-safe HTML.
+`ResolveConversationFlowUseCase` selects the execution mode on every user message based on two inputs: attached file types and the RAG toggle state.
 
-### 2.2 Application / Orchestration Layer
+```
+attachedFiles: FileMetadata[]   ragEnabled: boolean
+        │                              │
+        ▼                              ▼
+┌─────────────────────────────────────────────────────┐
+│  hasExplicitCodeContext = any file where !isRepository│
+│  hasRepositoryAttachment = any file where isRepository│
+│  ragActive = ragEnabled && ChromaDB available        │
+└────────────────────┬────────────────────────────────┘
+                     │
+    ┌────────────────┴────────────────────┐
+    │                                     │
+    ▼                                     ▼
+ragActive?                           ragActive?
+    YES                                  NO
+    │                                    │
+    ├─ hasExplicitCodeContext?            ├─ hasExplicitCodeContext?
+    │     YES → DEEP_REACT_AGENT         │     YES → LOCAL_RAG
+    │     NO  → GLOBAL_REACT_AGENT       │     NO  → DIRECT_LLM
+```
 
-The use cases contain **all business logic**. They depend on gateway interfaces, never on concrete adapter implementations.
+| Flow | Class | When used |
+|---|---|---|
+| `DIRECT_LLM` | plain streaming | No files, RAG off |
+| `LOCAL_RAG` | prompt assembly only | Files attached, RAG off |
+| `GLOBAL_REACT_AGENT` | ReAct loop | No files, RAG on |
+| `DEEP_REACT_AGENT` | ReAct loop | Files attached, RAG on |
 
-| Use Case | Responsibility |
-|---|---|
-| `GenerateAssistantReplyUseCase` | Orchestrates: context strategy → RAG retrieval → prompt assembly → LLM streaming |
-| `IndexWorkspaceUseCase` | Orchestrates: graph build → ChromaDB availability check → file indexation |
-| `ResolveContextStrategyUseCase` | Pure decision: determines whether to use RAG or specific-files mode based on attached file types |
-
-**Helpers** are pure utility modules with no I/O. They are used by use cases and by `webviewProvider.ts`:
-
-| Helper | Responsibility |
-|---|---|
-| `promptContextBuilder.ts` | Assembles the enriched context block from RAG snippets or attached files |
-| `llamaMessageBuilder.ts` | Normalizes the full message history for the `/v1/chat/completions` payload |
-| `sessionPayloadBuilder.ts` | Constructs typed `UserMessagePayload` and `AssistantMessagePayload` objects |
-| `endpointFlowResolver.ts` | DFS traversal of the workspace dependency graph to resolve endpoint call chains |
-
-### 2.3 Domain Layer
-
-Contains **zero side effects**. All types, interfaces and pure transformation functions live here.
-
-Notable design decisions:
-- `ChatMessage.content` is typed as `string | object` to accommodate both plain text assistant messages and structured user payloads (which carry `filesMetadata`).
-- `ChatSession` stores raw `ChatMessage[]` — serialization to `globalState` is delegated to `sessionAdapter`.
-- `PromptTemplateBuilder` (in `promptTemplate.ts`) is a pure static class; it performs string interpolation and has no dependency on vscode or any external service.
-
-### 2.4 Infrastructure / Adapter Layer
-
-Adapters implement the gateway interfaces and **own all I/O**:
-
-- **`llamaAdapter.ts`** — Calls `POST /v1/chat/completions` with `stream: true`. Reads the SSE stream and emits tokens via the `onToken` callback. Reads model props via `GET /props` to extract `n_ctx`.
-- **`chromaAdapter.ts`** — Implements both `RagGateway` and `RepositoryIndexGateway`. Manages ChromaDB collections, chunking via `@langchain/textsplitters`, and vector similarity search with cosine distance filtering.
-- **`sessionAdapter.ts`** — Wraps `vscode.ExtensionContext.globalState` for persistent session storage.
-- **`workspaceDependencyGraphBuilder.ts`** — Walks the filesystem, parses import/require statements and Java imports with regex, and produces a `WorkspaceGraph` JSON file used by `endpointFlowResolver.ts`.
+`GLOBAL_REACT_AGENT` and `DEEP_REACT_AGENT` both go through `RunReactAgentConversationUseCase`. The difference is the system prompt: DEEP starts with the attached files already visible to the model.
 
 ---
 
-## 3. Data Model: Session Objects
-
-### 3.1 Core Types
-
-```typescript
-// src/core/domain/session.ts
-interface ChatSession {
-    id: string;          // Unix timestamp string of creation time
-    title: string;       // First user message (truncated)
-    createdAt: number;   // Unix timestamp (ms)
-    messages: ChatMessage[];
-}
-
-// src/core/domain/llama.ts
-interface ChatMessage {
-    role: 'user' | 'assistant' | 'system';
-    content: string | UserMessagePayload | AssistantMessagePayload;
-}
-
-// src/core/domain/sessionPayload.ts
-interface UserMessagePayload {
-    text: string;
-    filesMetadata: FileMetadata[];
-}
-
-interface AssistantMessagePayload {
-    text: string;
-    time: string;        // Response duration in seconds ("1.42")
-    tokens: number;      // Token count reported by llama.cpp
-}
-
-interface FileMetadata {
-    name: string;        // "file.ts" or "file.ts:8-10" for selections
-    content: string;     // Raw text content
-    isAutomatic: boolean;// true = injected from active editor; false = manually attached
-}
-```
-
-### 3.2 Session Lifecycle
-
-```
-┌────────────────────────────────────────────────────────┐
-│                  SESSION LIFECYCLE                      │
-│                                                         │
-│  [User sends first message]                             │
-│         │                                               │
-│         ▼                                               │
-│  SessionAdapter.createSession(title)                    │
-│  → id = Date.now().toString()                           │
-│  → persisted to globalState['llamaChatSessions']        │
-│         │                                               │
-│         ▼                                               │
-│  [Each exchange]                                        │
-│  SessionAdapter.addMessageToCurrentSession(             │
-│    role,                                                │
-│    content: string | UserMessagePayload                 │
-│  )                                                      │
-│         │                                               │
-│         ▼                                               │
-│  [Session persists across VS Code restarts]             │
-│  globalState is read on extension activation            │
-│         │                                               │
-│         ▼                                               │
-│  [User deletes session]                                 │
-│  SessionAdapter.deleteSession(id)                       │
-│  → filtered from globalState array                      │
-└────────────────────────────────────────────────────────┘
-```
-
-### 3.3 globalState Serialisation Format
-
-```jsonc
-// VS Code globalState key: "llamaChatSessions"
-[
-  {
-    "id": "1718615000000",
-    "title": "How does UserService work?",
-    "createdAt": 1718615000000,
-    "messages": [
-      {
-        "role": "user",
-        "content": {
-          "text": "How does UserService work?",
-          "filesMetadata": [
-            {
-              "name": "userService.ts:12-24",
-              "content": "export class UserService { ... }",
-              "isAutomatic": true
-            }
-          ]
-        }
-      },
-      {
-        "role": "assistant",
-        "content": {
-          "text": "The UserService class is responsible for...",
-          "time": "3.14",
-          "tokens": 256
-        }
-      }
-    ]
-  }
-]
-```
-
-### 3.4 UI State (non-persistent, in-memory)
-
-```typescript
-// src/core/domain/session.ts
-interface ChatUiState {
-    activeTab: 'chat' | 'settings' | 'about';
-    activeScreens: Array<'chat' | 'settings' | 'about'>;
-    settingsAccordionState: {
-        llamaOpen: boolean;
-        chromadbOpen: boolean;
-    };
-    currentSessionId: string | null;
-    ragIndexState: {
-        status: 'idle' | 'indexing' | 'indexed';
-        indexedAt: number | null;
-        indexedFiles: number;
-    };
-}
-```
-
-`ChatUiState` is held in memory by `webviewProvider.ts` and pushed to the Webview on every relevant state mutation. It is **not persisted** to `globalState`.
-
-### 3.5 Token Window Awareness
-
-The token window budget is resolved at query time, not stored in the session:
-
-```
-n_ctx  ←  GET /props  →  LlamaAdapter.extractContextWindow()
-  │
-  │  Budget consumed by:
-  ├── system prompt tokens
-  ├── session history tokens (all previous messages)
-  ├── RAG context snippets  ← up to MAX_RAG_CONTEXT_CHARS (12,000 chars)
-  └── current user prompt
-```
-
-`MAX_RAG_CONTEXT_CHARS = 12,000` and `MAX_CONTEXT_SNIPPET_CHARS = 2,500` are hard-coded safety limits in `promptContextBuilder.ts`. Individual snippets exceeding `MAX_CONTEXT_SNIPPET_CHARS` are truncated with a `[truncated]` marker before assembly.
-
----
-
-## 4. Workflow 1: Indexation Pipeline
+## 4. Indexation Pipeline — Detail
 
 ### 4.1 End-to-End Flow
 
@@ -320,536 +141,682 @@ n_ctx  ←  GET /props  →  LlamaAdapter.extractContextWindow()
 User clicks "Index Workspace"
         │
         ▼
-webviewProvider.ts
-  → IndexWorkspaceUseCase.execute({
-      workspaceRoot,
-      cacheRoot,
-      chromaConfig
-    })
+IndexWorkspaceUseCase.execute({ workspaceRoot, chromaConfig })
+        │
+        ├─ ChromaAdapter.isAvailable(config)
+        │     → GET {url}:{port}/api/v1/heartbeat
+        │     → if unavailable: abort, return error
         │
         ▼
-┌───────────────────────────────────────────────────────┐
-│  PHASE 1: Dependency Graph Build                       │
-│  WorkspaceDependencyGraphBuilder.build()               │
-│                                                        │
-│  1. List code files (walk FS, apply excludeDirs +      │
-│     excludeFileGlobs filters)                          │
-│  2. For each file: parseImportReferences(content)      │
-│     → regex extraction of ES/TS imports, require(),    │
-│       and Java import statements                       │
-│  3. detectEndpointTriggers(content)                    │
-│     → regex scan for @GetMapping, @PostMapping,        │
-│       app.get(), router.post(), etc.                   │
-│  4. extractDeclaredSymbols(content)                    │
-│     → exported class/function/interface names          │
-│  5. Resolve edges: static path resolution +            │
-│     symbol-to-file lookup                              │
-│  6. Write WorkspaceGraph JSON to cacheRoot             │
-└───────────────────────────────────────────────────────┘
+ChromaAdapter.indexAll(workspaceRoot, config)
         │
         ▼
-ChromaAdapter.isAvailable(config)
-  → HTTP GET {url}:{port}/api/v1/heartbeat
-  → if false: abort, return { availability: false }
+listTextFiles(workspaceRoot, config, projectType)
+  FS walk → filter → read → chunk → metadata → return IndexedChunk[]
         │
         ▼
-┌───────────────────────────────────────────────────────┐
-│  PHASE 2: Chunking and Vector Ingestion                │
-│  ChromaAdapter.indexAll(workspaceRoot, config)         │
-│                                                        │
-│  For each eligible source file:                        │
-│                                                        │
-│  ┌─────────────────────────────────────────────────┐  │
-│  │  READ FILE  →  content: string                  │  │
-│  │  (skip if size > maxFileSizeKb)                 │  │
-│  └──────────────────┬──────────────────────────────┘  │
-│                     │                                  │
-│  ┌──────────────────▼──────────────────────────────┐  │
-│  │  CHUNK  (RecursiveCharacterTextSplitter)         │  │
-│  │  chunkSize    = chunkSizeChars  (default 2000)   │  │
-│  │  chunkOverlap = chunkOverlapChars (default 300)  │  │
-│  └──────────────────┬──────────────────────────────┘  │
-│                     │                                  │
-│  ┌──────────────────▼──────────────────────────────┐  │
-│  │  EMBED  (ChromaDB default embedding function)   │  │
-│  │  dimensionality: EMBEDDING_DIM = 64             │  │
-│  │  (fixed; ChromaDB computes embeddings           │  │
-│  │   server-side on ingestion)                     │  │
-│  └──────────────────┬──────────────────────────────┘  │
-│                     │                                  │
-│  ┌──────────────────▼──────────────────────────────┐  │
-│  │  STORE  in ChromaDB collection                  │  │
-│  │  collection name = {prefix}-{sha256(root)[0:12]}│  │
-│  │  document  = chunk text                         │  │
-│  │  metadata  = { source: relativePath }           │  │
-│  │  id        = sha256(relativePath + chunkIndex)  │  │
-│  └─────────────────────────────────────────────────┘  │
-└───────────────────────────────────────────────────────┘
+batched ChromaDB collection.add() in groups of 64
         │
         ▼
-IndexWorkspaceResult { availability: true, result: RagIndexResult }
-  → webviewProvider dispatches ragIndexState update to Webview
+RagIndexResult { status, indexedAt, indexedFiles, collectionId }
 ```
 
-### 4.2 Configuration Impact on Ingestion
+### 4.2 File Walk and Filtering
 
-#### `chunkSizeChars` (default: `2000`)
+The FS walker is a recursive `async function walk(dir)` that scans the workspace tree.
 
-Controls the maximum character length of each stored document chunk.
+**Filtering is applied in this order:**
 
-| Value | Effect |
-|---|---|
-| **Small** (e.g. 500) | Higher granularity. More precise retrieval for short patterns. Risk: cuts multi-method classes, losing cross-method context. Higher storage volume. |
-| **Large** (e.g. 5000) | Entire files or large classes stored as single chunks. Better structural context. Risk: relevant signal diluted by irrelevant surrounding code; chunks may exceed `MAX_CONTEXT_SNIPPET_CHARS` and be truncated at query time. |
-| **Recommended** | 1500–2500 chars. Balances function-level granularity with sufficient context for semantic understanding. |
+1. **Directory exclusion** — any directory whose `entry.name` appears in `excludeDirs` is skipped entirely. Default: `.git`, `node_modules`, `dist`, `out`, `build`, `coverage`, `target`, `.vscode`.
+2. **File size filter** — files larger than `maxFileSizeKb × 1024` bytes are skipped. Default: `512 KB`.
+3. **Binary content detection** — files containing null bytes or high density of non-printable characters are dropped via `looksBinaryContent()`.
+4. **Glob exclusion** — the relative file path is tested against each pattern in `excludeFileGlobs`, compiled to `RegExp` via `globToRegExp()`. Default: `**/*.bin`, `**/*.class`, `**/*.jar`, `**/*.lock`.
+5. **Empty file guard** — files whose content is whitespace-only are skipped.
+6. **Total limit** — indexing stops when `maxIndexedFiles` chunks have been collected. Default: `2000`.
 
-#### `chunkOverlapChars` (default: `300`)
+**Effect of `maxIndexedFiles`:** this is a chunk count, not a file count. A single large file may produce many chunks. Reaching the limit mid-walk causes a hard stop; the remaining files in the walk are silently skipped.
 
-Each chunk repeats the last N characters of the previous chunk at its start.
+### 4.3 Chunking — `RecursiveCharacterTextSplitter`
 
-```
-Chunk 1:  [===========CONTENT_A===========]
-Chunk 2:            [===OVERLAP===CONTENT_B================]
-                         ↑ 300 chars shared
-```
+Chunking is performed by `@langchain/textsplitters`'s `RecursiveCharacterTextSplitter`. The splitter tries each separator in order, falling back to the next one until chunks fit within `chunkSize`.
 
-| Value | Effect |
-|---|---|
-| `0` | No overlap. Semantic boundaries (e.g. a function signature) that fall at a chunk cut will be missed. |
-| **Low** (50–100) | Minimal redundancy, reduces storage. Suitable for well-structured code with clear delimiters. |
-| **High** (500–800) | Higher redundancy, significantly increases storage and index time. Useful for prose-heavy files (READMEs, config docs). |
-| **Recommended** | 200–400 chars. Ensures that a function signature at chunk N is always present in chunk N+1 as well. |
+**Language-aware separator sets:**
 
-The relationship between chunk size and overlap directly affects the **total number of vectors** stored:
+| Extension | `chunkSize` | `chunkOverlap` | Separators |
+|---|---|---|---|
+| `.java` | 1000 | 150 | `\n\n`, `\npublic\n`, `\nprotected\n`, `\nprivate\n`, `\nclass `, `\ninterface `, `\n}`, `\n` |
+| `.py` | 800 | 100 | `\n\n`, `\ndef `, `\nclass `, `\n`, ` ` |
+| `.xml` | 600 | 50 | `</bean>`, `</dependency>`, `</plugin>`, `\n\n`, `\n` |
+| `.yaml` / `.yml` | 500 | 50 | `\n\n`, `\n-`, `\n  `, `\n` |
+| `.properties` / `.env` / `.conf` | 400 | 0 | `\n\n`, `\n` |
+| all others | 800 | 100 | `\n\n`, `\n`, ` ` |
 
-```
-approximate_chunks ≈ (file_chars - chunkOverlapChars) / (chunkSizeChars - chunkOverlapChars)
-```
-
-#### Embedding Dimensionality
-
-The current implementation uses `EMBEDDING_DIM = 64` (set as a constant in `chromaAdapter.ts`), which is the dimension of ChromaDB's built-in default embedding function. This is intentional for performance: a 64-dimensional space is fast to build and query on consumer hardware, at the cost of some semantic precision versus high-dimensional models (384, 768, 1536 dimensions). Changing the embedding model requires re-indexing the entire workspace.
-
----
-
-## 5. Workflow 2: Retrieval Stage (ChromaDB)
-
-### 5.1 End-to-End Flow
-
-```
-User sends message  →  webviewProvider.ts
-        │
-        ▼
-GenerateAssistantReplyUseCase.resolveRagContext(input)
-        │
-        ▼
-ResolveContextStrategyUseCase.execute(filesMetadata)
-  ┌─────────────────────────────────────────────────────┐
-  │  hasExplicitFileContext  = any file where !isRepository│
-  │  hasRepositoryAttachment = any file where isRepository │
-  │                           OR no explicit files         │
-  │  shouldUseRepositoryScope = hasRepositoryAttachment   │
-  │                           OR !hasExplicitFileContext   │
-  └────────────────────────────┬────────────────────────┘
-                               │
-              ┌────────────────▼──────────────────┐
-              │ shouldUseRepositoryScope?          │
-              │  NO  → return []  (skip RAG)       │
-              │  YES → continue                    │
-              └────────────────┬──────────────────┘
-                               │
-                               ▼
-                RagGateway.isAvailable(config)
-                  → HTTP GET /api/v1/heartbeat
-                  → if false: return []
-                               │
-                               ▼
-┌──────────────────────────────────────────────────────────┐
-│  STRUCTURED FLOW  (endpoint intent detected)             │
-│  endpointFlowPaths provided from EndpointFlowResolver    │
-│                                                          │
-│  RagGateway.queryByMode(                                 │
-│    queryText   = userPrompt,                             │
-│    config,                                               │
-│    maxResults  = chromaConfig.maxQueryResults,           │
-│    mode        = chromaQueryMode,      // primary        │
-│    signal,                                               │
-│    filePathFilter = endpointFlowPaths  // DFS subgraph   │
-│  )                                                       │
-│                                                          │
-│  Fallback cascade if results.length === 0:               │
-│    1st fallback: retry with 'semantic' mode              │
-│    2nd fallback: retry with 'lexical' mode               │
-└──────────────────────────────┬───────────────────────────┘
-                               │  OR
-┌──────────────────────────────▼───────────────────────────┐
-│  SEMANTIC (CONCEPTUAL) FLOW  (general query)             │
-│                                                          │
-│  RagGateway.queryConceptual(                             │
-│    queryText,                                            │
-│    config,                                               │
-│    {                                                     │
-│      topK:               vectorCandidatePool (50),       │
-│      minCosineSimilarity: minCosineSimilarity (0.2),     │
-│      signal                                              │
-│    }                                                     │
-│  )                                                       │
-└──────────────────────────────────────────────────────────┘
-        │
-        ▼
-RagContextMatch[] = [{ path, content, distance }, ...]
-  → passed to buildPromptContext() in next stage
-```
-
-### 5.2 Configuration Impact on Retrieval
-
-#### `maxQueryResults` (default: `12`) / `vectorCandidatePool` (default: `50`)
-
-These two parameters work together in a **candidate expansion + post-filter** pattern:
-
-```
-ChromaDB query: nResults = vectorCandidatePool (50)
-        │
-        ▼
-Raw candidates (up to 50)
-        │
-        ▼
-Filter: distance < (1.0 - minCosineSimilarity)
-        │
-        ▼
-Trim to maxQueryResults (12)
-        │
-        ▼
-Final RAG context snippets injected into prompt
-```
-
-| Parameter | Effect if increased | Effect if decreased |
-|---|---|---|
-| `vectorCandidatePool` | More candidates evaluated → better recall, higher latency on ChromaDB query | Faster query, may miss relevant distant chunks |
-| `maxQueryResults` | More snippets injected → broader context, **direct cost on LLM context window** | Fewer snippets → context window preserved, potential information gaps |
-
-**Critical constraint:** Each snippet is capped at `MAX_CONTEXT_SNIPPET_CHARS = 2,500` characters. With `maxQueryResults = 12`, the worst-case RAG block is 30,000 characters, but the entire block is also subject to `MAX_RAG_CONTEXT_CHARS = 12,000`. Exceeding this limit causes chunks to be dropped silently.
-
-#### `minCosineSimilarity` (default: `0.2`)
-
-ChromaDB stores distances as `L2` or `cosine` depending on the collection's distance metric. The adapter applies this threshold as a post-query filter:
-
-```
-relevance_score = 1.0 - cosine_distance
-keep_chunk_if:  relevance_score >= minCosineSimilarity
-```
-
-| Value | Effect |
-|---|---|
-| `0.0` | All candidates pass; maximum recall, high noise risk |
-| `0.2` (default) | Filters weakly related chunks. Suitable for general code queries |
-| `0.5` | Only highly similar chunks pass. Useful for precise symbol lookups; risks zero results on abstract queries |
-| `0.8+` | Near-exact match only. Rarely useful for natural language queries |
-
-#### `queryMode`: `"semantic"` vs `"lexical"`
-
-| Mode | Mechanism | Best for |
-|---|---|---|
-| `semantic` | ChromaDB vector similarity (embedding-based cosine search) | Conceptual questions: "How does authentication work?" |
-| `lexical` | Keyword/BM25-style full-text search on stored document text | Precise symbol lookups: "Where is `UserRepository` used?" |
-
-In structured flow, both modes are attempted with automatic fallback (see §5.1).
-
-#### `metadataFilter` (implicit via `filePathFilter`)
-
-When `endpointFlowPaths` is populated by `EndpointFlowResolver`, the ChromaDB query includes a `where` filter on the `source` metadata field. This restricts the candidate pool to files in the resolved execution flow subgraph, dramatically improving precision for endpoint-centric questions.
+**User-configured overrides** (`chunkSizeChars`, `chunkOverlapChars`) override these per-language defaults via `resolveChunkTuning()`:
 
 ```typescript
-// chromaAdapter.ts — applied when filePathFilter is provided
-where: {
-  source: { $in: filePathFilter }
-}
+configuredSize    = max(200, floor(tuning.chunkSizeChars ?? languageDefault))
+configuredOverlap = max(0,   floor(tuning.chunkOverlapChars ?? languageDefault))
+configuredOverlap = min(configuredOverlap, configuredSize - 1)
 ```
+
+The minimum enforced chunk size is `200` characters. Overlap is always less than chunk size.
+
+**How parameters affect the index:**
+
+| Parameter | Low value | High value |
+|---|---|---|
+| `chunkSizeChars` | Finer granularity; more chunks; each chunk captures one function or few lines; retrieval is more precise but loses cross-function context | Coarser; fewer chunks; an entire class may be one chunk; better structural context but dilutes semantic signal |
+| `chunkOverlapChars` | Less redundancy; function signatures at chunk boundaries may be split across chunks; faster indexing | More redundancy; boundary tokens repeat in consecutive chunks; signature always present in next chunk; larger total storage |
+
+Approximate chunk count formula:
+
+```
+n_chunks ≈ (file_chars - chunkOverlapChars) / (chunkSizeChars - chunkOverlapChars)
+```
+
+For a 10,000-character file with defaults (size=2000, overlap=300):
+
+```
+n_chunks ≈ (10000 - 300) / (2000 - 300) ≈ 5.7 → 6 chunks
+```
+
+### 4.4 Keyword Entity Extraction
+
+After splitting, `extractKeywordEntities(chunkText)` runs regex patterns on each chunk to extract structural tokens:
+
+- Class/interface/enum/struct names
+- Function and method names
+- `const`/`let`/`var`/`static` variable names
+- Import module paths
+
+These are stored as a pipe-separated string in the ChromaDB `keyword_entities` metadata field. They feed the lexical scoring path of future queries.
+
+### 4.5 Embedding Computation
+
+The embedding model is `Xenova/all-MiniLM-L6-v2`, loaded at runtime via `@huggingface/transformers` dynamic import:
+
+```
+computeEmbedding(text)
+  │
+  ├─ initializeEmbeddingPipeline() → lazy load model (once per extension lifetime)
+  │   └─ pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2')
+  │
+  ├─ text.slice(0, 512).trim().replace(/\s+/g, ' ')    ← normalize
+  │
+  ├─ pipeline(normalizedText, { pooling: 'mean', normalize: true })
+  │
+  ├─ L2 normalization to unit length
+  │
+  └─ number[384]   ← 384-dimensional vector
+```
+
+**Model characteristics:**
+
+| Property | Value |
+|---|---|
+| Architecture | Sentence-Transformer (MiniLM) |
+| Output dimensions | 384 |
+| Input token limit | 512 tokens (texts truncated before encoding) |
+| Disk size | ~22 MB (cached to HuggingFace local cache) |
+| Pooling strategy | Mean pooling across all token embeddings |
+| Normalization | Unit-length L2 normalization applied explicitly after model output |
+
+The `createHuggingFaceEmbeddingFunction()` factory wraps this into the ChromaDB `EmbeddingFunction` interface for collection operations.
+
+**What the embedding encodes:** semantic meaning of the chunk's content. Two chunks describing similar concepts (e.g., two different authentication implementations) will have high cosine similarity even if they share no literal tokens. This is why semantic search finds conceptually related code even when the query uses different terminology.
+
+**Effect of the 512-token input limit:** for very large chunks (>2000 characters of dense code), only the first 512 tokens are encoded. The `chunkSizeChars` default of 2000 characters typically falls around 500–600 tokens for typical code density, staying just within the model's window.
+
+### 4.6 ChromaDB Collection Management
+
+A workspace-specific collection ID is generated at index time:
+
+```
+collectionId = sanitize(basename(workspaceRoot)) + '_' + Date.now()
+```
+
+`sanitize()` lowercases, collapses spaces/hyphens to underscores, and strips non-alphanumeric characters.
+
+Before creating the new collection, the adapter clears the previous collection (if any) to avoid stale data:
+
+```
+if previousCollectionId exists && != newCollectionId:
+    clearCollection(previousCollectionId)
+
+if newCollectionId already exists:
+    clearCollection(newCollectionId)
+
+createCollection(newCollectionId, embeddingFunction)
+```
+
+Chunks are batched 64 at a time. Each `collection.add()` call stores:
+
+| ChromaDB field | Source |
+|---|---|
+| `id` | `relativePath::chunk-N` |
+| `document` | chunk text |
+| `embedding` | 384-dim vector from `computeEmbedding(buildEmbeddingInput(item))` |
+| `metadata.path` | relative path (display) |
+| `metadata.file_path` | relative path (filter key) |
+| `metadata.file_type` | `source_code` or `configuration` |
+| `metadata.language` | detected language + ecosystem |
+| `metadata.chunkIndex` | chunk position |
+| `metadata.chunkCount` | total chunks for this file |
+| `metadata.keyword_entities` | pipe-separated keyword tokens |
+
+`buildEmbeddingInput()` concatenates several metadata fields with the chunk text to create a richer embedding input than the raw chunk alone.
 
 ---
 
-## 6. Workflow 3: Prompt Construction and LLM Inference
+## 5. ChromaDB Query Mechanics — Detail
 
-### 6.1 End-to-End Flow
+### 5.1 Query Pipeline
+
+All ChromaDB queries are routed through `queryRelevantContextFromChromaDb()` → `queryRelevantContextFromChromaDbSemantic()`.
 
 ```
-GenerateAssistantReplyUseCase.execute()
-  (after RAG snippets resolved)
-        │
-        ▼
-ResolveContextStrategyUseCase.execute(filesMetadata)
-  → contextStrategy { hasExplicitFileContext, hasRepositoryAttachment, ... }
-        │
-        ▼
-buildPromptContext({
-  userPrompt,
-  attachedFiles: filesMetadata,
-  ragSnippets,
-  hasRepositoryAttachment,
-  ragModeTemplate:           PromptTemplateManager.getRagModeTemplate(),
-  specificFilesModeTemplate: PromptTemplateManager.getSpecificFilesModeTemplate()
+queryRelevantContextFromChromaDb(queryText, config, maxResults, signal, filePathFilter)
+  │
+  ├─ early exit: if queryText.trim() is empty → return []
+  ├─ early exit: if signal.aborted → throw AbortError
+  ├─ early exit: if config.collectionId is null → return []
+  ├─ collectionExists check → if missing → return []
+  │
+  ▼
+collection.query({
+  queryEmbeddings: [computeEmbedding(queryText)],
+  nResults: max(maxResults, vectorCandidatePool),   ← fetch more than needed
+  include: ['documents', 'metadatas', 'distances'],
+  where: buildWhereFilter(filePathFilter)            ← optional path filter
 })
-        │
-        ├── if (hasRepositoryAttachment && ragSnippets.length > 0)
-        │         → buildPromptContextRag()
-        │
-        └── else
-                  → buildPromptContextSpecificFiles()
-        │
-        ▼
-contextPrompt: string
-        │
-        ▼
-LlamaMessageBuilder.prepareMessagesForLlama(
-  baseMessages,       // full session history
-  contextPrompt,      // enriched current prompt
-  systemPrompt        // from LlamaConfig
-)
-        │
-        ▼
-LlmMessage[] (final payload)
-        │
-        ▼
-LlamaGateway.streamResponse(messages, llamaConfig, onToken, abortSignal)
-  → POST /v1/chat/completions  { stream: true }
-  → SSE stream parsed token by token
-  → onToken(chunk) → webviewProvider → postMessage → Webview
-        │
-        ▼
-LlmGenerationResult { totalText, tokenCount, serverUsageTokens }
-  → GenerateAssistantReplyResult { ...result, durationSeconds, ragSnippetsCount, contextStrategy }
+  │
+  ▼
+raw candidates (up to vectorCandidatePool)
+  │
+  ├─ for each: vectorScore = 1 / (1 + max(0, distance))
+  ├─ sort descending by vectorScore
+  ├─ slice to maxResults
+  │
+  ▼
+RagContextMatch[] = [{ path, content, distance }, ...]
 ```
 
-### 6.2 Anatomy of the Final Prompt
+### 5.2 Semantic Embedding Distance
 
-The final payload sent to llama.cpp has the following structure:
+ChromaDB internally uses **cosine distance** (or L2 distance depending on collection metric) between the query embedding and each stored chunk embedding.
 
-```
-POST /v1/chat/completions
-{
-  "model": "local",
-  "stream": true,
-  "max_tokens": 2048,
-  "temperature": 0.2,
-  "messages": [
-
-    // 1. SYSTEM MESSAGE  (injected by LlamaMessageBuilder as first message)
-    {
-      "role": "system",
-      "content": "You are a Principal Software Engineer specialized in code
-                  navigation and architecture..."
-    },
-
-    // 2. SESSION HISTORY  (all prior turns, with file attachments inlined)
-    {
-      "role": "user",
-      "content": "--- ATTACHED FILE: userService.ts:12-24 ---\n...\nUser instruction:\n<previous question>"
-    },
-    {
-      "role": "assistant",
-      "content": "The UserService class..."
-    },
-    // ... more turns ...
-
-    // 3. CURRENT TURN — ENRICHED PROMPT  (last user message, assembled by buildPromptContext)
-    {
-      "role": "user",
-      "content": "<modo_ejecucion>\nSCOPE: Global Project Analysis (RAG).\nInstruction: ...\n</modo_ejecucion>\n\n
-                  <contexto_recuperado>\n
-                  Fragment 1 | Source: src/services/userService.ts distance=0.1832\n```\nexport class UserService...\n```\n\n
-                  Fragment 2 | Source: src/repositories/userRepository.ts distance=0.2401\n```\n...\n```\n
-                  </contexto_recuperado>\n\n
-                  User Query: How does UserService interact with the database?"
-    }
-  ]
-}
-```
-
-### 6.3 Configuration Impact on Inference
-
-#### `contextSize` / `numCtx` (llama.cpp `--ctx-size`, default: `16384`)
-
-This is the **physical token budget** of the model. It represents the hard limit of the sliding window that the transformer's attention mechanism can span.
+The adapter converts the raw distance to a relevance score:
 
 ```
-n_ctx budget allocation:
-┌──────────────────────────────────────────────────────┐
-│  system prompt          ~100–500 tokens               │
-│  session history        variable (grows per turn)     │
-│  RAG context block      up to ~3,000 tokens (12k chars│
-│                         at ~4 chars/token)            │
-│  current user prompt    ~50–200 tokens                │
-│  response tokens        max_tokens (default 2048)     │
-├──────────────────────────────────────────────────────┤
-│  TOTAL                  must be ≤ n_ctx               │
-└──────────────────────────────────────────────────────┘
+vectorScore = 1 / (1 + max(0, distance))
 ```
 
-**Consequence:** As session history grows, the effective space for RAG snippets shrinks. The extension does not currently implement automatic history truncation; long sessions on small context models (n_ctx ≤ 4096) will experience degraded retrieval quality or llama.cpp context overflow errors.
+This maps `distance=0` → `score=1.0` (identical) and larger distances → smaller scores asymptotically approaching 0.
 
-**Recommended minimum:** `n_ctx = 16384` for standard RAG sessions. `32768` or higher for complex multi-file analysis sessions.
+**`minCosineSimilarity`** is applied as a post-query filter in the conceptual KNN path:
+
+```
+cosineScore = 1.0 - cosineDistance
+keep if cosineScore >= minCosineSimilarity
+```
+
+| `minCosineSimilarity` | Effect |
+|---|---|
+| `0.0` | All candidates pass; maximum recall, high noise from weakly-related chunks |
+| `0.2` (default) | Filters weakly-related chunks; suitable for general code queries |
+| `0.5` | Only closely related chunks pass; precise symbol lookups; risk of zero results on abstract queries |
+| `0.8+` | Near-identical content only; rarely useful for natural language queries |
+
+### 5.3 `vectorCandidatePool` and `maxQueryResults` Interaction
+
+```
+ChromaDB query: nResults = max(maxQueryResults, vectorCandidatePool)
+        │
+        ▼
+Up to vectorCandidatePool raw candidates ranked by embedding distance
+        │
+        ▼
+Sort by vectorScore (descending)
+        │
+        ▼
+Slice to maxQueryResults
+        │
+        ▼
+RagContextMatch[] returned to caller
+```
+
+**Why a candidate pool larger than the final result count?**
+
+ChromaDB's approximate nearest-neighbour index may rank candidates slightly differently than exact cosine distance. Fetching `vectorCandidatePool` (default 50) candidates and then re-ranking them locally by `vectorScore` gives higher-quality final results than asking for exactly `maxQueryResults` directly.
+
+| Parameter | Low value | High value |
+|---|---|---|
+| `vectorCandidatePool` | Faster query, smaller re-ranking set, may miss relevant distant chunks | More candidates considered, better recall, higher query latency |
+| `maxQueryResults` | Fewer snippets in prompt, preserves context window budget | More snippets in prompt, broader context, increases tokens consumed by RAG block |
+
+**Context window cost:** each returned chunk is passed to the LLM. At default settings, `maxQueryResults=12` injects up to ~24,000 characters of code into the prompt (if all chunks are at the 2000-char limit). The system enforces no hard cap on this block beyond the LLM's `n_ctx` budget.
+
+### 5.4 Path Filter (`filePathFilter`)
+
+When a `filePathFilter` is provided, the ChromaDB query includes a `where` clause:
+
+```typescript
+where = { file_path: { $in: normalizedPaths } }
+```
+
+`normalizeFilePathFilter()` validates each path before use:
+- Blocks `..` (path traversal)
+- Blocks absolute paths
+- Blocks paths containing invalid characters
+
+This filter restricts the candidate pool to a specific subset of files, dramatically improving precision for queries anchored to a known execution subgraph (used in `DEEP_REACT_AGENT` mode after the ReAct agent has identified relevant files).
+
+### 5.5 Conceptual KNN Path (`queryConceptual`)
+
+The `queryConceptual` method is an alternative retrieval path that:
+
+1. Fetches all documents in pages of 500
+2. For each document, computes a **fresh embedding** from the stored metadata-enriched representation (`buildEmbeddingInputFromDocument`)
+3. Computes exact cosine similarity between query embedding and each document embedding
+4. Applies `minCosineSimilarity` filter
+5. Returns top `topK` results
+
+This path is slower but more precise than approximate ANN because it uses exact embeddings derived from the enriched metadata representation rather than the original storage-time embedding. It is used by `generateAssistantReplyUseCase` when the `LOCAL_RAG` flow is active.
+
+---
+
+## 6. LLM Inference and ReAct Loop — Detail
+
+### 6.1 Direct Conversation Flow (`DIRECT_LLM` / `LOCAL_RAG`)
+
+```
+LlamaMessageBuilder.prepareMessagesForLlama(baseMessages, userContextPrompt, systemPrompt)
+  │
+  ├─ Build lastIndexByBase map: for each user message with files,
+  │    track which message index last mentions each file basename
+  │
+  ├─ For each message in history:
+  │   - user (not last): buildHistoryUserContent()
+  │       → include only files whose lastIndex == this message index
+  │       → format: "--- ATTACHED FILE: {name} ---\n{content}\n--- END FILE ---"
+  │       → append: "User instruction:\n{text}"
+  │   - user (last): replace with userContextPrompt as-is
+  │   - assistant: extractTextOnly(content)   ← strips metadata, keeps text
+  │
+  ├─ Prepend system message if not already present
+  │
+  └─ LlmMessage[]
+          │
+          ▼
+LlamaGateway.streamResponse(messages, config, onToken, abortSignal)
+  │
+  ├─ POST /v1/chat/completions with stream: true
+  ├─ SSE stream: each line "data: {...}" parsed, token extracted
+  ├─ onToken(chunk) → webviewProvider → postMessage → Webview
+  └─ LlmGenerationResult { totalText, tokenCount, serverUsageTokens }
+```
+
+### 6.2 ReAct Loop (`GLOBAL_REACT_AGENT` / `DEEP_REACT_AGENT`)
+
+The ReAct loop is the core of the agentic flows. It implements the **Thought → Action → Observation** cycle defined in the ReAct paper (Yao et al., 2022).
+
+```
+RunReactAgentConversationUseCase.execute(input)
+  │
+  ├─ prepareMessagesForLlama(baseMessages, userPrompt, systemPrompt)
+  │     → same history normalization as direct flow
+  │
+  ├─ MAX_AGENT_STEPS = 6  loop:
+  │
+  │   ┌─────────────────────────────────────────────────────────┐
+  │   │  STEP N                                                 │
+  │   │                                                         │
+  │   │  1. Memory pruning check (before each LLM call)         │
+  │   │     countTokensInMessages(workingMessages)              │
+  │   │     if tokens > safetyThreshold: pruneMessages()        │
+  │   │                                                         │
+  │   │  2. LlamaGateway.streamResponse(workingMessages, ...)   │
+  │   │     → silent streaming (onToken = noop inside loop)     │
+  │   │     → full response text collected                      │
+  │   │                                                         │
+  │   │  3. extractFinalAnswer(text)                            │
+  │   │     → regex: /Final Answer:\s*([\s\S]*)$/i              │
+  │   │                                                         │
+  │   │  4. if finalAnswer && toolCalls > 0:                    │
+  │   │     → emit to client via input.onToken(finalAnswer)     │
+  │   │     → return result                                     │
+  │   │                                                         │
+  │   │  5. if finalAnswer && toolCalls == 0:                   │
+  │   │     → reject: append correction message                 │
+  │   │     → force next iteration                              │
+  │   │                                                         │
+  │   │  6. extractActionQuery(text)                            │
+  │   │     → regex: /Action:\s*[a-z_]*(?:agent_search|search)  │
+  │   │              \s*\(\s*["']?([^"'\)]+)["']?\s*\)/i        │
+  │   │     → accepts: agent_search, llamachat_agent_search,    │
+  │   │                search, etc.                             │
+  │   │                                                         │
+  │   │  7. if no action found:                                 │
+  │   │     → append format correction prompt                   │
+  │   │     → continue                                          │
+  │   │                                                         │
+  │   │  8. if duplicate query:                                 │
+  │   │     → inject "already searched" observation             │
+  │   │     → continue                                          │
+  │   │                                                         │
+  │   │  9. LlamaChatAgentSearchUseCase.execute(actionQuery)    │
+  │   │     → RagGateway.query(query, config, 5, signal)        │
+  │   │     → semantic search in ChromaDB                       │
+  │   │     → format observation block                          │
+  │   │     → track consulted file paths                        │
+  │   │                                                         │
+  │   │  10. Append to workingMessages:                         │
+  │   │      { role: 'assistant', content: modelOutput }        │
+  │   │      { role: 'user',      content: observationPrompt }  │
+  │   └─────────────────────────────────────────────────────────┘
+  │
+  ├─ if MAX_AGENT_STEPS reached:
+  │   → final pruning
+  │   → append "Stop searching and provide Final Answer:"
+  │   → one last LLM call
+  │   → extract final answer or use raw output
+  │
+  └─ return { totalText, tokenCount, toolCalls, retrievedMatches, references }
+```
+
+### 6.3 ReAct Message Structure
+
+At each step, the model receives the full growing conversation:
+
+```
+[system prompt]
+[user original prompt]
+[assistant: Thought: ... Action: llamachat_agent_search("query")]
+[user: Observation:\n<search results>\n\nContinue the loop...]
+[assistant: Thought: ... Action: ...]
+[user: Observation:\n...]
+...
+```
+
+The **system prompt** (set in `DEFAULT_GLOBAL_REACT_TEMPLATE` or `DEFAULT_DEEP_REACT_TEMPLATE`) defines:
+- The model's role as a code-navigation agent
+- The single available tool: `llamachat_agent_search(query_text: string)`
+- The strict Thought/Action/Observation format
+- The requirement to make at least one tool call before emitting `Final Answer:`
+
+**Format enforcement mechanisms:**
+
+1. `toolCalls === 0` guard: if the model tries to skip straight to `Final Answer`, the loop injects a correction message and forces another iteration.
+2. `isPlaceholderFinalAnswer()` check: placeholder strings like `[your answer here]` are rejected.
+3. `extractActionQuery()` regex: loosely matches any method name containing `search` or `agent_search`, tolerating variations in how the model formats the call.
+4. Format correction prompt: if neither `Final Answer` nor a valid `Action` is found, a structured correction prompt is injected.
+5. Duplicate query detection: the `executedQueries` Set prevents the model from running the same search twice; an "already searched" observation is injected instead.
+
+### 6.4 Search Result Formatting
+
+Each search result is formatted as an observation block:
+
+```
+Tool: llamachat_agent_search
+Query: {queryText}
+
+Result 1 | Source: src/services/userService.ts [chunk 2/4]
+```
+{code content}
+```
+
+Result 2 | Source: src/repositories/userRepository.ts
+```
+{code content}
+```
+```
+
+This is injected as a user-role message so the model can read it in the next iteration.
+
+### 6.5 Final Answer References
+
+Throughout the loop, every file path returned by search results is collected in `consultedFilePaths`. When the loop produces a `Final Answer`, `buildSortedReferences()` converts this set to a sorted `string[]`, which is stored as `AssistantMessagePayload.references` in the session. This provides traceable provenance for the answer without embedding file paths in the visible response text.
+
+### 6.6 llama.cpp Inference Parameters
 
 #### `temperature` (default: `0.2`)
 
-Controls the probability distribution sharpness at each token sampling step.
+Controls probability distribution sharpness during token sampling:
 
 ```
-Logits → SoftMax(logits / temperature) → sampling distribution
+P(token) = softmax(logits / temperature)
 ```
 
-| Value | Effect on code generation |
+| Value | Behaviour |
 |---|---|
-| `0.0` | Greedy decoding — always picks the highest probability token. Fully deterministic, but can loop or produce overly repetitive code. |
-| `0.1–0.3` (recommended) | Near-deterministic. Appropriate for code navigation and explanation tasks where syntactic correctness matters. |
-| `0.7–1.0` | High creativity. Increases the probability of syntactically invalid or hallucinated API calls. Avoid for code-focused assistants. |
-| `> 1.0` | Flat distribution approaching uniform sampling. Output becomes incoherent. |
-
-**Recommendation:** Keep `temperature ≤ 0.3` for code-related queries. `0.2` is the validated default.
+| `0.0` | Greedy decoding — always picks highest probability token; deterministic but may loop |
+| `0.1–0.3` | Near-deterministic; recommended for code navigation and structured output |
+| `0.7–1.0` | High entropy; increases syntactic errors and hallucinated API calls |
+| `> 1.0` | Approaches uniform distribution; output incoherent |
 
 #### `maxTokens` (default: `2048`)
 
-Maximum number of tokens the model may generate in a single response. Does **not** include the input tokens.
-
-Setting this too high relative to `n_ctx` will cause the combined input + output to overflow the context window. Rule of thumb:
+Maximum tokens the model may generate in a single response. Does not include input tokens. Rule of thumb:
 
 ```
-maxTokens ≤ n_ctx - (input_tokens_estimate)
+maxTokens ≤ n_ctx - estimated_input_tokens
 ```
 
-#### Stop Tokens (model-dependent)
+Setting this too close to `n_ctx` while the conversation history is long will cause the combined input + output to overflow the context window.
 
-Stop tokens instruct the model to cease generation when encountered. In llama.cpp with Jinja template mode (`--jinja`), the chat template defined in the model's metadata handles `<|im_end|>`, `</s>`, and other model-specific stop sequences automatically. The extension does not manually inject stop tokens in the request body — it relies on the model's built-in chat template.
+#### `contextSize` (`--ctx-size`, default: `16384`)
 
-**Anti-infinite-generation safeguard:** `maxTokens` (enforced by llama.cpp server) is the primary hard stop.
-
-### 6.4 RAG vs Specific Files Mode Decision
+The physical token budget of the model. All inputs and outputs must fit within this window.
 
 ```
-attachedFiles analysis by ResolveContextStrategyUseCase:
-
-  ┌──────────────────────────────────────────────────────┐
-  │  attachedFiles: []  (empty)                          │
-  │  → hasExplicitFileContext = false                    │
-  │  → hasRepositoryAttachment = true  (implicit)        │
-  │  → shouldUseRepositoryScope = true                   │
-  │  → MODE: RAG                                         │
-  └──────────────────────────────────────────────────────┘
-
-  ┌──────────────────────────────────────────────────────┐
-  │  attachedFiles: [{ isAutomatic: true }]  (editor ctx)│
-  │  → isAutomatic = true treated as explicit file       │
-  │  → hasExplicitFileContext = true                     │
-  │  → hasRepositoryAttachment = false                   │
-  │  → shouldUseRepositoryScope = false                  │
-  │  → MODE: Specific Files                              │
-  └──────────────────────────────────────────────────────┘
-
-  ┌──────────────────────────────────────────────────────┐
-  │  attachedFiles: [{ isRepository: true }, { isRepository: false }]│
-  │  → hasExplicitFileContext = true  (non-repo file present)        │
-  │  → hasRepositoryAttachment = true (repo file present)            │
-  │  → shouldUseRepositoryScope = true                               │
-  │  → MODE: RAG  (repository wins when both are present)            │
-  └──────────────────────────────────────────────────────┘
+n_ctx budget breakdown (approximate):
+┌──────────────────────────────────────────────────┐
+│  system prompt            ~100–500 tokens        │
+│  session history          variable (grows)       │
+│  RAG context block        variable (per query)   │
+│  current user prompt      ~50–200 tokens         │
+│  generated response       up to maxTokens        │
+├──────────────────────────────────────────────────┤
+│  TOTAL must be ≤ n_ctx                           │
+└──────────────────────────────────────────────────┘
 ```
+
+As session history grows, the effective space for new content shrinks. Memory pruning (§7) mitigates this automatically.
+
+#### Stop tokens
+
+The extension does not inject stop tokens manually. With `--jinja` enabled, llama.cpp applies the chat template embedded in the model file (e.g., `<|im_end|>` for Qwen models, `</s>` for others), which defines the stop conditions. `maxTokens` is the hard upper bound enforced server-side.
 
 ---
 
-## 7. Cross-Cutting Concerns
+## 7. Memory Pruning
 
-### 7.1 Logging
+`MemoryPruningUseCase` runs before every LLM call inside the ReAct loop to prevent context window overflow.
 
-`OutputLogger` (`adapters/logging/outputLogger.ts`) wraps a VS Code `OutputChannel`. All log calls are scoped:
+### 7.1 Trigger
+
+```
+safetyThreshold = llamaChat.memory.safetyThreshold   (default: 6500 tokens)
+
+if countTokens(workingMessages) > safetyThreshold:
+    pruneMessages(workingMessages)
+```
+
+### 7.2 Pruning Strategy
+
+Target after pruning: `floor(safetyThreshold × 0.6)` tokens.
+
+```
+preservationIndices = {
+  0 if messages[0] is SystemMessage (preserveSystemPrompt = true),
+  [len-preserveRecentMessagesCount .. len-1]  (default: last 2 messages)
+}
+
+prunedMessages = messages.filter(i in preservationIndices)
+
+for i from (len - preserveRecentMessagesCount - 1) down to 0:
+  if i in preservationIndices: skip
+  if message is observation (starts with "Observation:" or "Tool:"):
+    try truncating to "[Code snippet truncated to save memory]"
+    if fits in targetTokenCount: prepend truncated version
+  else:
+    if fits in targetTokenCount: prepend full message
+    else: break
+  if currentTokens <= targetTokenCount: break
+```
+
+**What is always preserved:**
+
+1. System prompt (if `preserveSystemPrompt = true`)
+2. The most recent `preserveRecentMessagesCount` messages (default: 2)
+
+**What gets truncated first:** observation messages (search results) are truncated rather than removed outright, since they may contain structural context. Non-observation messages are kept whole or dropped.
+
+### 7.3 Token Counting
+
+Token counting uses `js-tiktoken` with the `cl100k_base` encoding (the same encoding used by GPT-4 and similar models; appropriate for code-heavy content). A synchronous `require()`-based path is used inside the ReAct loop to avoid async overhead on every iteration. A char-based fallback (`1 token ≈ 4 chars`) activates if tiktoken fails to load.
+
+---
+
+## 8. Data Model: Session Objects
+
+### 8.1 Core Types
 
 ```typescript
-logger.debug('rag', 'Resolved prompt context source', { ragSnippets: 3 });
-logger.info('rag', 'Repository indexing completed', { indexedFiles: 142 });
-logger.warn('rag', 'ChromaDB unavailable');
-logger.error('llama', 'Stream failed', error);
+interface ChatSession {
+    id: string;
+    title: string;
+    createdAt: number;
+    messages: ChatMessage[];
+}
+
+interface ChatMessage {
+    role: 'user' | 'assistant' | 'system';
+    content: string | UserMessagePayload | AssistantMessagePayload;
+}
+
+interface UserMessagePayload {
+    text: string;
+    filesMetadata: FileMetadata[];
+}
+
+interface AssistantMessagePayload {
+    text: string;
+    time: string;
+    tokens: number;
+    references?: string[];
+}
+
+interface FileMetadata {
+    name: string;
+    content: string;
+    isAutomatic: boolean;
+    isRepository?: boolean;
+}
 ```
 
-Debug output is suppressed unless `llamaChat.chat.debug = true`. When enabled, runtime metrics (token counts, latency, RAG snippet counts) are logged every request.
+`references` on `AssistantMessagePayload` is populated by the ReAct loop with the sorted list of file paths consulted during retrieval. It is stored in the session but not rendered in the UI.
 
-### 7.2 Abort / Cancellation
+### 8.2 Session Lifecycle
 
-`AbortSignal` is threaded through the entire use case execution chain:
+Sessions are created on the first user message and persist across VS Code restarts in `globalState['llamaChatSessions']`. Each session stores its complete message history including file metadata. On deletion, the session is filtered from the stored array.
+
+### 8.3 UI State (in-memory only)
+
+`ChatUiState` tracks active tab, accordion states, current session ID, and RAG index state. It is held in memory in `webviewProvider.ts` and pushed to the Webview on every relevant mutation. It is not persisted.
+
+---
+
+## 9. Cross-Cutting Concerns
+
+### 9.1 Logging
+
+`OutputLogger` wraps a VS Code `OutputChannel`. Specialized methods are provided and used at the adapter level:
+
+```typescript
+logger.logHttpRequest('POST', url, 'llama.http');
+logger.logHttpResponse('POST', url, 200, durationMs, 'llama.http');
+logger.logChromaDbOperation('query.dispatch', { collectionId, maxResults });
+```
+
+Standard levels:
+
+```typescript
+logger.debug('rag', '...', details);   // only when debug = true
+logger.info('rag', '...',  details);
+logger.warn('rag', '...',  details);
+logger.error('rag', '...', error);
+```
+
+Debug output is suppressed unless `llamaChat.chat.debug = true`.
+
+### 9.2 Abort / Cancellation
+
+`AbortSignal` is threaded through the entire execution chain:
 
 ```
-webviewProvider (user cancels)
-  → AbortController.abort()
+webviewProvider → AbortController.abort()
   → GenerateAssistantReplyUseCase.execute({ abortSignal })
-      → this.throwIfAborted(signal)  (checked after each async boundary)
-      → RagGateway.queryByMode(..., signal)
+      → throwIfAborted(signal) at each async boundary
+      → RagGateway.query(..., signal)
       → LlamaGateway.streamResponse(..., signal)
-          → fetch(..., { signal })  (native browser/Node abort)
+          → fetch(..., { signal })
 ```
 
-### 7.3 Security: Content Security Policy
+The ReAct loop checks `input.abortSignal?.aborted` at the top of each iteration.
 
-The Webview HTML is served with a strict CSP header set by `webviewResources.ts`:
+### 9.3 Security: Content Security Policy
+
+The Webview HTML is served with a strict CSP:
 
 ```
-Content-Security-Policy:
-  default-src 'none';
-  script-src  {nonce};
-  style-src   {webview.cspSource};
-  img-src     {webview.cspSource} data:;
+default-src 'none';
+script-src  {webview.cspSource} 'nonce-{random16bytes}';
+style-src   {webview.cspSource};
+img-src     {webview.cspSource} data:;
+object-src  'none';
+base-uri    'none';
+frame-src   'none';
+worker-src  'none';
+form-action 'none';
 ```
 
-All scripts loaded in the Webview carry a per-load cryptographic nonce. Inline scripts without the nonce are blocked by the browser engine.
+All scripts (including DOMPurify, marked, Prism, and `webview.js`) are loaded with the per-load nonce. Inline scripts are blocked. All user-facing Markdown output is sanitized by DOMPurify before assignment to `innerHTML`.
 
-### 7.4 Dependency Injection
+Message passing is validated bidirectionally:
+- Backend: `isIncomingWebviewMessage()` validates type and shape of every incoming message.
+- Frontend: `isValidIncomingMessage()` validates every message from the backend against a schema map.
 
-All use cases receive their dependencies via constructor injection. The wiring is performed in `extension.ts` at activation time:
+### 9.4 Dependency Injection
 
-```typescript
-// extension.ts (simplified)
-const logger         = new OutputLogger(context);
-const sessionAdapter = new SessionAdapter(context);
-const llamaAdapter   = new LlamaAdapter();
-const chromaAdapter  = new ChromaAdapter();
-const contextStrategyUseCase = new ResolveContextStrategyUseCase();
-
-const generateReplyUseCase = new GenerateAssistantReplyUseCase(
-    chromaAdapter,   // RagGateway
-    llamaAdapter,    // LlamaGateway
-    contextStrategyUseCase,
-    logger
-);
-
-const indexUseCase = new IndexWorkspaceUseCase(
-    chromaAdapter,   // RepositoryIndexGateway
-    chromaAdapter,   // RagGateway
-    logger
-);
-```
-
-This design makes all use cases **unit-testable in isolation** by substituting mock gateway implementations.
+All use cases receive their dependencies via constructor injection. Wiring is performed in `extension.ts` at activation time. This makes all use cases unit-testable by substituting mock gateway implementations.
 
 ---
 
-## 8. Dependency Graph
+## 10. Dependency Graph
 
 ```
 extension.ts
 │
 ├── webviewProvider.ts (LlamaChatViewProvider)
 │   ├── core/usecases/generateAssistantReplyUseCase.ts
-│   │   ├── core/gateways/ragGateway.ts          ← impl: adapters/chroma/chromaAdapter.ts
-│   │   ├── core/gateways/llamaGateway.ts         ← impl: adapters/llama/llamaAdapter.ts
-│   │   ├── core/usecases/resolveContextStrategyUseCase.ts
-│   │   ├── helpers/promptContextBuilder.ts
-│   │   │   └── core/domain/promptTemplate.ts
+│   │   ├── core/usecases/resolveConversationFlowUseCase.ts
+│   │   ├── core/usecases/runReactAgentConversationUseCase.ts
+│   │   │   ├── core/usecases/llamaChatAgentSearchUseCase.ts
+│   │   │   │   └── core/gateways/ragGateway.ts  ← impl: adapters/chroma/chromaAdapter.ts
+│   │   │   ├── core/usecases/memoryPruningUseCase.ts
+│   │   │   │   ├── core/domain/memoryConfig.ts
+│   │   │   │   └── core/domain/tokenCount.ts
+│   │   │   └── utils/tokenCounter.ts
+│   │   ├── core/gateways/llamaGateway.ts  ← impl: adapters/llama/llamaAdapter.ts
+│   │   ├── helpers/conversationPromptBuilder.ts
 │   │   ├── helpers/llamaMessageBuilder.ts
 │   │   └── adapters/vscode/promptTemplateManager.ts
-│   │       └── core/domain/promptTemplate.ts
+│   │       └── core/model/promptTemplate.ts
 │   ├── core/usecases/indexWorkspaceUseCase.ts
 │   │   ├── core/gateways/repositoryIndexGateway.ts  ← impl: adapters/chroma/chromaAdapter.ts
 │   │   └── core/gateways/ragGateway.ts
 │   ├── helpers/sessionPayloadBuilder.ts
-│   ├── helpers/endpointFlowResolver.ts
-│   │   └── core/domain/workspace.ts
-│   ├── core/domain/queryIntent.ts
 │   └── adapters/vscode/sessionAdapter.ts
 │       └── core/gateways/sesionGateway.ts
 │
@@ -857,6 +824,17 @@ extension.ts
 │   └── adapters/llama/llamaServerConfig.ts
 │
 └── adapters/chroma/chromaConfig.ts
+    └── adapters/chroma/utils/
+        ├── embeddings/huggingfaceEmbedding.ts
+        ├── analysis/fileAnalyzer.ts
+        ├── analysis/ecosystemDetector.ts
+        ├── analysis/metadataBuilder.ts
+        ├── text/textSplitter.ts
+        ├── search/lexicalSearch.ts
+        ├── search/vectorSimilarity.ts
+        ├── filesystem/fileSystemUtils.ts
+        ├── chroma/chromaClient.ts
+        └── chroma/chromaCollections.ts
 ```
 
-All `core/domain/` files are leaves — they import nothing from this codebase. All `core/gateways/` files import only from `core/domain/`. This enforces the **Dependency Rule**: source code dependencies point only inward toward higher-level policies.
+All `core/model/` files are leaves — they import nothing from this codebase. All `core/gateways/` files import only from `core/model/`. This enforces the **Dependency Rule**: source code dependencies point only inward toward higher-level policies.

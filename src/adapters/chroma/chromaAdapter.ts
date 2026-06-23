@@ -11,10 +11,7 @@ import { RagGateway } from '../../core/gateways/ragGateway';
 import { RepositoryIndexGateway } from '../../core/gateways/repositoryIndexGateway';
 import { Logger } from '../vscode/outputLogger';
 
-// Import utils - embeddings
 import { computeEmbedding, createHuggingFaceEmbeddingFunction } from './utils/embeddings/huggingfaceEmbedding';
-
-// Import utils - analysis
 import { detectLanguage, classifyFileType, normalizeExtension } from './utils/analysis/fileAnalyzer';
 import { detectProjectType, getEcosystemLanguage } from './utils/analysis/ecosystemDetector';
 import {
@@ -25,21 +22,14 @@ import {
     extractJavaSymbolMetadata
 } from './utils/analysis/metadataBuilder';
 
-// Import utils - text
 import { getSplitterForFile } from './utils/text/textSplitter';
-
-// Import utils - search
 import { cosineSimilarity } from './utils/search/vectorSimilarity';
 import { normalizeFilePathFilter } from './utils/search/lexicalSearch';
-
-// Import utils - filesystem
 import {
     looksBinaryContent,
     globToRegExp,
     shouldExcludeFile,
 } from './utils/filesystem/fileSystemUtils';
-
-// Import utils - chroma
 import { getClient } from './utils/chroma/chromaClient';
 import { clearCollection, collectionExists } from './utils/chroma/chromaCollections';
 

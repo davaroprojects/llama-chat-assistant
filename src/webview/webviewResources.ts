@@ -176,12 +176,10 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     const scriptSrc = `<script nonce="${nonce}" src="${prismJsUri}"></script><script nonce="${nonce}" src="${markedJsUri}"></script><script nonce="${nonce}" src="${purifyJsUri}"></script><script nonce="${nonce}" src="${jsUri}"></script>`;
     const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">`;
 
-    // Replace all label placeholders in a single loop (replaceAll handles keys that appear multiple times)
     for (const [key, value] of Object.entries(labels)) {
         htmlContent = htmlContent.replaceAll(`{{${key}}}`, escapeHtml(value));
     }
 
-    // Replace structural placeholders — these are not HTML-escaped
     htmlContent = htmlContent.replace('{{cspMetaPlaceholder}}', cspMetaTag);
     htmlContent = htmlContent.replace('{{stylePlaceholder}}', styleLink);
     return htmlContent.replace('{{scriptPlaceholder}}', scriptSrc);

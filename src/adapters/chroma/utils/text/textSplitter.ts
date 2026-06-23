@@ -16,7 +16,6 @@ export interface ChunkWithMetadata {
 function extractKeywordEntities(text: string): string[] {
     const entities = new Set<string>();
 
-    // Class definitions
     const classMatches = text.match(/(?:class|interface|enum|struct)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g) || [];
     classMatches.forEach((match) => {
         const name = match.replace(/(?:class|interface|enum|struct)\s+/, '').trim();
@@ -25,7 +24,6 @@ function extractKeywordEntities(text: string): string[] {
         }
     });
 
-    // Function/method definitions
     const funcMatches = text.match(/(?:function|def|async|public|private|protected)?\s+(?:async\s+)?(?:\w+\s+)*(?:function)?\s*([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(/g) || [];
     funcMatches.forEach((match) => {
         const name = match.replace(/(?:function|def|async|public|private|protected|function)?\s+(?:async\s+)?(?:\w+\s+)*(?:function)?\s*/, '').replace(/\s*\(/, '').trim();
@@ -34,7 +32,6 @@ function extractKeywordEntities(text: string): string[] {
         }
     });
 
-    // Variable/constant declarations
     const varMatches = text.match(/(?:const|let|var|static)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)/g) || [];
     varMatches.forEach((match) => {
         const name = match.replace(/(?:const|let|var|static)\s+/, '').trim();
@@ -43,7 +40,6 @@ function extractKeywordEntities(text: string): string[] {
         }
     });
 
-    // Import/require statements
     const importMatches = text.match(/(?:import|from|require)\s+['""]([^'""\n]+)['""]?/g) || [];
     importMatches.forEach((match) => {
         const moduleName = match.replace(/(?:import|from|require)\s+['""]/g, '').replace(/['""].*/, '').trim();

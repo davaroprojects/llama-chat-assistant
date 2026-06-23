@@ -1,15 +1,7 @@
-/**
- * Memory management configuration adapter
- * Reads memory settings from VS Code workspace configuration
- */
-
 import * as vscode from 'vscode';
 import { MemoryManagementConfig, DEFAULT_MEMORY_MANAGEMENT_CONFIG } from '../../core/domain/memoryConfig';
 
 export class MemoryManagementConfigAdapter {
-    /**
-     * Load memory management configuration from VS Code settings
-     */
     static loadFromWorkspaceConfig(): MemoryManagementConfig {
         const workspaceConfig = vscode.workspace.getConfiguration('llamaChat.memory');
 
@@ -22,9 +14,6 @@ export class MemoryManagementConfigAdapter {
         };
     }
 
-    /**
-     * Watch for configuration changes and notify listeners
-     */
     static onConfigurationChange(callback: () => void): vscode.Disposable {
         return vscode.workspace.onDidChangeConfiguration((event) => {
             if (event.affectsConfiguration('llamaChat.memory')) {

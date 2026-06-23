@@ -1,17 +1,8 @@
-/**
- * Memory pruning use case
- * Handles automatic context window memory cleanup
- */
-
 import { BaseMessage, HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import { Logger } from '../../adapters/vscode/outputLogger';
 import { MemoryManagementConfig, isMemoryPruningNeeded, calculatePruningTarget } from '../../core/domain/memoryConfig';
 import { TokenCountConfiguration } from '../../core/domain/tokenCount';
 
-/**
- * Synchronous token counter using cached encoding
- * Relies on js-tiktoken being available as CommonJS require
- */
 function countTokensInMessagesSync(
     messages: BaseMessage[],
     encodingModel: string = 'cl100k_base'
@@ -22,7 +13,6 @@ function countTokensInMessagesSync(
         const jsTiktoken = require('js-tiktoken');
         encoding = jsTiktoken.getEncoding(encodingModel);
     } catch (error) {
-        // Fallback: estimate based on character count (rough approximation: 1 token ≈ 4 characters)
         let totalTokens = 0;
         const messageTokenCounts = new Map<number, number>();
         for (let i = 0; i < messages.length; i++) {
@@ -66,10 +56,6 @@ export class MemoryPruningUseCase {
         private readonly logger: Logger
     ) {}
 
-    /**
-     * Prune messages if token count exceeds threshold
-     * Returns cleaned message history respecting constraints
-     */
     execute(messages: BaseMessage[]): { messages: BaseMessage[]; result: MemoryPruningResult } {
         const originalMessageCount = messages.length;
         const tokenCountResult = countTokensInMessagesSync(messages, this.tokenCountConfig.encodingModel);
@@ -131,25 +117,19 @@ export class MemoryPruningUseCase {
         };
     }
 
-    /**
-     * Prune old observation messages while preserving critical context
-     */
     private pruneMessages(messages: BaseMessage[]): BaseMessage[] {
         if (messages.length === 0) {
             return messages;
         }
 
-        // Identify system prompt and recent messages to preserve
         const preservationIndices = this.getIndicesToPreserve(messages);
         const targetTokenCount = calculatePruningTarget(this.memoryConfig);
 
-        // Start with preserved messages
         const prunedMessages: BaseMessage[] = messages.filter((_, index) => preservationIndices.has(index));
 
-        // Add messages from the middle backward until we reach target tokens
         for (let i = messages.length - this.memoryConfig.preserveRecentMessagesCount - 1; i >= 0; i--) {
             if (preservationIndices.has(i)) {
-                continue; // Already included
+                continue;
             }
 
             const currentMessage = messages[i];
@@ -164,18 +144,16 @@ export class MemoryPruningUseCase {
                     prunedMessages.unshift(truncatedMessage);
                 }
             } else {
-                // For non-observation messages, keep them if they fit
                 const candidateMessages = [currentMessage, ...prunedMessages];
                 const candidateTokens = countTokensInMessagesSync(candidateMessages, this.tokenCountConfig.encodingModel).totalTokens;
 
                 if (candidateTokens <= targetTokenCount) {
                     prunedMessages.unshift(currentMessage);
                 } else {
-                    break; // Stop if we exceed target
+                    break;
                 }
             }
 
-            // Check if we've reached target
             const currentTokens = countTokensInMessagesSync(prunedMessages, this.tokenCountConfig.encodingModel).totalTokens;
             if (currentTokens <= targetTokenCount) {
                 break;
@@ -185,18 +163,13 @@ export class MemoryPruningUseCase {
         return prunedMessages;
     }
 
-    /**
-     * Get indices of messages that should always be preserved
-     */
     private getIndicesToPreserve(messages: BaseMessage[]): Set<number> {
         const indices = new Set<number>();
 
-        // Preserve system prompt
         if (this.memoryConfig.preserveSystemPrompt && messages[0] instanceof SystemMessage) {
             indices.add(0);
         }
 
-        // Preserve recent messages
         const recentStartIndex = Math.max(0, messages.length - this.memoryConfig.preserveRecentMessagesCount);
         for (let i = recentStartIndex; i < messages.length; i++) {
             indices.add(i);
@@ -205,17 +178,11 @@ export class MemoryPruningUseCase {
         return indices;
     }
 
-    /**
-     * Check if message is an observation (typically from tool calls)
-     */
     private isObservationMessage(message: BaseMessage): boolean {
         const content = typeof message.content === 'string' ? message.content : '';
         return content.startsWith('Observation:') || content.startsWith('Tool:');
     }
 
-    /**
-     * Truncate observation message content
-     */
     private truncateMessage(message: BaseMessage): BaseMessage {
         if (message instanceof HumanMessage) {
             return new HumanMessage({

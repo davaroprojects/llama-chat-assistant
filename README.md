@@ -4,7 +4,7 @@
 
 **prrrrr** is a VS Code extension that brings AI-powered code intelligence directly into your editor — running entirely on your local machine, with no data leaving your environment.
 
-Chat with your codebase, explore execution flows, and retrieve semantically relevant context using [llama.cpp](https://github.com/ggerganov/llama.cpp) as the LLM backend and [ChromaDB](https://www.trychroma.com/) as the vector store. Whether you are navigating an unfamiliar project or designing a new feature, prrrrr gives you an always-available AI assistant that understands your code, your way.
+Chat with your codebase, explore execution flows, and retrieve semantically relevant context using [llama.cpp](https://github.com/ggerganov/llama.cpp) as the LLM backend and [ChromaDB](https://www.trychroma.com/) as the vector store.
 
 ---
 
@@ -19,20 +19,16 @@ Chat with your codebase, explore execution flows, and retrieve semantically rele
 - **Integrated llama.cpp server launcher** — start, stop and monitor the inference server from within the extension panel.
 - **Customizable prompt templates** — override RAG and specific-files prompt structures from `settings.json`.
 - **Token usage tracking** — live token counter reads the model's context window directly from `GET /props`.
+- **Memory pruning** — automatic context window management trims old messages when the token budget is exceeded.
 - **Debug mode** — verbose logs and runtime metrics available on demand.
 
 ---
 
 ## 🔧 Prerequisites
 
-Before installing prrrrr, ensure the following services are available:
-
 ### 1. llama.cpp server
 
-Build llama.cpp with server support, or download a pre-built binary, and have it ready to run:
-
 ```bash
-# Example: build from source
 git clone https://github.com/ggerganov/llama.cpp
 cd llama.cpp
 cmake -B build -DLLAMA_CURL=ON
@@ -43,8 +39,6 @@ You will also need a compatible GGUF model (e.g. `qwen2.5-coder-7b-instruct-q4_k
 
 ### 2. ChromaDB
 
-ChromaDB must be running and reachable on the network. The recommended approach is Docker:
-
 ```bash
 docker run -d \
   --name chromadb \
@@ -52,7 +46,7 @@ docker run -d \
   chromadb/chroma:latest
 ```
 
-Alternatively, install via pip:
+Or via pip:
 
 ```bash
 pip install chromadb
@@ -61,9 +55,7 @@ chroma run --path ./chroma-data --port 8000
 
 ### 3. VS Code
 
-| Requirement | Minimum version |
-|---|---|
-| Visual Studio Code | `1.120.0` |
+Minimum version: `1.120.0`.
 
 ---
 
@@ -72,9 +64,8 @@ chroma run --path ./chroma-data --port 8000
 ### From the VS Code Marketplace
 
 1. Open VS Code.
-2. Press `Ctrl+Shift+X` (or `Cmd+Shift+X` on macOS) to open the Extensions view.
-3. Search for **prrrrr**.
-4. Click **Install**.
+2. Press `Ctrl+Shift+X` to open the Extensions view.
+3. Search for **prrrrr** and click **Install**.
 
 ### From a `.vsix` file
 
@@ -82,35 +73,20 @@ chroma run --path ./chroma-data --port 8000
 code --install-extension prrrrr-0.0.1.vsix
 ```
 
-Or via the Extensions view: click the `...` menu → **Install from VSIX…** and select the file.
-
 ---
 
 ## ⚙️ Configuration
-
-Open your VS Code `settings.json` (`Ctrl+Shift+P` → **Preferences: Open User Settings (JSON)**) and add the following blocks as needed.
 
 ### llama.cpp Connection
 
 ```jsonc
 {
-  // Path to the llama-server binary
   "llamaChat.llamaCpp.executablePath": "./build/bin/llama-server",
-
-  // Path to the GGUF model file
   "llamaChat.llamaCpp.modelPath": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
-
-  // Inference server host and port
   "llamaChat.llamaCpp.host": "127.0.0.1",
   "llamaChat.llamaCpp.port": 8033,
-
-  // GPU layers to offload (-1 = all, 0 = CPU only)
   "llamaChat.llamaCpp.gpuLayers": 99,
-
-  // Context window size in tokens
   "llamaChat.llamaCpp.contextSize": 16384,
-
-  // Enable flash attention (recommended)
   "llamaChat.llamaCpp.flashAttention": true
 }
 ```
@@ -121,22 +97,14 @@ Open your VS Code `settings.json` (`Ctrl+Shift+P` → **Preferences: Open User S
 {
   "llamaChat.chromaDb.url": "http://127.0.0.1",
   "llamaChat.chromaDb.port": 8000,
-
-  // Directories to skip when indexing
   "llamaChat.chromaDb.excludeDirs": [
     ".git", "node_modules", "dist", "out", "build", "coverage", "target", ".vscode"
   ],
-
-  // File patterns to skip
   "llamaChat.chromaDb.excludeFileGlobs": ["**/*.bin", "**/*.class", "**/*.jar", "**/*.lock"],
-
-  // Indexing limits
   "llamaChat.chromaDb.maxFileSizeKb": 512,
   "llamaChat.chromaDb.maxIndexedFiles": 2000,
   "llamaChat.chromaDb.chunkSizeChars": 2000,
   "llamaChat.chromaDb.chunkOverlapChars": 300,
-
-  // Query tuning
   "llamaChat.chromaDb.vectorCandidatePool": 50,
   "llamaChat.chromaDb.maxQueryResults": 12,
   "llamaChat.chromaDb.minCosineSimilarity": 0.2
@@ -150,10 +118,18 @@ Open your VS Code `settings.json` (`Ctrl+Shift+P` → **Preferences: Open User S
   "llamaChat.chat.temperature": 0.2,
   "llamaChat.chat.maxTokens": 2048,
   "llamaChat.chat.maxAttachedFileSizeKb": 256,
-  "llamaChat.chat.debug": false,
+  "llamaChat.chat.debug": false
+}
+```
 
-  // Override the system prompt sent on every request
-  "llamaChat.chat.systemPrompt": "You are a Principal Software Engineer..."
+### Memory Management
+
+```jsonc
+{
+  "llamaChat.memory.contextWindowSize": 8192,
+  "llamaChat.memory.safetyThreshold": 6500,
+  "llamaChat.memory.preserveSystemPrompt": true,
+  "llamaChat.memory.preserveRecentMessagesCount": 2
 }
 ```
 
@@ -168,13 +144,28 @@ Open your VS Code `settings.json` (`Ctrl+Shift+P` → **Preferences: Open User S
 | `llamaChat.llamaCpp.gpuLayers` | `99` | GPU layers to offload |
 | `llamaChat.llamaCpp.contextSize` | `16384` | Context window in tokens |
 | `llamaChat.llamaCpp.flashAttention` | `true` | Enable flash attention |
+| `llamaChat.llamaCpp.chatCompletionsPath` | `/v1/chat/completions` | Chat endpoint path |
+| `llamaChat.llamaCpp.jinja` | `true` | Enable `--jinja` flag |
+| `llamaChat.llamaCpp.tools` | `all` | Value passed to `--tools` |
 | `llamaChat.chromaDb.url` | `http://127.0.0.1` | ChromaDB base URL |
 | `llamaChat.chromaDb.port` | `8000` | ChromaDB port |
+| `llamaChat.chromaDb.excludeDirs` | see defaults | Folders skipped during indexing |
+| `llamaChat.chromaDb.excludeFileGlobs` | `["**/*.bin", ...]` | File patterns skipped during indexing |
 | `llamaChat.chromaDb.maxFileSizeKb` | `512` | Max file size to index (KB) |
-| `llamaChat.chromaDb.maxIndexedFiles` | `2000` | Max files per index run |
+| `llamaChat.chromaDb.maxIndexedFiles` | `2000` | Max chunks/files per index run |
+| `llamaChat.chromaDb.chunkSizeChars` | `2000` | Chunk size in characters |
+| `llamaChat.chromaDb.chunkOverlapChars` | `300` | Chunk overlap in characters |
+| `llamaChat.chromaDb.vectorCandidatePool` | `50` | Candidate pool for semantic retrieval |
+| `llamaChat.chromaDb.maxQueryResults` | `12` | Max results returned per query |
+| `llamaChat.chromaDb.minCosineSimilarity` | `0.2` | Minimum cosine similarity threshold |
 | `llamaChat.chat.temperature` | `0.2` | Generation temperature |
 | `llamaChat.chat.maxTokens` | `2048` | Max tokens per response |
 | `llamaChat.chat.debug` | `false` | Enable verbose logs |
+| `llamaChat.chat.maxAttachedFileSizeKb` | `256` | Max size for manually attached files |
+| `llamaChat.memory.contextWindowSize` | `8192` | Total context window token budget |
+| `llamaChat.memory.safetyThreshold` | `6500` | Token threshold that triggers pruning |
+| `llamaChat.memory.preserveSystemPrompt` | `true` | Keep system prompt during pruning |
+| `llamaChat.memory.preserveRecentMessagesCount` | `2` | Recent messages always preserved during pruning |
 
 ---
 
@@ -182,7 +173,7 @@ Open your VS Code `settings.json` (`Ctrl+Shift+P` → **Preferences: Open User S
 
 ### Step 1 — Start the llama.cpp server
 
-You can start it manually or use the **Start Server** button in the extension panel:
+Click **Start Server** in the extension panel, or run manually:
 
 ```bash
 ./build/bin/llama-server \
@@ -199,32 +190,32 @@ You can start it manually or use the **Start Server** button in the extension pa
 Open the prrrrr panel in the Activity Bar and click **Index Workspace**. The extension will:
 
 1. Walk your project files (respecting `excludeDirs` and `excludeFileGlobs`).
-2. Chunk file contents and compute vector embeddings.
-3. Store everything in ChromaDB under a workspace-specific collection.
+2. Chunk file contents into overlapping segments.
+3. Compute 384-dimensional vector embeddings using `Xenova/all-MiniLM-L6-v2` (runs locally via `@huggingface/transformers`, ~22 MB cached).
+4. Store everything in ChromaDB under a workspace-specific collection.
 
-> **Tip:** Re-index after significant refactors to keep context fresh.
+> Re-index after significant refactors to keep context fresh.
 
 ### Step 3 — Ask questions about your code
 
-Type your question in the chat input and press **Enter** (or click **Send**). Examples:
-
 ```
 Where is the payment processing flow initiated?
-```
-
-```
 Which services depend on UserRepository?
-```
-
-```
 Explain the authentication middleware chain.
 ```
 
-The model retrieves the most relevant code fragments from ChromaDB, injects them as context, and streams the response with Markdown formatting.
+The extension selects a conversation flow automatically:
+
+| Condition | Flow | Behaviour |
+|---|---|---|
+| No files attached, RAG enabled | `GLOBAL_REACT_AGENT` | ReAct loop iteratively searches ChromaDB |
+| Files attached, RAG enabled | `DEEP_REACT_AGENT` | ReAct loop starts from attached files, expands dependencies via ChromaDB |
+| Files attached, RAG disabled | `LOCAL_RAG` | Isolated analysis of attached code, no retrieval |
+| No files, RAG disabled | `DIRECT_LLM` | Plain chat with model knowledge only |
 
 ### Step 4 — Attach specific files
 
-Click the **Attach** button (📎) to add individual files to the context for a targeted question:
+Click the **Attach** button (📎) to add individual files to the context:
 
 ```
 [config.yml attached] What environment variables does this service require?
@@ -236,31 +227,22 @@ Click the **Attach** button (📎) to add individual files to the context for a 
 |---|---|
 | Send message | `Enter` |
 | New line in input | `Shift+Enter` |
-| Open prrrrr panel | *(set via VS Code keybindings)* |
 
 ---
 
 ## 🖥️ Interface
 
-prrrrr adds a **sidebar panel** to the VS Code Activity Bar with three tabs:
+prrrrr adds a sidebar panel with three tabs:
 
 | Tab | Description |
 |---|---|
-| **Chat** | Main conversational interface. Displays streamed responses with Markdown rendering and a live token counter. |
-| **Settings** | Quick-access form for the most common configuration values (server paths, ports, temperature). Changes are written directly to `settings.json`. |
-| **About** | Extension version, links and diagnostic information. |
-
-The panel also exposes:
-
-- **Server status indicator** — shows whether llama.cpp is running and reachable.
-- **Session list** — persistent conversation history; click any session to restore it.
-- **Context badge** — displays the active file/selection being injected. Click to dismiss.
+| **Chat** | Main conversational interface with streamed Markdown responses and live token counter. |
+| **Settings** | Quick-access panel for server and ChromaDB configuration. |
+| **About** | Extension version and diagnostic information. |
 
 ---
 
 ## 🛠️ Customizing Prompt Templates
-
-Both RAG and specific-files modes support full template overrides via `settings.json`.
 
 **RAG mode** (`llamaChat.chat.ragModeTemplate`):
 
@@ -302,120 +284,33 @@ Both RAG and specific-files modes support full template overrides via `settings.
 }
 ```
 
+The four conversation mode templates (`directLlmTemplate`, `globalReactTemplate`, `localRagTemplate`, `deepReactTemplate`) accept `systemPrompt` and `userPrompt` string keys for full override.
+
+Legacy Spanish keys (`modoEjecucion`, `archivosObjetivo`, `contextoRecuperado`, `consulta`) are accepted for backward compatibility.
+
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome. Please follow these steps:
-
-1. **Fork** the repository and create a feature branch: `git checkout -b feat/my-feature`.
-2. **Install dependencies**: `npm install`.
-3. **Run the build in watch mode**: `npm run watch` (compiles TypeScript + ESBuild).
-4. **Run tests**: `npm test`.
-5. **Validate the build**: `npm run compile` must exit with code `0` before submitting a PR.
-6. Open a **Pull Request** against `main` with a clear description of the change.
+1. Fork the repository and create a feature branch.
+2. Install dependencies: `npm install`.
+3. Run the build in watch mode: `npm run watch`.
+4. Run tests: `npm test`.
+5. Validate the build: `npm run compile` must exit with code `0`.
+6. Open a Pull Request against `main`.
 
 ### Code conventions
 
-- TypeScript strict mode is enforced — no `any`, no implicit `unknown`.
+- TypeScript strict mode is enforced.
 - All new logic must include unit tests under `src/test/` mirroring the source structure.
-- ESLint rules must pass — run `npm run lint` before committing.
-
----
-
-## 📄 License
-
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for full text.
-
----
-
-> Built with ❤️ for developers who value privacy, performance and full control over their toolchain.
-
-## Features
-
-- Token streaming with incremental markdown rendering.
-- Manual file attachment to context.
-- Automatic editor context capture:
-  - If there is a selection, only the selection is used (`file.ts:8-10`).
-  - If there is no selection, the full file is used.
-  - Removing the automatic context badge suppresses it until the editor is interacted with again.
-- Persistent session history in VS Code `globalState`.
-
-## Requirements
-
-- An endpoint compatible with `POST /v1/chat/completions` and `stream: true`.
-- VS Code `^1.120.0`.
-
-## Configuration
-
-| Setting | Default | Description |
-|---|---|---|
-| `llamaChat.chat.temperature` | `0.2` | Generation temperature |
-| `llamaChat.chat.systemPrompt` | *(built-in)* | System prompt |
-| `llamaChat.chat.debug` | `false` | Enable verbose logs and runtime metrics every 10 requests |
-| `llamaChat.chat.maxAttachedFileSizeKb` | `256` | Max size in KB for manually attached files |
-| `llamaChat.llamaCpp.host` | `127.0.0.1` | llama.cpp host |
-| `llamaChat.llamaCpp.port` | `8033` | llama.cpp port |
-| `llamaChat.chromaDb.url` | `http://127.0.0.1` | ChromaDB URL |
-| `llamaChat.chromaDb.port` | `8000` | ChromaDB port |
-
-Token counter total is not configurable: it is always read from llama.cpp `GET /props` (`n_ctx`).
-
-### Customizable Prompt Templates
-
-You can customize the execution mode prompts for both **RAG (Global Analysis)** and **Specific Files** modes through VS Code settings. Templates support variable interpolation:
-
-**RAG Mode Template** (`chat.ragModeTemplate`):
-```json
-{
-  "executionMode": {
-    "header": "<modo_ejecucion>",
-    "scope": "SCOPE: ...",
-    "instruction": "You are given multiple retrieved fragments..."
-  },
-  "retrievedContext": {
-    "header": "<retrieved_context>",
-    "footer": "</retrieved_context>",
-    "fragmentFormat": "Fragment {index} | Source: {path}{distance}\n```\n{content}\n```"
-  },
-  "query": {
-    "label": "User Query: {prompt}"
-  }
-}
-```
-
-**Specific Files Mode Template** (`chat.specificFilesModeTemplate`):
-```json
-{
-  "executionMode": {
-    "header": "<modo_ejecucion>",
-    "scope": "SCOPE: Selected Specific Files...",
-    "instruction": "Analyze only the code provided inside target tags..."
-  },
-  "targetFiles": {
-    "header": "<target_files>",
-    "footer": "</target_files>",
-    "fileFormat": "File: {name}\nType: {type}\nExtension: {extension}\n```\n{content}\n```"
-  },
-  "query": {
-    "label": "User Query: {prompt}"
-  }
-}
-```
-
-Add these to your VS Code `settings.json` under `llamaChat.chat` scope to override defaults.
-Legacy Spanish keys are still accepted for backward compatibility.
-## File attachment rules
-
-- All attachments live in a single array: `{ name, content, isAutomatic }`.
-- No distinction between manual and automatic in session storage or prompts.
-- Previous messages retain their file context in the llama request history.
+- ESLint rules must pass.
+- No comments in source code.
 
 ---
 
 ## Data structures
 
-### Session storage (VS Code `globalState` key: `llamaChatSessions`)
+### Session storage (`globalState` key: `llamaChatSessions`)
 
 ```json
 [
@@ -431,7 +326,7 @@ Legacy Spanish keys are still accepted for backward compatibility.
           "filesMetadata": [
             {
               "name": "stream.ts:8-10",
-              "content": "const reader = body.getReader();\nconst decoder = new TextDecoder();\nlet buffer = '';",
+              "content": "const reader = body.getReader();",
               "isAutomatic": true
             }
           ]
@@ -452,24 +347,16 @@ Legacy Spanish keys are still accepted for backward compatibility.
 
 ### Request sent to llama.cpp
 
-History messages are reconstructed with their original file context. The current message receives the same treatment.
-
 ```json
 {
   "model": "local",
   "messages": [
-    {
-      "role": "system",
-      "content": "Return answers directly. If you generate code, wrap it in markdown blocks."
-    },
+    { "role": "system", "content": "You are a Principal Software Engineer..." },
     {
       "role": "user",
-      "content": "--- ATTACHED FILE: stream.ts:8-10 ---\nconst reader = body.getReader();\nconst decoder = new TextDecoder();\nlet buffer = '';\n--- END FILE ---\n\nUser instruction:\nHow does streaming work?"
+      "content": "--- ATTACHED FILE: stream.ts:8-10 ---\nconst reader = body.getReader();\n--- END FILE ---\n\nUser instruction:\nHow does streaming work?"
     },
-    {
-      "role": "assistant",
-      "content": "Streaming works by reading chunks from the response body..."
-    },
+    { "role": "assistant", "content": "Streaming works by reading chunks..." },
     {
       "role": "user",
       "content": "--- ATTACHED FILE: stream.ts ---\nfull file content here\n--- END FILE ---\n\nUser instruction:\nCan you explain the buffer logic?"
@@ -483,20 +370,12 @@ History messages are reconstructed with their original file context. The current
 
 ### llama.cpp server props (`GET /props`)
 
-The extension stores the full response payload for future use and currently reads `n_ctx` for the token counter.
-
 ```json
 {
   "model_path": "/models/qwen2.5-coder-7b-instruct-q8_0.gguf",
-  "chat_template": "<|im_start|>{{ role }}\n{{ content }}<|im_end|>",
   "n_ctx": 32768,
   "n_ctx_train": 131072,
-  "n_embd": 4096,
-  "n_layer": 32,
-  "n_head": 32,
-  "rope_freq_base": 10000,
-  "rope_freq_scale": 1,
-  "quantization": "Q8_0"
+  "n_embd": 4096
 }
 ```
 
@@ -512,12 +391,16 @@ npm run test      # run unit tests
 
 ## Tests
 
-Unit tests cover:
+Unit tests cover: session relative time, editor context labels, payload deduplication, prompt template normalization, token counting and memory pruning thresholds, LlamaAdapter server props extraction, EndpointFlowResolver DFS traversal.
 
-- Session relative time calculation.
-- Editor context label generation (selection range vs full file).
-- Payload deduplication and neutral attachment labels.
+## 📄 License
+
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for full text.
 
 ## Third-Party Notice
 
 - This project includes DOMPurify (`media/purify.min.js`) under the Apache-2.0 / MPL-2.0 dual license.
+
+---
+
+> Built with ❤️ for developers who value privacy, performance and full control over their toolchain.

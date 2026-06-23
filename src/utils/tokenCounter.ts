@@ -1,8 +1,3 @@
-/**
- * Token counter utility
- * Converts chat messages to tokens and counts them
- */
-
 import { BaseMessage } from '@langchain/core/messages';
 import { TokenCountResult, TokenCountConfiguration, DEFAULT_TOKEN_COUNT_CONFIGURATION } from '../core/domain/tokenCount';
 
@@ -10,9 +5,6 @@ export { TokenCountConfiguration, DEFAULT_TOKEN_COUNT_CONFIGURATION };
 
 let encoding: any = null;
 
-/**
- * Initialize the encoding lazily
- */
 async function getEncodingInstance(model: string) {
     if (!encoding) {
         const jsTiktoken = await import('js-tiktoken');
@@ -21,9 +13,6 @@ async function getEncodingInstance(model: string) {
     return encoding;
 }
 
-/**
- * Extract text content from message
- */
 function extractMessageContent(content: string | object[]): string {
     if (typeof content === 'string') {
         return content;
@@ -44,10 +33,6 @@ function extractMessageContent(content: string | object[]): string {
     return '';
 }
 
-/**
- * Count tokens in a set of messages synchronously (uses cached encoding)
- * WARNING: This uses a synchronously cached encoding. First call should be awaited via countTokensInMessagesAsync
- */
 function countTokensInMessagesSync(
     messages: BaseMessage[],
     config: TokenCountConfiguration = DEFAULT_TOKEN_COUNT_CONFIGURATION
@@ -78,9 +63,6 @@ function countTokensInMessagesSync(
     };
 }
 
-/**
- * Count tokens in a set of messages (initializes encoding if needed)
- */
 export async function countTokensInMessages(
     messages: BaseMessage[],
     config: TokenCountConfiguration = DEFAULT_TOKEN_COUNT_CONFIGURATION
@@ -89,9 +71,6 @@ export async function countTokensInMessages(
     return countTokensInMessagesSync(messages, config);
 }
 
-/**
- * Count tokens in formatted conversation text (synchronous)
- */
 export function countTokensInText(
     text: string,
     config: TokenCountConfiguration = DEFAULT_TOKEN_COUNT_CONFIGURATION
@@ -105,9 +84,6 @@ export function countTokensInText(
     return tokens.length;
 }
 
-/**
- * Estimate tokens for a single message (synchronous after initialization)
- */
 export function estimateMessageTokens(
     content: string,
     config: TokenCountConfiguration = DEFAULT_TOKEN_COUNT_CONFIGURATION
@@ -115,9 +91,6 @@ export function estimateMessageTokens(
     return countTokensInText(content, config);
 }
 
-/**
- * Get token count breakdown for messages (synchronous after initialization)
- */
 export function getTokenCountBreakdown(
     messages: BaseMessage[],
     config: TokenCountConfiguration = DEFAULT_TOKEN_COUNT_CONFIGURATION
@@ -132,10 +105,6 @@ export function getTokenCountBreakdown(
     }));
 }
 
-/**
- * Ensure encoding is initialized
- * Call this once at application startup
- */
 export async function initializeTokenCounter(
     config: TokenCountConfiguration = DEFAULT_TOKEN_COUNT_CONFIGURATION
 ): Promise<void> {
