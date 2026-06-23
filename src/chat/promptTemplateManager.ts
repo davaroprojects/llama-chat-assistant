@@ -2,11 +2,11 @@ import * as vscode from 'vscode';
 import {
     RagModeTemplate,
     SpecificFilesModeTemplate,
-    DEFAULT_RAG_MODE_TEMPLATE,
-    DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE,
     normalizeRagModeTemplate,
-    normalizeSpecificFilesModeTemplate
-} from './promptTemplates';
+    normalizeSpecificFilesModeTemplate,
+    DEFAULT_RAG_MODE_TEMPLATE,
+    DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE
+} from '../core/domain/promptTemplate';
 
 export class PromptTemplateManager {
     static getRagModeTemplate(): RagModeTemplate {

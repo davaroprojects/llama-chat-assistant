@@ -113,6 +113,8 @@ const elements = {
     serverActionText: document.getElementById('server-action-text'),
     serverActionLoader: document.getElementById('server-action-loader'),
     ragActionRefreshIcon: document.getElementById('rag-action-refresh-icon'),
+    serverActionCopyIcon: document.getElementById('server-action-copy-icon'),
+    ragActionCopyIcon: document.getElementById('rag-action-copy-icon'),
     ragActionText: document.getElementById('rag-action-text'),
     ragActionLoader: document.getElementById('rag-action-loader'),
     chat: document.getElementById('chat'),
@@ -137,6 +139,41 @@ const elements = {
     contextWindowContent: document.getElementById('context-window-content'),
     attachedFilesContainer: null
 };
+
+function copyActionText(button, text) {
+    const content = String(text || '').trim();
+    if (!content) {
+        return;
+    }
+
+    navigator.clipboard.writeText(content).then(() => {
+        button.innerHTML = HTML_TEMPLATES.checkmarkIcon;
+        button.classList.add('copied');
+        setTimeout(() => {
+            button.innerHTML = HTML_TEMPLATES.copyIcon;
+            button.classList.remove('copied');
+        }, 1400);
+    }).catch((err) => console.error('Copy error:', err));
+}
+
+function buildLlamaPanelCopyText() {
+    return [
+        'Llama.cpp',
+        `Status: ${elements.llamaStatusBadge?.textContent?.trim() || 'unknown'}`,
+        `State: ${elements.serverActionText?.textContent?.trim() || '-'}`
+    ].join('\n');
+}
+
+function buildChromaPanelCopyText() {
+    return [
+        'ChromaDB',
+        `Action: ${elements.ragActionText?.textContent?.trim() || '-'}`,
+        `URL: ${elements.ragChromaUrlValue?.textContent?.trim() || '-'}`,
+        `Port: ${elements.ragChromaPortValue?.textContent?.trim() || '-'}`,
+        `Collection Prefix: ${elements.ragChromaCollectionPrefixValue?.textContent?.trim() || '-'}`,
+        `Mode: ${elements.ragChromaQueryModeValue?.textContent?.trim() || '-'}`
+    ].join('\n');
+}
 
 const labels = {
     emptyChatReadyLabel: document.body.dataset.emptyChatReadyLabel || 'Start a new session from chat',
@@ -674,8 +711,14 @@ elements.serverActionStartIcon?.addEventListener('click', () => {
 elements.serverActionStopIcon?.addEventListener('click', () => {
     requestServerStop(elements.serverActionStopIcon);
 });
+elements.serverActionCopyIcon?.addEventListener('click', () => {
+    copyActionText(elements.serverActionCopyIcon, buildLlamaPanelCopyText());
+});
 elements.ragActionRefreshIcon?.addEventListener('click', () => {
     requestRagIndex(elements.ragActionRefreshIcon);
+});
+elements.ragActionCopyIcon?.addEventListener('click', () => {
+    copyActionText(elements.ragActionCopyIcon, buildChromaPanelCopyText());
 });
 elements.backToSessionsBtn.addEventListener('click', handleBackToSessions);
 elements.sendBtn.addEventListener('click', sendMessage);

@@ -126,16 +126,26 @@
                     <span id="server-action-text" class="action-text">Not running</span><span id="server-action-loader" class="action-loader" style="display:none;"></span>
                 </div>
                 <div class="action-buttons">
-                    <button id="server-action-start-icon" class="action-icon-btn" type="button" title="Start" style="display:none;">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                            <polygon points="5 3 19 12 5 21"></polygon>
-                        </svg>
-                    </button>
-                    <button id="server-action-stop-icon" class="action-icon-btn" type="button" title="Stop" style="display:none;">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="4" y="4" width="16" height="16" rx="2"></rect>
-                        </svg>
-                    </button>
+                    <div class="action-buttons-left">
+                        <button id="server-action-copy-icon" class="action-icon-btn" type="button" title="Copy text">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="action-buttons-right">
+                        <button id="server-action-start-icon" class="action-icon-btn" type="button" title="Start" style="display:none;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <polygon points="5 3 19 12 5 21"></polygon>
+                            </svg>
+                        </button>
+                        <button id="server-action-stop-icon" class="action-icon-btn" type="button" title="Stop" style="display:none;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -147,13 +157,23 @@
                     <span id="rag-action-text" class="action-text">index</span><span id="rag-action-loader" class="action-loader" style="display:none;"></span>
                 </div>
                 <div class="action-buttons">
-                    <button id="rag-action-refresh-icon" class="action-icon-btn" type="button" title="Index">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-                            <polyline points="23 4 23 10 17 10"></polyline>
-                            <polyline points="1 20 1 14 7 14"></polyline>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36M20.49 15a9 9 0 0 1-14.85 3.36"></path>
-                        </svg>
-                    </button>
+                    <div class="action-buttons-left">
+                        <button id="rag-action-copy-icon" class="action-icon-btn" type="button" title="Copy text">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="action-buttons-right">
+                        <button id="rag-action-refresh-icon" class="action-icon-btn" type="button" title="Index">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36M20.49 15a9 9 0 0 1-14.85 3.36"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

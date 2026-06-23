@@ -40,6 +40,7 @@
   "config.rag.queryMode.lexical.description": "Lexical retrieval using filename/path token matching.",
 
   "command.openSettings.title": "prrrrr: Configure",
+  "command.moveSidebarRight.title": "prrrrr: Move Sidebar Right",
 
   "views.container.title": "prrrrr",
   "views.chat.name": "prrrrr"

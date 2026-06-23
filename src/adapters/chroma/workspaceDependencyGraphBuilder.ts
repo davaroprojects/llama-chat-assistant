@@ -2,7 +2,8 @@ import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
-import { ChromaDbConnectionConfig } from './chromaDbIndexer';
+import { ChromaDbConnectionConfig } from '../../core/domain/chroma';
+import { ProjectComponent, WorkspaceGraph } from '../../core/domain/workspace';
 
 const CODE_FILE_EXTENSIONS = new Set([
     '.ts',
@@ -31,16 +32,6 @@ interface WorkspaceDependencyGraph {
     nodes: string[];
     edges: WorkspaceGraphEdge[];
     components: WorkspaceGraph;
-}
-
-export interface ProjectComponent {
-    type?: string;
-    triggers: string[];
-    calls?: string[];
-}
-
-export interface WorkspaceGraph {
-    [filePath: string]: ProjectComponent;
 }
 
 interface ImportReference {

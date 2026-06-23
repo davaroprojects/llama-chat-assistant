@@ -1,43 +1,19 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
-
-export interface ChatMessage {
-    role: string;
-    content: unknown;
-}
-
-export interface ChatSession {
-    id: string;
-    title: string;
-    createdAt: number;
-    messages: ChatMessage[];
-}
-
-export interface ChatUiState {
-    activeTab: 'chat' | 'settings' | 'about';
-    activeScreens: Array<'chat' | 'settings' | 'about'>;
-    settingsAccordionState: SettingsAccordionState;
-    currentSessionId: string | null;
-    ragIndexState: RagIndexState;
-}
-
-export interface SettingsAccordionState {
-    llamaOpen: boolean;
-    chromadbOpen: boolean;
-}
-
-export interface RagIndexState {
-    status: 'idle' | 'indexing' | 'indexed';
-    indexedAt: number | null;
-    indexedFiles: number;
-}
+import {
+    ChatSession,
+    ChatUiState,
+    RagIndexState,
+    SettingsAccordionState
+} from '../../core/domain/session';
+import { SesionGateway } from '../../core/gateways/sesionGateway';
 
 interface StoredChatState {
     sessions: ChatSession[];
     uiState: ChatUiState;
 }
 
-export class SessionManager {
+export class SessionAdapter implements SesionGateway {
     private sessions: Map<string, ChatSession> = new Map();
     private currentSessionId: string | null = null;
     private readonly STORAGE_KEY = 'llamaChatSessions';
@@ -79,7 +55,7 @@ export class SessionManager {
         }
 
         this.uiState.activeScreens = (this.uiState.activeScreens || [])
-            .map((screen) => (screen === 'chat' || screen === 'settings' || screen === 'about' ? screen : 'settings'));
+            .map((screen: string) => (screen === 'chat' || screen === 'settings' || screen === 'about' ? screen : 'settings'));
 
         if (this.uiState.activeScreens.length === 0) {
             this.uiState.activeScreens = [this.uiState.activeTab];
@@ -138,7 +114,7 @@ export class SessionManager {
         return this.sessions.get(this.currentSessionId) || null;
     }
 
-    public addMessageToCurrentSession(role: string, content: unknown): void {
+    public addMessageToCurrentSession(role: string, content: string | object): void {
         const currentSession = this.getCurrentSession();
         if (currentSession) {
             currentSession.messages.push({ role, content });
@@ -198,7 +174,7 @@ export class SessionManager {
         const session = this.getCurrentSession();
         if (!session) { return 0; }
 
-        const totalChars = session.messages.reduce((sum, msg) => {
+        const totalChars = session.messages.reduce((sum: number, msg: any) => {
             let text = '';
             if (typeof msg.content === 'string') {
                 text = msg.content;

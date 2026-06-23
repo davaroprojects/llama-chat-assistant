@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { searchFlowByEndpoint } from '../chat/endpointFlowResolver';
-import { WorkspaceGraph } from '../chromadb/workspaceDependencyGraphBuilder';
+import { WorkspaceGraph } from '../core/domain/workspace';
 
 suite('EndpointFlowResolver - searchFlowByEndpoint', () => {
     test('Returns DFS flow from matching trigger', () => {

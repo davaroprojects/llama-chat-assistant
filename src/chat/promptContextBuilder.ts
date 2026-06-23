@@ -1,4 +1,9 @@
-import { FileMetadata } from './sessionPayloadBuilder';
+import { FileMetadata } from '../core/domain/sessionPayload';
+import { RagContextSnippet, PromptContextOptions } from '../core/domain/prompt';
+
+// Re-export for backward compatibility
+export { RagContextSnippet, PromptContextOptions };
+
 import * as path from 'node:path';
 import {
     RagModeTemplate,
@@ -9,22 +14,7 @@ import {
     interpolateSpecificFile,
     interpolateQueryLabel,
     PromptTemplateBuilder
-} from './promptTemplates';
-
-export interface RagContextSnippet {
-    path: string;
-    content: string;
-    distance?: number;
-}
-
-export interface PromptContextOptions {
-    userPrompt: string;
-    attachedFiles: FileMetadata[];
-    ragSnippets: RagContextSnippet[];
-    hasRepositoryAttachment?: boolean;
-    ragModeTemplate?: RagModeTemplate;
-    specificFilesModeTemplate?: SpecificFilesModeTemplate;
-}
+} from '../core/domain/promptTemplate';
 
 const MAX_CONTEXT_SNIPPET_CHARS = 2500;
 const MAX_RAG_CONTEXT_CHARS = 12000;

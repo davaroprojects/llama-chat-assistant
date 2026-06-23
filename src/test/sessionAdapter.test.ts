@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { SessionManager } from '../chat/sessionManager';
+import { SessionAdapter } from '../adapters/vscode/sessionAdapter';
 
 function createMockContext(storedSessions: unknown[] = []): vscode.ExtensionContext {
     const store = new Map<string, unknown>([['llamaChatSessions', storedSessions]]);
@@ -17,13 +17,13 @@ function createMockContext(storedSessions: unknown[] = []): vscode.ExtensionCont
     } as unknown as vscode.ExtensionContext;
 }
 
-suite('SessionManager', () => {
+suite('SessionAdapter', () => {
     test('Calculates relative time in hours correctly', () => {
         const originalNow = Date.now;
         const initialNow = 1_700_000_000_000;
 
         Date.now = () => initialNow;
-        const manager = new SessionManager(createMockContext());
+        const manager = new SessionAdapter(createMockContext());
         manager.createSession('First question');
 
         Date.now = () => initialNow + 2 * 60 * 60 * 1000;
@@ -37,7 +37,7 @@ suite('SessionManager', () => {
 
     test('Persists active tab and current session id in stored state', () => {
         const context = createMockContext();
-        const manager = new SessionManager(context);
+        const manager = new SessionAdapter(context);
         const session = manager.createSession('First question');
 
         manager.setActiveTab('settings');

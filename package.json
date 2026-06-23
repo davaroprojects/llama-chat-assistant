@@ -240,6 +240,11 @@
         "command": "llama-chat-assistant.openSettings",
         "title": "%command.openSettings.title%",
         "icon": "settings-gear"
+      },
+      {
+        "command": "llama-chat-assistant.moveSidebarRight",
+        "title": "%command.moveSidebarRight.title%",
+        "icon": "arrow-right"
       }
     ],
     "viewsContainers": {
@@ -266,6 +271,11 @@
           "command": "llama-chat-assistant.openSettings",
           "when": "view == llama-chat-view",
           "group": "$(navigation)"
+        },
+        {
+          "command": "llama-chat-assistant.moveSidebarRight",
+          "when": "view == llama-chat-view",
+          "group": "navigation@1"
         }
       ]
     }

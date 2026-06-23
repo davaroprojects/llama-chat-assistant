@@ -1466,11 +1466,18 @@ textarea:disabled {
 
 .action-buttons {
     display: flex;
-    justify-content: flex-end;
-    gap: 4px;
+    justify-content: space-between;
+    align-items: center;
     width: 100%;
     padding: 0 10px 8px;
     box-sizing: border-box;
+}
+
+.action-buttons-left,
+.action-buttons-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .action-icon-btn {

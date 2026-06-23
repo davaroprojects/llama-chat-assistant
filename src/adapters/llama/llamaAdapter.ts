@@ -1,36 +1,6 @@
-import { Logger } from '../logging/outputLogger';
-
-export interface ChatMessage {
-    role: string;
-    content: string | object;
-}
-
-export interface LlamaConfig {
-    apiUrl: string;
-    model: string;
-    maxTokens: number;
-    temperature: number;
-    systemPrompt: string;
-    debug: boolean;
-}
-
-export interface LlamaServerProps {
-    default_generation_settings?: {
-        n_ctx?: number;
-        params?: Record<string, unknown>;
-        [key: string]: unknown;
-    };
-    model?: string;
-    model_name?: string;
-    model_alias?: string;
-    model_path?: string;
-    model_description?: string;
-    n_ctx?: number;
-    n_ctx_train?: number;
-    n_embd?: number;
-    n_layer?: number;
-    [key: string]: unknown;
-}
+import { Logger } from '../../logging/outputLogger';
+import { LlamaGateway, LlmGenerationConfig, LlmGenerationResult, LlmMessage } from '../../core/gateways/llamaGateway';
+import { ChatMessage, LlamaConfig, LlamaServerProps } from '../../core/domain/llama';
 
 export interface StreamingState {
     isActive: boolean;
@@ -49,7 +19,7 @@ export interface StreamChunk {
     usage?: { completion_tokens?: number };
 }
 
-export class LlamaService {
+export class LlamaAdapter implements LlamaGateway {
     private static readonly REQUEST_TIMEOUT_MS = 60_000;
     private static readonly STREAM_READ_TIMEOUT_MS = 10_000;
     private static logger: Logger | null = null;
@@ -200,6 +170,20 @@ export class LlamaService {
             this.logger?.error('llama', 'Error during llama.cpp streaming', error);
             throw error;
         }
+    }
+
+    async streamResponse(
+        messages: LlmMessage[],
+        config: LlmGenerationConfig,
+        onToken: (token: string) => void,
+        abortSignal?: AbortSignal
+    ): Promise<LlmGenerationResult> {
+        return LlamaAdapter.streamLlamaResponse(
+            messages as ChatMessage[],
+            config as LlamaConfig,
+            onToken,
+            abortSignal
+        );
     }
 
     private static extractTokenFromResponse(response: StreamChunk): string {

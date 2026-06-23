@@ -3,9 +3,9 @@ import {
     buildChatApiUrl,
     buildServerLaunchCommand,
     buildServerParameterRows,
-    resolveWorkspacePath,
-    type LlamaServerLaunchConfig
-} from '../llamacpp/serverConfig';
+    resolveWorkspacePath
+} from '../adapters/llama/llamaServerConfig';
+import { LlamaServerLaunchConfig } from '../core/domain/llamaServer';
 
 const SERVER_CONFIG: LlamaServerLaunchConfig = {
     executablePath: './build/bin/llama-server',
@@ -20,7 +20,7 @@ const SERVER_CONFIG: LlamaServerLaunchConfig = {
     tools: 'all'
 };
 
-suite('serverConfig', () => {
+suite('llamaServerConfig', () => {
     test('Builds chat api url from server host and port', () => {
         assert.strictEqual(buildChatApiUrl(SERVER_CONFIG), 'http://127.0.0.1:8033/v1/chat/completions');
     });

@@ -1,22 +1,5 @@
 import * as path from 'node:path';
-
-export interface LlamaServerLaunchConfig {
-    executablePath: string;
-    modelPath: string;
-    gpuLayers: number;
-    contextSize: number;
-    flashAttention: boolean;
-    host: string;
-    port: number;
-    chatCompletionsPath: string;
-    jinja: boolean;
-    tools: string;
-}
-
-export interface ServerParameterRow {
-    property: string;
-    value: string;
-}
+import { LlamaServerLaunchConfig, ServerParameterRow } from '../../core/domain/llamaServer';
 
 export function resolveWorkspacePath(value: string, workspaceRoot?: string): string {
     if (!value || !workspaceRoot || path.isAbsolute(value)) {

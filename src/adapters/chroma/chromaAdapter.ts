@@ -2,49 +2,18 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { ChromaClient } from 'chromadb';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
-
-export interface RagIndexResult {
-    status: 'indexed';
-    indexedAt: number;
-    indexedFiles: number;
-}
-
-export interface ChromaDbConnectionConfig {
-    url: string;
-    port: number;
-    collectionPrefix: string;
-    excludeDirs: string[];
-    excludeFileGlobs: string[];
-    maxFileSizeKb: number;
-    maxIndexedFiles: number;
-    chunkSizeChars: number;
-    chunkOverlapChars: number;
-    vectorCandidatePool: number;
-    maxQueryResults: number;
-    minCosineSimilarity: number;
-}
-
-export interface ChromaSearchResult {
-    path: string;
-    content: string;
-    distance?: number;
-}
-
-export interface ChromaConceptualKnnOptions {
-    topK?: number;
-    minCosineSimilarity?: number;
-    signal?: AbortSignal;
-    logger?: ChromaQueryLogger;
-}
-
-export type ChromaQueryMode = 'semantic' | 'lexical';
-
-export interface ChromaQueryLogger {
-    debug(scope: string, message: string, details?: unknown): void;
-    info(scope: string, message: string, details?: unknown): void;
-    warn(scope: string, message: string, details?: unknown): void;
-    error(scope: string, message: string, details?: unknown): void;
-}
+import {
+    ChromaConceptualKnnOptions,
+    ChromaDbConnectionConfig,
+    ChromaQueryLogger,
+    ChromaQueryMode,
+    ChromaSearchResult,
+    RagIndexResult
+} from '../../core/domain/chroma';
+import { RagGateway } from '../../core/gateways/ragGateway';
+import { RepositoryIndexGateway } from '../../core/gateways/repositoryIndexGateway';
+import { WorkspaceDependencyGraphBuilder } from './workspaceDependencyGraphBuilder';
+import { Logger } from '../../logging/outputLogger';
 
 const EMBEDDING_DIM = 64;
 
@@ -1129,5 +1098,52 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
     } catch (error) {
         logger?.error('rag', 'Conceptual KNN Chroma query failed', error);
         throw error;
+    }
+}
+
+export class ChromaAdapter implements RagGateway, RepositoryIndexGateway {
+    constructor(private readonly logger: Logger) {}
+
+    async isAvailable(config: ChromaDbConnectionConfig): Promise<boolean> {
+        return isChromaDbAvailable(config);
+    }
+
+    async queryConceptual(
+        queryText: string,
+        config: ChromaDbConnectionConfig,
+        options: ChromaConceptualKnnOptions
+    ): Promise<ChromaSearchResult[]> {
+        return queryRelevantContextFromChromaDbConceptualKnn(queryText, config, {
+            ...options,
+            logger: options.logger || this.logger
+        });
+    }
+
+    async queryByMode(
+        queryText: string,
+        config: ChromaDbConnectionConfig,
+        maxResults: number,
+        mode: ChromaQueryMode,
+        signal?: AbortSignal,
+        filePathFilter?: string[]
+    ): Promise<ChromaSearchResult[]> {
+        return queryRelevantContextFromChromaDb(
+            queryText,
+            config,
+            maxResults,
+            mode,
+            signal,
+            filePathFilter,
+            this.logger
+        );
+    }
+
+    async buildWorkspaceGraph(workspaceRoot: string, chromaConfig: ChromaDbConnectionConfig, cacheRoot: string): Promise<void> {
+        const graphBuilder = new WorkspaceDependencyGraphBuilder(workspaceRoot, chromaConfig, cacheRoot);
+        await graphBuilder.build();
+    }
+
+    async indexAll(workspaceRoot: string, chromaConfig: ChromaDbConnectionConfig): Promise<RagIndexResult> {
+        return indexAllWithChromaDb(workspaceRoot, chromaConfig, this.logger);
     }
 }

@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { ProjectComponent, WorkspaceGraph } from '../chromadb/workspaceDependencyGraphBuilder';
+import type { ProjectComponent, WorkspaceGraph } from '../core/domain/workspace';
 
 interface WorkspaceGraphFilePayload {
     components?: WorkspaceGraph;

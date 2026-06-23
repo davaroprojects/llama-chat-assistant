@@ -1,5 +1,5 @@
-import { ChatMessage } from '../llamacpp/llamaService';
-import { FileMetadata } from './sessionPayloadBuilder';
+import { ChatMessage } from '../core/domain/llama';
+import { FileMetadata } from '../core/domain/sessionPayload';
 
 function getBaseName(name: string): string {
     return name.replace(/:\d+(?:-\d+)?$/, '');
