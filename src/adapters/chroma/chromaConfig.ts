@@ -51,8 +51,8 @@ export function readChromaDbConfig(workspaceRoot: string): ChromaDbConnectionCon
             '**/*.jar',
             '**/*.lock'
         ]),
-        maxFileSizeKb: getConfigValue(config, 'chromaDb.maxFileSizeKb', 'rag.maxFileSizeKb', 512),
-        maxIndexedFiles: getConfigValue(config, 'chromaDb.maxIndexedFiles', 'rag.maxIndexedFiles', 2000),
+        maxFileSizeKb: getConfigValue(config, 'chromaDb.maxFileSizeKb', 'rag.maxFileSizeKb', 2048),
+        maxIndexedFiles: getConfigValue(config, 'chromaDb.maxIndexedFiles', 'rag.maxIndexedFiles', 10000),
         chunkSizeChars: getConfigValue(config, 'chromaDb.chunkSizeChars', 'rag.chunkSizeChars', 2000),
         chunkOverlapChars: getConfigValue(config, 'chromaDb.chunkOverlapChars', 'rag.chunkOverlapChars', 300),
         vectorCandidatePool: getConfigValue(config, 'chromaDb.vectorCandidatePool', 'rag.vectorCandidatePool', 50),

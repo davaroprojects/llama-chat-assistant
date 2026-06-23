@@ -855,7 +855,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
 
     private maybeLogMetrics(): void {
         const config = vscode.workspace.getConfiguration('llamaChat');
-        const debugEnabled = config.get<boolean>('debug') ?? false;
+        const debugEnabled = config.get<boolean>('chat.debug') ?? config.get<boolean>('debug') ?? false;
 
         if (!debugEnabled || this.metrics.totalRequests === 0) {
             return;

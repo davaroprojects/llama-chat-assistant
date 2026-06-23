@@ -8,12 +8,14 @@ let activeProvider: LlamaChatViewProvider | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     const sessionManager = new SessionAdapter(context);
-    const logger = new OutputLogger('prrrrr', vscode.workspace.getConfiguration('llamaChat').get<boolean>('debug') ?? false);
+    const llamaChatConfig = vscode.workspace.getConfiguration('llamaChat');
+    const debugEnabled = llamaChatConfig.get<boolean>('chat.debug') ?? llamaChatConfig.get<boolean>('debug') ?? false;
+    const logger = new OutputLogger('prrrrr', debugEnabled);
     context.subscriptions.push(logger);
     LlamaAdapter.setLogger(logger);
 
     let settingsCommand = vscode.commands.registerCommand('prrrrr.openSettings', () => {
-        vscode.commands.executeCommand('workbench.action.openSettings', 'prrrrr');
+        vscode.commands.executeCommand('workbench.action.openSettings', 'llamaChat');
     });
     context.subscriptions.push(settingsCommand);
 
