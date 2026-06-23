@@ -35,7 +35,7 @@ suite('LlamaMessageBuilder - prepareMessagesForLlama', () => {
 
         const prepared = LlamaMessageBuilder.prepareMessagesForLlama(
             messages as any,
-            '--- ARCHIVO ADJUNTO: app.ts ---\nv2 content\n--- FIN ARCHIVO ---\n\nIndicación del usuario:\nSecond question',
+            '--- ATTACHED FILE: app.ts ---\nv2 content\n--- END FILE ---\n\nUser instruction:\nSecond question',
             BASE_CONFIG.systemPrompt
         );
 
@@ -70,7 +70,7 @@ suite('LlamaMessageBuilder - prepareMessagesForLlama', () => {
 
         const prepared = LlamaMessageBuilder.prepareMessagesForLlama(
             messages as any,
-            'Indicación del usuario:\nNow about app',
+            'User instruction:\nNow about app',
             BASE_CONFIG.systemPrompt
         );
 

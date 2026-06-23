@@ -140,8 +140,8 @@ suite('promptTemplate - interpolateQueryLabel / interpolateConsulta', () => {
     });
 
     test('interpolateConsulta replaces {prompt}', () => {
-        const result = interpolateConsulta('Consulta: {prompt}', 'qué hace foo?');
-        assert.strictEqual(result, 'Consulta: qué hace foo?');
+        const result = interpolateConsulta('Query: {prompt}', 'what does foo do?');
+        assert.strictEqual(result, 'Query: what does foo do?');
     });
 
     test('Returns template unchanged when no placeholder', () => {
@@ -156,7 +156,7 @@ suite('PromptTemplateBuilder', () => {
         assert.ok(result.includes(DEFAULT_RAG_MODE_TEMPLATE.executionMode.header));
         assert.ok(result.includes(DEFAULT_RAG_MODE_TEMPLATE.executionMode.scope));
         assert.ok(result.includes(DEFAULT_RAG_MODE_TEMPLATE.executionMode.instruction));
-        assert.ok(result.includes('</modo_ejecucion>'));
+        assert.ok(result.includes('</execution_mode>'));
     });
 
     test('buildRagModeExecution accepts custom template', () => {
@@ -179,6 +179,6 @@ suite('PromptTemplateBuilder', () => {
         assert.ok(result.includes(DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE.executionMode.header));
         assert.ok(result.includes(DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE.executionMode.scope));
         assert.ok(result.includes(DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE.executionMode.instruction));
-        assert.ok(result.includes('</modo_ejecucion>'));
+        assert.ok(result.includes('</execution_mode>'));
     });
 });

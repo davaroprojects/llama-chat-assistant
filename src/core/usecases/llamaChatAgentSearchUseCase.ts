@@ -72,63 +72,18 @@ export class LlamaChatAgentSearchUseCase {
 
         this.logger.debug('rag', 'Executing llamachat_agent_search', { queryText: normalizedQuery });
 
-        // Hybrid search: semantic + lexical in parallel, then combine results with deduplication
-        const [semanticResults, lexicalResults] = await Promise.all([
-            this.ragGateway.queryByMode(
-                normalizedQuery,
-                config,
-                Math.min(config.maxQueryResults, 5),
-                'semantic',
-                signal,
-                undefined
-            ),
-            this.ragGateway.queryByMode(
-                normalizedQuery,
-                config,
-                Math.min(config.maxQueryResults, 5),
-                'lexical',
-                signal,
-                undefined
-            )
-        ]);
+        const matches = await this.ragGateway.query(
+            normalizedQuery,
+            config,
+            Math.min(config.maxQueryResults, 5),
+            signal,
+            undefined
+        );
 
-        // Combine results: prioritize matches appearing in both, then add unique semantic, then unique lexical
-        const seenPaths = new Set<string>();
-        const combinedMatches: RagContextMatch[] = [];
-
-        // First: add intersection (found in both semantic and lexical)
-        semanticResults.forEach((semantic) => {
-            const lexicalMatch = lexicalResults.find((lex) => lex.path === semantic.path);
-            if (lexicalMatch && !seenPaths.has(semantic.path)) {
-                combinedMatches.push(semantic);
-                seenPaths.add(semantic.path);
-            }
-        });
-
-        // Second: add remaining semantic results
-        semanticResults.forEach((semantic) => {
-            if (!seenPaths.has(semantic.path)) {
-                combinedMatches.push(semantic);
-                seenPaths.add(semantic.path);
-            }
-        });
-
-        // Third: add remaining lexical results
-        lexicalResults.forEach((lexical) => {
-            if (!seenPaths.has(lexical.path)) {
-                combinedMatches.push(lexical);
-                seenPaths.add(lexical.path);
-            }
-        });
-
-        const matches = combinedMatches.slice(0, Math.min(config.maxQueryResults, 5));
-
-        this.logger.info('rag', 'llamachat_agent_search completed (hybrid semantic+lexical)', {
+        this.logger.info('rag', 'llamachat_agent_search completed', {
             queryText: normalizedQuery,
             collectionId: config.collectionId,
-            semanticMatches: semanticResults.length,
-            lexicalMatches: lexicalResults.length,
-            combinedMatches: matches.length,
+            matches: matches.length,
             topPaths: matches.slice(0, 3).map((match) => match.path)
         });
 

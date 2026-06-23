@@ -153,11 +153,6 @@
             "maximum": 65535,
             "description": "%config.rag.chromaPort.description%"
           },
-          "llamaChat.chromaDb.collectionPrefix": {
-            "type": "string",
-            "default": "llama-chat-ephemeral",
-            "description": "%config.rag.collectionPrefix.description%"
-          },
           "llamaChat.chromaDb.excludeDirs": {
             "type": "array",
             "default": [
@@ -311,7 +306,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "copy-media": "node -e \"const fs=require('fs'); fs.mkdirSync('dist/media', {recursive:true}); fs.copyFileSync('media/webview.html', 'dist/media/webview.html'); fs.copyFileSync('media/webview.css', 'dist/media/webview.css'); fs.copyFileSync('media/webview.js', 'dist/media/webview.js'); fs.copyFileSync('media/prism.min.js', 'dist/media/prism.min.js'); fs.copyFileSync('media/marked.min.js', 'dist/media/marked.min.js');\"",
+    "copy-media": "node -e \"const fs=require('fs'); fs.mkdirSync('dist/media', {recursive:true}); fs.copyFileSync('media/webview.html', 'dist/media/webview.html'); fs.copyFileSync('media/webview.css', 'dist/media/webview.css'); fs.copyFileSync('media/webview.js', 'dist/media/webview.js'); fs.copyFileSync('media/prism.min.js', 'dist/media/prism.min.js'); fs.copyFileSync('media/marked.min.js', 'dist/media/marked.min.js'); fs.copyFileSync('media/purify.min.js', 'dist/media/purify.min.js');\"",
     "compile": "npm run check-types && npm run lint && node esbuild.js && npm run copy-media",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
@@ -342,6 +337,7 @@
     "@huggingface/transformers": "^4.2.0",
     "@langchain/textsplitters": "^1.0.1",
     "chromadb": "^3.4.3",
+    "dompurify": "^3.4.11",
     "js-tiktoken": "^1.0.21"
   }
 }

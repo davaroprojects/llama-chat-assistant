@@ -245,58 +245,20 @@ function isValidIncomingMessage(message) {
     return true;
 }
 
-const BLOCKED_HTML_TAGS = new Set([
-    'script', 'style', 'iframe', 'object', 'embed',
-    'link', 'meta', 'base', 'form',
-    'svg', 'math'
-]);
-
-function isSafeUrl(urlValue) {
-    const value = String(urlValue || '').trim();
-    if (!value) {
-        return true;
-    }
-
-    if (value.startsWith('//')) {
-        return false;
-    }
-
-    if (value.startsWith('#') || value.startsWith('/') || value.startsWith('./') || value.startsWith('../')) {
-        return true;
-    }
-
-    return /^(https?:|mailto:)/i.test(value);
-}
-
 function sanitizeHtml(unsafeHtml) {
-    const template = document.createElement('template');
-    template.innerHTML = String(unsafeHtml || '');
+    const source = String(unsafeHtml || '');
+    if (typeof DOMPurify === 'undefined') {
+        const fallback = document.createElement('div');
+        fallback.textContent = source;
+        return fallback.innerHTML;
+    }
 
-    const allElements = template.content.querySelectorAll('*');
-    allElements.forEach((element) => {
-        const tagName = element.tagName.toLowerCase();
-
-        if (BLOCKED_HTML_TAGS.has(tagName)) {
-            element.remove();
-            return;
-        }
-
-        Array.from(element.attributes).forEach((attribute) => {
-            const attrName = attribute.name.toLowerCase();
-            const attrValue = attribute.value;
-
-            if (attrName.startsWith('on') || attrName === 'style') {
-                element.removeAttribute(attribute.name);
-                return;
-            }
-
-            if ((attrName === 'href' || attrName === 'src' || attrName === 'xlink:href') && !isSafeUrl(attrValue)) {
-                element.removeAttribute(attribute.name);
-            }
-        });
+    return DOMPurify.sanitize(source, {
+        USE_PROFILES: { html: true },
+        FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'link', 'meta', 'base', 'form'],
+        FORBID_ATTR: ['style'],
+        ALLOW_UNKNOWN_PROTOCOLS: false
     });
-
-    return template.innerHTML;
 }
 
 // Lazy load attachedFilesContainer
@@ -1628,7 +1590,7 @@ function updateServerActionButtons() {
         elements.serverStopBtn.classList.toggle('is-disabled', state.isStopBlocked);
         elements.serverStopBtn.title = state.isStopBlocked
             ? labels.externalServerBlockedLabel
-            : (elements.serverStopBtn.dataset.label || 'Detener');
+            : (elements.serverStopBtn.dataset.label || 'Stop');
         const label = state.isPendingStop
             ? (elements.serverStopBtn.dataset.loadingLabel || 'Stop')
             : (elements.serverStopBtn.dataset.label || 'Stop');
@@ -2035,7 +1997,7 @@ function sendMessage() {
 function truncateTitle(text) {
     if (!text) return labels.newSessionLabel;
     let cleanText = text.replace(/---[\s\S]*?---/g, '');
-    cleanText = cleanText.split(/Indicación(?: del usuario)?:/i).pop()?.trim() || cleanText; cleanText = cleanText.replace(/\s+/g, ' ');
+    cleanText = cleanText.split(/User instruction:/i).pop()?.trim() || cleanText; cleanText = cleanText.replace(/\s+/g, ' ');
     return cleanText.length > 30 ? cleanText.substring(0, 27) + '...' : cleanText;
 }
 

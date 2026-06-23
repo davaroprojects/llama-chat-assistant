@@ -122,9 +122,6 @@ Open your VS Code `settings.json` (`Ctrl+Shift+P` → **Preferences: Open User S
   "llamaChat.chromaDb.url": "http://127.0.0.1",
   "llamaChat.chromaDb.port": 8000,
 
-  // Prefix used to name collections; a workspace hash is appended automatically
-  "llamaChat.chromaDb.collectionPrefix": "llama-chat-ephemeral",
-
   // Directories to skip when indexing
   "llamaChat.chromaDb.excludeDirs": [
     ".git", "node_modules", "dist", "out", "build", "coverage", "target", ".vscode"
@@ -142,10 +139,7 @@ Open your VS Code `settings.json` (`Ctrl+Shift+P` → **Preferences: Open User S
   // Query tuning
   "llamaChat.chromaDb.vectorCandidatePool": 50,
   "llamaChat.chromaDb.maxQueryResults": 12,
-  "llamaChat.chromaDb.minCosineSimilarity": 0.2,
-
-  // "semantic" (default) or "lexical"
-  "llamaChat.chromaDb.queryMode": "semantic"
+  "llamaChat.chromaDb.minCosineSimilarity": 0.2
 }
 ```
 
@@ -178,7 +172,6 @@ Open your VS Code `settings.json` (`Ctrl+Shift+P` → **Preferences: Open User S
 | `llamaChat.chromaDb.port` | `8000` | ChromaDB port |
 | `llamaChat.chromaDb.maxFileSizeKb` | `512` | Max file size to index (KB) |
 | `llamaChat.chromaDb.maxIndexedFiles` | `2000` | Max files per index run |
-| `llamaChat.chromaDb.queryMode` | `semantic` | `semantic` or `lexical` |
 | `llamaChat.chat.temperature` | `0.2` | Generation temperature |
 | `llamaChat.chat.maxTokens` | `2048` | Max tokens per response |
 | `llamaChat.chat.debug` | `false` | Enable verbose logs |
@@ -206,9 +199,8 @@ You can start it manually or use the **Start Server** button in the extension pa
 Open the prrrrr panel in the Activity Bar and click **Index Workspace**. The extension will:
 
 1. Walk your project files (respecting `excludeDirs` and `excludeFileGlobs`).
-2. Build a dependency graph of your code components.
-3. Chunk file contents and compute vector embeddings.
-4. Store everything in ChromaDB under a workspace-specific collection.
+2. Chunk file contents and compute vector embeddings.
+3. Store everything in ChromaDB under a workspace-specific collection.
 
 > **Tip:** Re-index after significant refactors to keep context fresh.
 
@@ -376,18 +368,18 @@ You can customize the execution mode prompts for both **RAG (Global Analysis)** 
 **RAG Mode Template** (`chat.ragModeTemplate`):
 ```json
 {
-  "modoEjecucion": {
+  "executionMode": {
     "header": "<modo_ejecucion>",
-    "alcance": "ALCANCE: ...",
-    "instruccion": "Se te proveen múltiples fragmentos..."
+    "scope": "SCOPE: ...",
+    "instruction": "You are given multiple retrieved fragments..."
   },
-  "contextoRecuperado": {
-    "header": "<contexto_recuperado>",
-    "footer": "</contexto_recuperado>",
-    "fragmentoFormat": "Fragmento {index} | Origen: {path}{distance}\n```\n{content}\n```"
+  "retrievedContext": {
+    "header": "<retrieved_context>",
+    "footer": "</retrieved_context>",
+    "fragmentFormat": "Fragment {index} | Source: {path}{distance}\n```\n{content}\n```"
   },
-  "consulta": {
-    "label": "Consulta General del Usuario: {prompt}"
+  "query": {
+    "label": "User Query: {prompt}"
   }
 }
 ```
@@ -395,23 +387,24 @@ You can customize the execution mode prompts for both **RAG (Global Analysis)** 
 **Specific Files Mode Template** (`chat.specificFilesModeTemplate`):
 ```json
 {
-  "modoEjecucion": {
+  "executionMode": {
     "header": "<modo_ejecucion>",
-    "alcance": "ALCANCE: Archivos Específicos...",
-    "instruccion": "Analiza detalladamente el código provisto..."
+    "scope": "SCOPE: Selected Specific Files...",
+    "instruction": "Analyze only the code provided inside target tags..."
   },
-  "archivosObjetivo": {
-    "header": "<archivos_objetivo>",
-    "footer": "</archivos_objetivo>",
-    "archivoFormat": "Archivo: {name}\nTipo: {type}\nExtensión: {extension}\n```\n{content}\n```"
+  "targetFiles": {
+    "header": "<target_files>",
+    "footer": "</target_files>",
+    "fileFormat": "File: {name}\nType: {type}\nExtension: {extension}\n```\n{content}\n```"
   },
-  "consulta": {
-    "label": "Consulta del Usuario: {prompt}"
+  "query": {
+    "label": "User Query: {prompt}"
   }
 }
 ```
 
 Add these to your VS Code `settings.json` under `llamaChat.chat` scope to override defaults.
+Legacy Spanish keys are still accepted for backward compatibility.
 ## File attachment rules
 
 - All attachments live in a single array: `{ name, content, isAutomatic }`.
@@ -471,7 +464,7 @@ History messages are reconstructed with their original file context. The current
     },
     {
       "role": "user",
-      "content": "--- ARCHIVO ADJUNTO: stream.ts:8-10 ---\nconst reader = body.getReader();\nconst decoder = new TextDecoder();\nlet buffer = '';\n--- FIN ARCHIVO ---\n\nIndicación del usuario:\nHow does streaming work?"
+      "content": "--- ATTACHED FILE: stream.ts:8-10 ---\nconst reader = body.getReader();\nconst decoder = new TextDecoder();\nlet buffer = '';\n--- END FILE ---\n\nUser instruction:\nHow does streaming work?"
     },
     {
       "role": "assistant",
@@ -479,7 +472,7 @@ History messages are reconstructed with their original file context. The current
     },
     {
       "role": "user",
-      "content": "--- ARCHIVO ADJUNTO: stream.ts ---\nfull file content here\n--- FIN ARCHIVO ---\n\nIndicación del usuario:\nCan you explain the buffer logic?"
+      "content": "--- ATTACHED FILE: stream.ts ---\nfull file content here\n--- END FILE ---\n\nUser instruction:\nCan you explain the buffer logic?"
     }
   ],
   "temperature": 0.2,
@@ -524,3 +517,7 @@ Unit tests cover:
 - Session relative time calculation.
 - Editor context label generation (selection range vs full file).
 - Payload deduplication and neutral attachment labels.
+
+## Third-Party Notice
+
+- This project includes DOMPurify (`media/purify.min.js`) under the Apache-2.0 / MPL-2.0 dual license.

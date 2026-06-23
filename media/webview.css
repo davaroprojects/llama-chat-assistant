@@ -1297,7 +1297,7 @@ textarea {
     justify-content: center;
 }
 
-/* Botón de detener circular idéntico al de enviar */
+/* Circular stop button matching the send button style */
 #stop {
     background: var(--vscode-statusBarItem-remoteBackground, #f44336); /* Color rojo de parada o color del tema */
     color: white;

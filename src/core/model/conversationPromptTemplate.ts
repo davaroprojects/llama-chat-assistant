@@ -70,7 +70,7 @@ export const DEFAULT_LOCAL_RAG_TEMPLATE: ConversationPromptTemplate = {
         '</execution_mode>',
         '',
         '<target_files>',
-        '{{codigo_usuario_o_archivo_activo}}',
+        '{{target_files}}',
         '</target_files>',
         '',
         'User Query: {{user_query}}'
@@ -103,7 +103,7 @@ export const DEFAULT_DEEP_REACT_TEMPLATE: ConversationPromptTemplate = {
         '</execution_mode>',
         '',
         '<target_files>',
-        '{{codigo_usuario_o_archivo_activo}}',
+        '{{target_files}}',
         '</target_files>',
         '',
         'User Query: {{user_query}}'
@@ -133,6 +133,5 @@ export function interpolateConversationPrompt(
 ): string {
     return template
         .replaceAll('{{user_query}}', params.userQuery)
-        .replaceAll('{{codigo_usuario_o_archivo_activo}}', params.targetFiles ?? '')
         .replaceAll('{{target_files}}', params.targetFiles ?? '');
 }

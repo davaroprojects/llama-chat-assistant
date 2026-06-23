@@ -1,4 +1,4 @@
-import { ChromaConceptualKnnOptions, ChromaDbConnectionConfig, ChromaQueryMode } from '../model/chroma';
+import { ChromaConceptualKnnOptions, ChromaDbConnectionConfig } from '../model/chroma';
 
 export interface RagContextMatch {
     path: string;
@@ -15,11 +15,10 @@ export interface RagGateway {
         options: ChromaConceptualKnnOptions
     ): Promise<RagContextMatch[]>;
 
-    queryByMode(
+    query(
         queryText: string,
         config: ChromaDbConnectionConfig,
         maxResults: number,
-        mode: ChromaQueryMode,
         signal?: AbortSignal,
         filePathFilter?: string[]
     ): Promise<RagContextMatch[]>;

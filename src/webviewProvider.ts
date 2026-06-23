@@ -5,7 +5,7 @@ import { SesionGateway } from './core/gateways/sesionGateway';
 import {
     SessionPayloadBuilder,
 } from './helpers/sessionPayloadBuilder';
-import { FileMetadata, UserMessagePayload, AssistantMessagePayload } from './core/model/sessionPayload';
+import { FileMetadata, UserMessagePayload } from './core/model/sessionPayload';
 import { LlamaServerProps } from './core/model/llama';
 import { LlamaAdapter } from './adapters/llama/llamaAdapter';
 import {
@@ -198,7 +198,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
+        _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
         this._view = webviewView;

@@ -80,12 +80,23 @@ export class LlamaAdapter implements LlamaGateway {
                 this.logger?.debug('llama', 'Streaming payload', requestPayload);
             }
 
+            const requestStart = Date.now();
+            this.logger?.logHttpRequest('POST', config.apiUrl, 'llama.http');
+
             const response = await globalThis.fetch(config.apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestPayload),
                 signal: this.createCompositeAbortSignal(abortSignal)
             });
+
+            this.logger?.logHttpResponse(
+                'POST',
+                config.apiUrl,
+                response.status,
+                Date.now() - requestStart,
+                'llama.http'
+            );
 
             if (!response.ok) {
                 throw new Error(`Server responded: ${response.status}`);
@@ -203,9 +214,12 @@ export class LlamaAdapter implements LlamaGateway {
     static async fetchServerProps(apiUrl: string): Promise<LlamaServerProps | null> {
         try {
             const propsUrl = this.buildPropsUrl(apiUrl);
+            const requestStart = Date.now();
+            this.logger?.logHttpRequest('GET', propsUrl, 'llama.http');
             const response = await globalThis.fetch(propsUrl, {
                 signal: AbortSignal.timeout(2000)
             });
+            this.logger?.logHttpResponse('GET', propsUrl, response.status, Date.now() - requestStart, 'llama.http');
             if (response.ok) {
                 return await response.json() as LlamaServerProps;
             }

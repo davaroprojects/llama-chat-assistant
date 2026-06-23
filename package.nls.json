@@ -28,7 +28,6 @@
   "config.chat.specificFilesModeTemplate.description": "Template object used for specific-files prompts.",
   "config.rag.chromaUrl.description": "Base URL used to connect to ChromaDB.",
   "config.rag.chromaPort.description": "Port used to connect to ChromaDB.",
-  "config.rag.collectionPrefix.description": "Collection prefix used for repository indexes.",
   "config.rag.excludeDirs.description": "Directory names excluded during indexing.",
   "config.rag.excludeFileGlobs.description": "Glob patterns of files excluded during indexing.",
   "config.rag.maxFileSizeKb.description": "Maximum indexed file size in KB.",

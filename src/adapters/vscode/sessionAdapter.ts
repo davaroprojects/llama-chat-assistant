@@ -206,7 +206,7 @@ export class SessionAdapter implements SesionGateway {
     }
 
     private truncateTitle(text: string): string {
-        const cleanText = text.split(/Indicación del usuario:|User instruction:/)[1]?.trim() || text;
+        const cleanText = text.split(/User instruction:/)[1]?.trim() || text;
         return cleanText.length > 40 ? cleanText.substring(0, 37) + '...' : cleanText;
     }
 

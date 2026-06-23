@@ -52,6 +52,8 @@ function countTokensInMessagesSync(
     messages: BaseMessage[],
     config: TokenCountConfiguration = DEFAULT_TOKEN_COUNT_CONFIGURATION
 ): TokenCountResult {
+    void config;
+
     if (!encoding) {
         throw new Error('Encoding not initialized. Call countTokensInMessagesAsync first.');
     }
@@ -94,6 +96,8 @@ export function countTokensInText(
     text: string,
     config: TokenCountConfiguration = DEFAULT_TOKEN_COUNT_CONFIGURATION
 ): number {
+    void config;
+
     if (!encoding) {
         throw new Error('Encoding not initialized. Call an async token counting function first.');
     }

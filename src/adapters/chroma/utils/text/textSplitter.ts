@@ -13,7 +13,7 @@ export interface ChunkWithMetadata {
     keywordEntities: string[];
 }
 
-function extractKeywordEntities(text: string, fileExtension: string): string[] {
+function extractKeywordEntities(text: string): string[] {
     const entities = new Set<string>();
 
     // Class definitions
@@ -140,6 +140,6 @@ export async function getSplitterForFile(fileName: string, fileContent: string, 
         text,
         index,
         totalChunks,
-        keywordEntities: extractKeywordEntities(text, extension)
+        keywordEntities: extractKeywordEntities(text)
     }));
 }

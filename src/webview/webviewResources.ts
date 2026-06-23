@@ -144,8 +144,9 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     const jsPath = path.join(extensionUri.fsPath, 'dist', 'media', 'webview.js');
     const prismJsPath = path.join(extensionUri.fsPath, 'dist', 'media', 'prism.min.js');
     const markedJsPath = path.join(extensionUri.fsPath, 'dist', 'media', 'marked.min.js');
+    const purifyJsPath = path.join(extensionUri.fsPath, 'dist', 'media', 'purify.min.js');
 
-    if (!fs.existsSync(htmlPath) || !fs.existsSync(cssPath) || !fs.existsSync(jsPath)) {
+    if (!fs.existsSync(htmlPath) || !fs.existsSync(cssPath) || !fs.existsSync(jsPath) || !fs.existsSync(purifyJsPath)) {
         return '<h3>Error: Resources not found in dist/media. Run npm run compile.</h3>';
     }
 
@@ -155,6 +156,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     const jsUri = webview.asWebviewUri(vscode.Uri.file(jsPath));
     const prismJsUri = webview.asWebviewUri(vscode.Uri.file(prismJsPath));
     const markedJsUri = webview.asWebviewUri(vscode.Uri.file(markedJsPath));
+    const purifyJsUri = webview.asWebviewUri(vscode.Uri.file(purifyJsPath));
     const nonce = crypto.randomBytes(16).toString('base64');
 
     const csp = [
@@ -171,7 +173,7 @@ export function getHtmlForWebview(extensionUri: vscode.Uri, webview: vscode.Webv
     ].join('; ');
 
     const styleLink = `<link rel="stylesheet" type="text/css" href="${cssUri}">`;
-    const scriptSrc = `<script nonce="${nonce}" src="${prismJsUri}"></script><script nonce="${nonce}" src="${markedJsUri}"></script><script nonce="${nonce}" src="${jsUri}"></script>`;
+    const scriptSrc = `<script nonce="${nonce}" src="${prismJsUri}"></script><script nonce="${nonce}" src="${markedJsUri}"></script><script nonce="${nonce}" src="${purifyJsUri}"></script><script nonce="${nonce}" src="${jsUri}"></script>`;
     const cspMetaTag = `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">`;
 
     // Replace all label placeholders in a single loop (replaceAll handles keys that appear multiple times)

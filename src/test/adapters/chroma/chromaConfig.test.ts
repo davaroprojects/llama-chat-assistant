@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createWorkspaceCollectionId, readChromaDbConfig, readChromaQueryMode } from '../../../adapters/chroma/chromaConfig';
+import { createWorkspaceCollectionId, readChromaDbConfig } from '../../../adapters/chroma/chromaConfig';
 
 function mockVscodeConfig(settings: Record<string, unknown>): void {
     const original = vscode.workspace.getConfiguration;
@@ -88,28 +88,3 @@ suite('createWorkspaceCollectionId', () => {
     });
 });
 
-suite('readChromaQueryMode', () => {
-    test('Returns semantic by default', () => {
-        mockVscodeConfig({});
-        const mode = readChromaQueryMode();
-        assert.strictEqual(mode, 'semantic');
-    });
-
-    test('Returns lexical when config is set to lexical', () => {
-        mockVscodeConfig({ 'chromaDb.queryMode': 'lexical' });
-        const mode = readChromaQueryMode();
-        assert.strictEqual(mode, 'lexical');
-    });
-
-    test('Returns semantic when config is set to unknown value', () => {
-        mockVscodeConfig({ 'chromaDb.queryMode': 'unknown-mode' });
-        const mode = readChromaQueryMode();
-        assert.strictEqual(mode, 'semantic');
-    });
-
-    test('Falls back to legacy rag.queryMode key', () => {
-        mockVscodeConfig({ 'rag.queryMode': 'lexical' });
-        const mode = readChromaQueryMode();
-        assert.strictEqual(mode, 'lexical');
-    });
-});

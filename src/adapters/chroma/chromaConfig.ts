@@ -1,6 +1,6 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { ChromaDbConnectionConfig, ChromaQueryMode } from '../../core/model/chroma';
+import { ChromaDbConnectionConfig } from '../../core/model/chroma';
 
 function getConfigValue<T>(
     config: vscode.WorkspaceConfiguration,
@@ -38,7 +38,7 @@ export function createWorkspaceCollectionId(workspaceRoot: string, timestamp = D
 }
 
 export function readChromaDbConfig(
-    workspaceRoot: string,
+    _workspaceRoot: string,
     collectionId: string | null = null,
     previousCollectionId: string | null = null
 ): ChromaDbConnectionConfig {
@@ -74,10 +74,4 @@ export function readChromaDbConfig(
         maxQueryResults: getConfigValue(config, 'chromaDb.maxQueryResults', 'rag.maxQueryResults', 12),
         minCosineSimilarity: getConfigValue(config, 'chromaDb.minCosineSimilarity', 'rag.minCosineSimilarity', 0.2)
     };
-}
-
-export function readChromaQueryMode(): ChromaQueryMode {
-    const config = vscode.workspace.getConfiguration('llamaChat');
-    const mode = getConfigValue<string>(config, 'chromaDb.queryMode', 'rag.queryMode', 'semantic');
-    return mode === 'lexical' ? 'lexical' : 'semantic';
 }

@@ -40,5 +40,3 @@ export interface ChromaConceptualKnnOptions {
     signal?: AbortSignal;
     logger?: ChromaQueryLogger;
 }
-
-export type ChromaQueryMode = 'semantic' | 'lexical';

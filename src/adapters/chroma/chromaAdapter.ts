@@ -4,7 +4,6 @@ import {
     ChromaConceptualKnnOptions,
     ChromaDbConnectionConfig,
     ChromaQueryLogger,
-    ChromaQueryMode,
     ChromaSearchResult,
     RagIndexResult
 } from '../../core/model/chroma';
@@ -27,22 +26,17 @@ import {
 } from './utils/analysis/metadataBuilder';
 
 // Import utils - text
-import { getSplitterForFile, resolveChunkTuning, ChunkTuning } from './utils/text/textSplitter';
+import { getSplitterForFile } from './utils/text/textSplitter';
 
 // Import utils - search
 import { cosineSimilarity } from './utils/search/vectorSimilarity';
-import { tokenizeText, lexicalPathScore, normalizeFilePathFilter } from './utils/search/lexicalSearch';
+import { normalizeFilePathFilter } from './utils/search/lexicalSearch';
 
 // Import utils - filesystem
 import {
     looksBinaryContent,
-    escapeRegex,
     globToRegExp,
     shouldExcludeFile,
-    fileExists,
-    readFileContent,
-    readFileStats,
-    listDirectoryEntries
 } from './utils/filesystem/fileSystemUtils';
 
 // Import utils - chroma
@@ -55,6 +49,13 @@ type ChromaWhereFilter = {
         $in: string[];
     };
 };
+
+function logChromaOperation(logger: ChromaQueryLogger | undefined, operation: string, details: unknown): void {
+    const typedLogger = logger as Partial<Logger> | undefined;
+    if (typedLogger && typeof typedLogger.logChromaDbOperation === 'function') {
+        typedLogger.logChromaDbOperation(operation, details, 'rag');
+    }
+}
 
 function buildWhereFilter(filePaths?: string[]): ChromaWhereFilter | undefined {
     const normalizedPaths = normalizeFilePathFilter(filePaths);
@@ -135,7 +136,7 @@ async function listTextFiles(
                 const extension = normalizeExtension(fileName);
                 const folder = path.dirname(relativePath).split(path.sep).join('/');
                 const language = detectLanguage(fileName);
-                const fileType = classifyFileType(fileName, language);
+                const fileType = classifyFileType(fileName);
                 const ecosystemLanguage = getEcosystemLanguage(language, projectType);
                 const docsListosParaChroma = await getSplitterForFile(fileName, content, {
                     chunkSizeChars: config.chunkSizeChars,
@@ -199,6 +200,7 @@ export async function indexAllWithChromaDb(
     const collectionName = config.collectionId;
 
     logger?.info('rag', 'Starting workspace indexing', { collectionName, workspaceRoot });
+    logChromaOperation(logger, 'index.start', { collectionName, workspaceRoot });
 
     if (config.previousCollectionId && config.previousCollectionId !== collectionName && await collectionExists(client, config.previousCollectionId)) {
         await clearCollection(client, config.previousCollectionId, logger);
@@ -247,6 +249,7 @@ export async function indexAllWithChromaDb(
     }
 
     logger?.info('rag', 'Workspace indexing complete', { collectionName, indexedFiles: files.length });
+    logChromaOperation(logger, 'index.complete', { collectionName, indexedFiles: files.length });
 
     return {
         status: 'indexed',
@@ -260,21 +263,22 @@ export async function queryRelevantContextFromChromaDb(
     queryText: string,
     config: ChromaDbConnectionConfig,
     maxResults = config.maxQueryResults,
-    mode: ChromaQueryMode = 'semantic',
     signal?: AbortSignal,
     filePathFilter?: string[],
     logger?: ChromaQueryLogger
 ): Promise<ChromaSearchResult[]> {
-    logger?.debug('rag', 'Chroma query dispatch', {
-        mode,
+    const collectionName = config.collectionId;
+    logger?.debug('rag', 'Chroma semantic query dispatch', {
         maxResults,
         queryLength: queryText.length,
         filterPaths: filePathFilter?.length ?? 0
     });
-
-    if (mode === 'lexical') {
-        return queryRelevantContextFromChromaDbLexical(queryText, config, maxResults, signal, filePathFilter, logger);
-    }
+    logChromaOperation(logger, 'query.dispatch', {
+        collectionName,
+        maxResults,
+        queryLength: queryText.length,
+        filterPaths: filePathFilter?.length ?? 0
+    });
 
     return queryRelevantContextFromChromaDbSemantic(queryText, config, maxResults, signal, filePathFilter, logger);
 }
@@ -381,136 +385,17 @@ export async function queryRelevantContextFromChromaDbSemantic(
             returnedResults: results.length,
             filteredByPath: !!buildWhereFilter(filePathFilter)
         });
-
-        return results;
-    } catch (error) {
-        logger?.error('rag', 'Semantic Chroma query failed', error);
-        throw error;
-    }
-}
-
-export async function queryRelevantContextFromChromaDbLexical(
-    queryText: string,
-    config: ChromaDbConnectionConfig,
-    maxResults = config.maxQueryResults,
-    signal?: AbortSignal,
-    filePathFilter?: string[],
-    logger?: ChromaQueryLogger
-): Promise<ChromaSearchResult[]> {
-    if (!queryText.trim()) {
-        logger?.debug('rag', 'Skipped lexical query: empty query text');
-        return [];
-    }
-
-    if (signal?.aborted) {
-        logger?.warn('rag', 'Aborted lexical query before execution');
-        throw new DOMException('Aborted', 'AbortError');
-    }
-
-    logger?.debug('rag', 'Starting lexical Chroma query', {
-        maxResults,
-        filterPaths: filePathFilter?.length ?? 0
-    });
-
-    const collectionName = config.collectionId;
-    if (!collectionName) {
-        logger?.warn('rag', 'Lexical query skipped: no collection ID stored for this workspace session');
-        return [];
-    }
-
-    const client = getClient(config, signal);
-    if (!(await collectionExists(client, collectionName))) {
-        logger?.warn('rag', 'Lexical query skipped: stored Chroma collection was not found', {
-            collectionName
-        });
-        return [];
-    }
-
-    logger?.debug('rag', 'Using Chroma collection for lexical query', { collectionName });
-
-    try {
-        const collection = await client.getCollection({
-            name: collectionName,
-            embeddingFunction: createHuggingFaceEmbeddingFunction()
-        } as any);
-        const where = buildWhereFilter(filePathFilter);
-        const pageSize = 500;
-        let offset = 0;
-        let scannedDocuments = 0;
-        const matches: Array<ChromaSearchResult & { lexicalScore: number }> = [];
-
-        while (true) {
-            if (signal?.aborted) {
-                logger?.warn('rag', 'Aborted lexical query while paging', { offset });
-                throw new DOMException('Aborted', 'AbortError');
-            }
-
-            const page = await collection.get({
-                limit: pageSize,
-                offset,
-                include: ['documents', 'metadatas'],
-                where
-            } as any);
-
-            const ids = page.ids ?? [];
-            const documents = page.documents ?? [];
-            const metadatas = page.metadatas ?? [];
-            scannedDocuments += ids.length;
-            if (ids.length === 0) {
-                break;
-            }
-
-            for (let i = 0; i < ids.length; i += 1) {
-                const content = documents[i];
-                if (typeof content !== 'string') {
-                    continue;
-                }
-
-                const metadata = metadatas[i] as Record<string, unknown> | undefined;
-                const lexicalScore = lexicalPathScore(queryText, metadata);
-                if (lexicalScore <= 0) {
-                    continue;
-                }
-
-                const pathValue = getMetadataString(metadata, 'path', `document-${i + offset + 1}`);
-                const chunkIndex = getMetadataString(metadata, 'chunkIndex');
-                const chunkCount = getMetadataString(metadata, 'chunkCount');
-                const chunkSuffix = chunkIndex && chunkCount
-                    ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
-                    : '';
-
-                matches.push({
-                    path: `${pathValue}${chunkSuffix}`,
-                    content,
-                    lexicalScore
-                });
-            }
-
-            if (ids.length < pageSize) {
-                break;
-            }
-
-            offset += pageSize;
-        }
-
-        matches.sort((a, b) => b.lexicalScore - a.lexicalScore);
-        const results = matches.slice(0, maxResults).map((item) => ({
-            path: item.path,
-            content: item.content,
-            distance: undefined
-        }));
-
-        logger?.info('rag', 'Lexical Chroma query finished', {
+        logChromaOperation(logger, 'query.semantic.complete', {
             collectionName,
-            scannedDocuments,
-            lexicalMatches: matches.length,
+            retrievedDocuments: documents.length,
+            rankedMatches: ranked.length,
             returnedResults: results.length,
             filteredByPath: !!buildWhereFilter(filePathFilter)
         });
 
         return results;
     } catch (error) {
-        logger?.error('rag', 'Lexical Chroma query failed', error);
+        logger?.error('rag', 'Semantic Chroma query failed', error);
         throw error;
     }
 }
@@ -535,6 +420,10 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
 
     const logger = (options as { logger?: ChromaQueryLogger } | undefined)?.logger;
     logger?.debug('rag', 'Starting conceptual KNN Chroma query', {
+        topK,
+        minCosineSimilarity
+    });
+    logChromaOperation(logger, 'query.conceptual.start', {
         topK,
         minCosineSimilarity
     });
@@ -636,6 +525,13 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
             rankedMatches: ranked.length,
             returnedResults: results.length
         });
+        logChromaOperation(logger, 'query.conceptual.complete', {
+            collectionName,
+            scannedDocuments,
+            minCosineSimilarity,
+            rankedMatches: ranked.length,
+            returnedResults: results.length
+        });
 
         return results;
     } catch (error) {
@@ -662,11 +558,10 @@ export class ChromaAdapter implements RagGateway, RepositoryIndexGateway {
         });
     }
 
-    async queryByMode(
+    async query(
         queryText: string,
         config: ChromaDbConnectionConfig,
         maxResults: number,
-        mode: ChromaQueryMode,
         signal?: AbortSignal,
         filePathFilter?: string[]
     ): Promise<ChromaSearchResult[]> {
@@ -674,7 +569,6 @@ export class ChromaAdapter implements RagGateway, RepositoryIndexGateway {
             queryText,
             config,
             maxResults,
-            mode,
             signal,
             filePathFilter,
             this.logger

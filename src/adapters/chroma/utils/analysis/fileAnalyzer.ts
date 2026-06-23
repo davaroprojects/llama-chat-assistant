@@ -43,7 +43,7 @@ export function detectLanguage(fileName: string): string {
     return languageByExtension[extension] || 'text';
 }
 
-export function classifyFileType(fileName: string, language: string): string {
+export function classifyFileType(fileName: string): string {
     const extension = normalizeExtension(fileName).toLowerCase();
     const configExtensions = new Set(['xml', 'yaml', 'yml', 'properties', 'env', 'json', 'toml', 'ini', 'conf', 'config']);
     const configKeywords = /(?:config|settings|application|deployment|manifest|pom|gradle|build|docker|k8s|kubernetes)/i;
