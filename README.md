@@ -242,7 +242,57 @@ Llama Chat Assistant adds a sidebar panel with three tabs:
 
 ---
 
+## 🛠️ Conversation Flow Roles
+
+Each conversation mode assigns a specific role to the LLM by default. Here's what each role does:
+
+| Conversation Flow | Role | System Prompt Defines | Customization Key |
+|---|---|---|---|
+| **DIRECT_LLM** | General Software Engineer | Answers development Q&A using pre-trained knowledge; no RAG or file context | `llamaChat.chat.directLlmTemplate` |
+| **LOCAL_RAG** | Deep Code Analyst | Analyzes ONLY attached files in isolation; warns about external dependencies | `llamaChat.chat.localRagTemplate` |
+| **GLOBAL_REACT_AGENT** | Code Navigator & Architect | Iteratively searches the entire codebase using ChromaDB; builds comprehensive understanding of architecture | `llamaChat.chat.globalReactTemplate` |
+| **DEEP_REACT_AGENT** | Cross-File Dependency Expert | Analyzes attached files, then expands to dependencies using ChromaDB search; resolves external references | `llamaChat.chat.deepReactTemplate` |
+
+**ReAct flows** use the `Thought/Action/Observation` format:
+- Each `Thought` reasons about what to search next
+- Each `Action` calls `llamachat_agent_search(terms)` to query ChromaDB
+- `Observation` shows the search results
+- Loop continues until sufficient context is gathered, then emits `Final Answer`
+
+---
+
 ## 🛠️ Customizing Prompt Templates
+
+You can override the **system prompt and user prompt** for each conversation flow to customize the LLM's behavior. Edit any of the following settings in your `settings.json`:
+
+```jsonc
+{
+  "llamaChat.chat.directLlmTemplate": {
+    "systemPrompt": "Your custom system prompt here for DIRECT_LLM mode",
+    "userPrompt": "Your custom user prompt template with {{user_query}} placeholder"
+  },
+  "llamaChat.chat.globalReactTemplate": {
+    "systemPrompt": "Your custom system prompt here for GLOBAL_REACT_AGENT mode",
+    "userPrompt": "Your custom user prompt template"
+  },
+  "llamaChat.chat.localRagTemplate": {
+    "systemPrompt": "Your custom system prompt here for LOCAL_RAG mode",
+    "userPrompt": "Your custom user prompt template with {{target_files}} placeholder"
+  },
+  "llamaChat.chat.deepReactTemplate": {
+    "systemPrompt": "Your custom system prompt here for DEEP_REACT_AGENT mode",
+    "userPrompt": "Your custom user prompt template with {{target_files}} placeholder"
+  }
+}
+```
+
+**Available placeholders:**
+- `{{user_query}}` — replaced with the user's message
+- `{{target_files}}` — replaced with attached file contents (LOCAL_RAG and DEEP_REACT only)
+
+### Legacy RAG Mode & Specific Files Mode Templates
+
+These templates control the formatting of retrieved context and target files display (used internally for non-ReAct flows):
 
 **RAG mode** (`llamaChat.chat.ragModeTemplate`):
 
@@ -284,9 +334,13 @@ Llama Chat Assistant adds a sidebar panel with three tabs:
 }
 ```
 
-The four conversation mode templates (`directLlmTemplate`, `globalReactTemplate`, `localRagTemplate`, `deepReactTemplate`) accept `systemPrompt` and `userPrompt` string keys for full override.
+### Default Prompt Content
 
-Legacy Spanish keys (`modoEjecucion`, `archivosObjetivo`, `contextoRecuperado`, `consulta`) are accepted for backward compatibility.
+For detailed information about the **default system prompts** used in each conversation flow (Principal Software Engineer roles, ReAct format requirements, etc.), see [ARCHITECTURE.md §6.3bis](ARCHITECTURE.md#63bis-prompt-templates-for-each-conversation-flow) and [§6.7](ARCHITECTURE.md#67-react-loop-continuation-prompts).
+
+### Legacy Spanish Keys
+
+Legacy Spanish keys (`modoEjecucion`, `archivosObjetivo`, `contextoRecuperado`, `consulta`) are accepted for backward compatibility in RAG mode and specific files mode templates.
 
 ---
 
