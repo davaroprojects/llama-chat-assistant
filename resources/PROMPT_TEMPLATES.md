@@ -1,6 +1,6 @@
 # Customizable Prompt Templates
 
-This document explains how to customize the prompt templates for RAG (Global Analysis) and Specific Files execution modes in Llama Chat Assistant.
+This document explains how to customize the prompt templates for RAG (Global Analysis) and Specific Files execution modes in prrrrr.
 
 ## Overview
 

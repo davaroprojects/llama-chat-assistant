@@ -1,5 +1,5 @@
 {
-  "name": "llama-chat-assistant",
+  "name": "prrrrr",
   "displayName": "%ext.displayName%",
   "description": "%ext.description%",
   "version": "0.0.1",
@@ -237,12 +237,12 @@
     ],
     "commands": [
       {
-        "command": "llama-chat-assistant.openSettings",
+        "command": "prrrrr.openSettings",
         "title": "%command.openSettings.title%",
         "icon": "settings-gear"
       },
       {
-        "command": "llama-chat-assistant.moveSidebarRight",
+        "command": "prrrrr.moveSidebarRight",
         "title": "%command.moveSidebarRight.title%",
         "icon": "arrow-right"
       }
@@ -250,17 +250,17 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "llama-chat-sidebar",
+          "id": "prrrrr-sidebar",
           "title": "%views.container.title%",
           "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
-      "llama-chat-sidebar": [
+      "prrrrr-sidebar": [
         {
           "type": "webview",
-          "id": "llama-chat-view",
+          "id": "prrrrr-view",
           "name": "%views.chat.name%"
         }
       ]
@@ -268,13 +268,13 @@
     "menus": {
       "view/title": [
         {
-          "command": "llama-chat-assistant.openSettings",
-          "when": "view == llama-chat-view",
+          "command": "prrrrr.openSettings",
+          "when": "view == prrrrr-view",
           "group": "$(navigation)"
         },
         {
-          "command": "llama-chat-assistant.moveSidebarRight",
-          "when": "view == llama-chat-view",
+          "command": "prrrrr.moveSidebarRight",
+          "when": "view == prrrrr-view",
           "group": "navigation@1"
         }
       ]
