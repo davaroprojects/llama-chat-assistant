@@ -1,4 +1,4 @@
-# prrrrr — Architecture Reference
+# Llama Chat Assistant — Architecture Reference
 
 > **Document type:** Architecture Decision Record + Technical Design
 > **Status:** Living document — authoritative source of truth for the development team
@@ -23,14 +23,14 @@
 
 ## 1. System Overview
 
-prrrrr is a VS Code extension that implements a **local Retrieval-Augmented Generation (RAG) pipeline**. It has no dependency on external cloud APIs. All inference and retrieval run on the developer's own hardware.
+Llama Chat Assistant is a VS Code extension that implements a **local Retrieval-Augmented Generation (RAG) pipeline**. It has no dependency on external cloud APIs. All inference and retrieval run on the developer's own hardware.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     Developer Machine                    │
 │                                                         │
 │  ┌──────────────┐    ┌──────────────┐   ┌───────────┐  │
-│  │  VS Code UI  │◄──►│  prrrrr Ext  │──►│ llama.cpp │  │
+│  │  VS Code UI  │◄──►│  Llama Chat Assistant │──►│ llama.cpp │  │
 │  │  (Webview)   │    │  (this repo) │   │  :8033    │  │
 │  └──────────────┘    └──────┬───────┘   └───────────┘  │
 │                             │                            │

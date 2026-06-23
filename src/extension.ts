@@ -10,18 +10,18 @@ export function activate(context: vscode.ExtensionContext) {
     const sessionManager = new SessionAdapter(context);
     const llamaChatConfig = vscode.workspace.getConfiguration('llamaChat');
     const debugEnabled = llamaChatConfig.get<boolean>('chat.debug') ?? llamaChatConfig.get<boolean>('debug') ?? false;
-    const logger = new OutputLogger('prrrrr', debugEnabled);
+    const logger = new OutputLogger('Llama Chat Assistant', debugEnabled);
     context.subscriptions.push(logger);
     LlamaAdapter.setLogger(logger);
 
-    let settingsCommand = vscode.commands.registerCommand('prrrrr.openSettings', () => {
+    let settingsCommand = vscode.commands.registerCommand('llamaChatAssistant.openSettings', () => {
         vscode.commands.executeCommand('workbench.action.openSettings', 'llamaChat');
     });
     context.subscriptions.push(settingsCommand);
 
-    const moveSidebarRightCommand = vscode.commands.registerCommand('prrrrr.moveSidebarRight', async () => {
+    const moveSidebarRightCommand = vscode.commands.registerCommand('llamaChatAssistant.moveSidebarRight', async () => {
         await vscode.workspace.getConfiguration('workbench').update('sideBar.location', 'right', vscode.ConfigurationTarget.Global);
-        await vscode.commands.executeCommand('workbench.view.extension.prrrrr-sidebar');
+        await vscode.commands.executeCommand('workbench.view.extension.llama-chat-assistant-sidebar');
     });
     context.subscriptions.push(moveSidebarRightCommand);
 
@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
     activeProvider = provider;
     context.subscriptions.push(
         provider,
-        vscode.window.registerWebviewViewProvider('prrrrr-view', provider)
+        vscode.window.registerWebviewViewProvider('llama-chat-assistant-view', provider)
     );
 }
 

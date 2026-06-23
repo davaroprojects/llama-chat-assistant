@@ -1,8 +1,8 @@
-# prrrrr
+# Llama Chat Assistant
 
 ![Version](https://img.shields.io/badge/version-0.0.1-blue?style=flat-square) ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.120.0-007ACC?style=flat-square&logo=visualstudiocode) ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square) ![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)
 
-**prrrrr** is a VS Code extension that brings AI-powered code intelligence directly into your editor — running entirely on your local machine, with no data leaving your environment.
+**Llama Chat Assistant** is a VS Code extension that brings AI-powered code intelligence directly into your editor — running entirely on your local machine, with no data leaving your environment.
 
 Chat with your codebase, explore execution flows, and retrieve semantically relevant context using [llama.cpp](https://github.com/ggerganov/llama.cpp) as the LLM backend and [ChromaDB](https://www.trychroma.com/) as the vector store.
 
@@ -65,12 +65,12 @@ Minimum version: `1.120.0`.
 
 1. Open VS Code.
 2. Press `Ctrl+Shift+X` to open the Extensions view.
-3. Search for **prrrrr** and click **Install**.
+3. Search for **Llama Chat Assistant** and click **Install**.
 
 ### From a `.vsix` file
 
 ```bash
-code --install-extension prrrrr-0.0.1.vsix
+code --install-extension llama-chat-assistant-0.0.1.vsix
 ```
 
 ---
@@ -187,7 +187,7 @@ Click **Start Server** in the extension panel, or run manually:
 
 ### Step 2 — Index your workspace into ChromaDB
 
-Open the prrrrr panel in the Activity Bar and click **Index Workspace**. The extension will:
+Open the Llama Chat Assistant panel in the Activity Bar and click **Index Workspace**. The extension will:
 
 1. Walk your project files (respecting `excludeDirs` and `excludeFileGlobs`).
 2. Chunk file contents into overlapping segments.
@@ -232,7 +232,7 @@ Click the **Attach** button (📎) to add individual files to the context:
 
 ## 🖥️ Interface
 
-prrrrr adds a sidebar panel with three tabs:
+Llama Chat Assistant adds a sidebar panel with three tabs:
 
 | Tab | Description |
 |---|---|
