@@ -10,6 +10,9 @@ import { RagGateway } from '../gateways/ragGateway';
 import { LlamaChatAgentSearchUseCase } from './llamaChatAgentSearchUseCase';
 import { ResolveConversationFlowUseCase } from './resolveConversationFlowUseCase';
 import { RunReactAgentConversationUseCase } from './runReactAgentConversationUseCase';
+import { MemoryPruningUseCase } from './memoryPruningUseCase';
+import { MemoryManagementConfigAdapter } from '../../adapters/vscode/memoryManagementConfigAdapter';
+import { DEFAULT_TOKEN_COUNT_CONFIGURATION } from '../../core/domain/tokenCount';
 
 export interface GenerateAssistantReplyInput {
     userPrompt: string;
@@ -37,9 +40,14 @@ export class GenerateAssistantReplyUseCase {
         private readonly llamaGateway: LlamaGateway,
         private readonly logger: Logger
     ) {
+        const memoryConfig = MemoryManagementConfigAdapter.loadFromWorkspaceConfig();
+        const memoryPruningUseCase = new MemoryPruningUseCase(memoryConfig, DEFAULT_TOKEN_COUNT_CONFIGURATION, this.logger);
+
         this.reactAgentConversationUseCase = new RunReactAgentConversationUseCase(
             this.llamaGateway,
             new LlamaChatAgentSearchUseCase(this.ragGateway, this.logger),
+            memoryPruningUseCase,
+            DEFAULT_TOKEN_COUNT_CONFIGURATION,
             this.logger
         );
     }

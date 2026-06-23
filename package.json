@@ -234,6 +234,34 @@
             "description": "%config.rag.minCosineSimilarity.description%"
           }
         }
+      },
+      {
+        "title": "%config.memory.title%",
+        "properties": {
+          "llamaChat.memory.contextWindowSize": {
+            "type": "number",
+            "default": 8192,
+            "minimum": 1024,
+            "description": "%config.memory.contextWindowSize.description%"
+          },
+          "llamaChat.memory.safetyThreshold": {
+            "type": "number",
+            "default": 6500,
+            "minimum": 512,
+            "description": "%config.memory.safetyThreshold.description%"
+          },
+          "llamaChat.memory.preserveSystemPrompt": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.memory.preserveSystemPrompt.description%"
+          },
+          "llamaChat.memory.preserveRecentMessagesCount": {
+            "type": "number",
+            "default": 2,
+            "minimum": 1,
+            "description": "%config.memory.preserveRecentMessagesCount.description%"
+          }
+        }
       }
     ],
     "commands": [
@@ -297,6 +325,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.120.0",
@@ -312,6 +341,7 @@
     "@hey-api/client-fetch": "^0.13.1",
     "@huggingface/transformers": "^4.2.0",
     "@langchain/textsplitters": "^1.0.1",
-    "chromadb": "^3.4.3"
+    "chromadb": "^3.4.3",
+    "js-tiktoken": "^1.0.21"
   }
 }

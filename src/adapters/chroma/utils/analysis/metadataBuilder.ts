@@ -14,6 +14,7 @@ export interface IndexedChunk {
     chunkStart: number;
     chunkEnd: number;
     content: string;
+    keywordEntities: string;
 }
 
 export function buildEmbeddingInput(chunk: IndexedChunk): string {

@@ -39,6 +39,12 @@
   "config.rag.maxQueryResults.description": "Maximum retrieved context blocks per query.",
   "config.rag.minCosineSimilarity.description": "Minimum cosine similarity threshold used by conceptual KNN retrieval.",
 
+  "config.memory.title": "prrrrr › Memory Management",
+  "config.memory.contextWindowSize.description": "Total context window size available in the LLM (defines maximum memory budget).",
+  "config.memory.safetyThreshold.description": "Token count threshold that triggers automatic memory pruning (typically 80% of context window).",
+  "config.memory.preserveSystemPrompt.description": "Whether to keep the system prompt in memory during pruning operations.",
+  "config.memory.preserveRecentMessagesCount.description": "Number of recent conversation messages to always preserve during memory cleanup.",
+
   "command.openSettings.title": "prrrrr: Configure",
   "command.moveSidebarRight.title": "prrrrr: Move Sidebar Right",
 

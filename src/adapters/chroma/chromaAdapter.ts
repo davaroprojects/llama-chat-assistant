@@ -28,7 +28,6 @@ import {
 
 // Import utils - text
 import { getSplitterForFile, resolveChunkTuning, ChunkTuning } from './utils/text/textSplitter';
-import { processAndChunkFile, TextChunk } from './utils/text/textChunking';
 
 // Import utils - search
 import { cosineSimilarity } from './utils/search/vectorSimilarity';
@@ -138,18 +137,18 @@ async function listTextFiles(
                 const language = detectLanguage(fileName);
                 const fileType = classifyFileType(fileName, language);
                 const ecosystemLanguage = getEcosystemLanguage(language, projectType);
-                const chunks = await processAndChunkFile(relativePath, content, {
+                const docsListosParaChroma = await getSplitterForFile(fileName, content, {
                     chunkSizeChars: config.chunkSizeChars,
                     chunkOverlapChars: config.chunkOverlapChars
                 });
 
-                chunks.forEach((chunk, index) => {
+                docsListosParaChroma.forEach((chunk) => {
                     const javaMetadata = language === 'java'
-                        ? extractJavaSymbolMetadata(content, chunk.end)
+                        ? extractJavaSymbolMetadata(content, chunk.text.length)
                         : { className: '', methodName: '' };
 
                     indexed.push({
-                        id: `${relativePath}::chunk-${index}`,
+                        id: `${relativePath}::chunk-${chunk.index}`,
                         relativePath,
                         fileName,
                         extension,
@@ -159,11 +158,12 @@ async function listTextFiles(
                         className: javaMetadata.className,
                         methodName: javaMetadata.methodName,
                         projectType,
-                        chunkIndex: index,
-                        chunkCount: chunks.length,
-                        chunkStart: chunk.start,
-                        chunkEnd: chunk.end,
-                        content: chunk.text
+                        chunkIndex: chunk.index,
+                        chunkCount: chunk.totalChunks,
+                        chunkStart: 0,
+                        chunkEnd: chunk.text.length,
+                        content: chunk.text,
+                        keywordEntities: chunk.keywordEntities.join('|')
                     });
                 });
             } catch (error) {
@@ -240,7 +240,8 @@ export async function indexAllWithChromaDb(
                 chunkIndex: String(item.chunkIndex),
                 chunkCount: String(item.chunkCount),
                 chunkStart: String(item.chunkStart),
-                chunkEnd: String(item.chunkEnd)
+                chunkEnd: String(item.chunkEnd),
+                keyword_entities: item.keywordEntities
             }))
         });
     }

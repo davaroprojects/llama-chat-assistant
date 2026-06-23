@@ -3,6 +3,10 @@ import { LlamaMessageBuilder } from '../../helpers/llamaMessageBuilder';
 import { ChromaDbConnectionConfig } from '../model/chroma';
 import { LlmGenerationConfig, LlmGenerationResult, LlmMessage, LlamaGateway } from '../gateways/llamaGateway';
 import { LlamaChatAgentSearchUseCase } from './llamaChatAgentSearchUseCase';
+import { MemoryPruningUseCase } from './memoryPruningUseCase';
+import { countTokensInMessages } from '../../utils/tokenCounter';
+import { TokenCountConfiguration } from '../domain/tokenCount';
+import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 
 const MAX_AGENT_STEPS = 6;
 const REACT_CONTINUATION_PROMPT = [
@@ -56,7 +60,8 @@ function isPlaceholderFinalAnswer(text: string): boolean {
 }
 
 function extractActionQuery(text: string): string | null {
-    const match = text.match(/Action:\s*llamachat_agent_search\(([^\n]*)\)/i);
+    // Accept any search method name (agent_search, llamachat_agent_search, search, etc.)
+    const match = text.match(/Action:\s*[a-z_]*(?:agent_search|search)\s*\(\s*["']?([^"'\)]+)["']?\s*\)/i);
     if (!match) {
         return null;
     }
@@ -66,6 +71,7 @@ function extractActionQuery(text: string): string | null {
         return null;
     }
 
+    // Remove surrounding quotes if present
     if ((rawValue.startsWith('"') && rawValue.endsWith('"')) || (rawValue.startsWith("'") && rawValue.endsWith("'"))) {
         return rawValue.slice(1, -1).trim();
     }
@@ -81,6 +87,8 @@ export class RunReactAgentConversationUseCase {
     constructor(
         private readonly llamaGateway: LlamaGateway,
         private readonly agentSearchUseCase: LlamaChatAgentSearchUseCase,
+        private readonly memoryPruningUseCase: MemoryPruningUseCase,
+        private readonly tokenCountConfig: TokenCountConfiguration,
         private readonly logger: Logger
     ) {}
 
@@ -102,18 +110,40 @@ export class RunReactAgentConversationUseCase {
         let totalTokens = 0;
         let totalServerUsageTokens = 0;
         const executedQueries = new Set<string>();
+        const consultedFilePaths = new Set<string>();
 
         for (let step = 0; step < MAX_AGENT_STEPS; step += 1) {
             if (input.abortSignal?.aborted) {
                 throw new DOMException('Aborted', 'AbortError');
             }
 
+            // Check and perform memory pruning before llama.cpp call
+            const messageObjectsForPruning = this.convertToBaseMessages(workingMessages);
+            const tokenCountResult = await countTokensInMessages(messageObjectsForPruning, this.tokenCountConfig);
+            const preRequestTokens = tokenCountResult.totalTokens;
+
             this.logger.debug('rag', 'Running ReAct agent iteration', {
                 step: step + 1,
                 toolCalls,
                 retrievedMatches,
-                messageCount: workingMessages.length
+                messageCount: workingMessages.length,
+                tokenCount: preRequestTokens
             });
+
+            // Perform memory pruning if necessary
+            const { messages: prunedMessageObjects, result: pruningResult } = this.memoryPruningUseCase.execute(
+                messageObjectsForPruning
+            );
+
+            if (pruningResult.pruningPerformed) {
+                this.logger.info('rag', 'Memory pruning executed during ReAct loop', {
+                    step: step + 1,
+                    originalTokens: pruningResult.originalTokenCount,
+                    finalTokens: pruningResult.finalTokenCount,
+                    messagesRemoved: pruningResult.messagesRemoved
+                });
+                workingMessages = this.convertFromBaseMessages(prunedMessageObjects);
+            }
 
             const generation = await this.llamaGateway.streamResponse(
                 workingMessages,
@@ -125,14 +155,17 @@ export class RunReactAgentConversationUseCase {
             totalTokens += generation.tokenCount;
             totalServerUsageTokens += generation.serverUsageTokens;
 
+            const postRequestTokens = preRequestTokens + generation.tokenCount;
             this.logger.debug('llama', 'ReAct iteration model output received', {
                 step: step + 1,
                 tokenCount: generation.tokenCount,
+                totalTokensInContext: postRequestTokens,
                 preview: generation.totalText.slice(0, 400)
             });
 
             const finalAnswer = extractFinalAnswer(generation.totalText);
-            if (finalAnswer && !isPlaceholderFinalAnswer(finalAnswer)) {
+            // Only accept Final Answer if at least one tool call (search) has been executed
+            if (finalAnswer && !isPlaceholderFinalAnswer(finalAnswer) && toolCalls > 0) {
                 this.logger.info('rag', 'ReAct agent finished with final answer', {
                     step: step + 1,
                     toolCalls,
@@ -147,6 +180,21 @@ export class RunReactAgentConversationUseCase {
                     toolCalls,
                     retrievedMatches
                 };
+            }
+
+            // If Final Answer detected but toolCalls is 0, reject it and force iteration
+            if (finalAnswer && !isPlaceholderFinalAnswer(finalAnswer) && toolCalls === 0) {
+                this.logger.warn('rag', 'ReAct agent attempted Final Answer before first tool call; forcing action iteration', {
+                    step: step + 1,
+                    preview: finalAnswer.slice(0, 240)
+                });
+
+                workingMessages = [
+                    ...workingMessages,
+                    { role: 'assistant', content: generation.totalText },
+                    { role: 'user', content: 'You must execute at least one search action before providing Final Answer. Emit Thought and Action.' }
+                ];
+                continue;
             }
 
             if (finalAnswer && isPlaceholderFinalAnswer(finalAnswer)) {
@@ -190,6 +238,8 @@ export class RunReactAgentConversationUseCase {
                 const searchResult = await this.agentSearchUseCase.execute(actionQuery, input.chromaConfig, input.abortSignal);
                 observationText = searchResult.observationText;
                 matchesCount = searchResult.matches.length;
+                // Track consulted files for Final Answer references
+                searchResult.matches.forEach(match => consultedFilePaths.add(match.path));
             }
 
             toolCalls += 1;
@@ -213,9 +263,14 @@ export class RunReactAgentConversationUseCase {
             retrievedMatches
         });
 
+        // Perform final memory pruning before last generation call
+        const finalMessageObjectsForPruning = this.convertToBaseMessages(workingMessages);
+        const { messages: finalPrunedMessageObjects } = this.memoryPruningUseCase.execute(finalMessageObjectsForPruning);
+        const finalWorkingMessages = this.convertFromBaseMessages(finalPrunedMessageObjects);
+
         const finalGeneration = await this.llamaGateway.streamResponse(
             [
-                ...workingMessages,
+                ...finalWorkingMessages,
                 { role: 'user', content: 'Stop searching and provide Final Answer: using only the gathered observations.' }
             ],
             input.llamaConfig,
@@ -225,7 +280,21 @@ export class RunReactAgentConversationUseCase {
 
         totalTokens += finalGeneration.tokenCount;
         totalServerUsageTokens += finalGeneration.serverUsageTokens;
-        const extractedFinalAnswer = extractFinalAnswer(finalGeneration.totalText);
+        let extractedFinalAnswer = extractFinalAnswer(finalGeneration.totalText);
+
+        // Append consulted files references to Final Answer if any searches were performed
+        if (extractedFinalAnswer && consultedFilePaths.size > 0) {
+            const sortedPaths = Array.from(consultedFilePaths).sort();
+            const fileReferences = sortedPaths.map(path => `- ${path}`).join('\n');
+            extractedFinalAnswer = [
+                extractedFinalAnswer,
+                '',
+                '---',
+                '**Files consulted:**',
+                fileReferences
+            ].join('\n');
+        }
+
         const finalAnswer = extractedFinalAnswer && !isPlaceholderFinalAnswer(extractedFinalAnswer)
             ? extractedFinalAnswer
             : finalGeneration.totalText.trim();
@@ -245,5 +314,33 @@ export class RunReactAgentConversationUseCase {
             toolCalls,
             retrievedMatches
         };
+    }
+
+    /**
+     * Convert LlmMessage format to BaseMessage for token counting
+     */
+    private convertToBaseMessages(messages: LlmMessage[]): BaseMessage[] {
+        return messages.map((msg) => {
+            if (msg.role === 'assistant') {
+                return new AIMessage(msg.content);
+            } else if (msg.role === 'system') {
+                // System messages are treated as human messages for compatibility
+                return new HumanMessage(msg.content);
+            }
+            return new HumanMessage(msg.content);
+        });
+    }
+
+    /**
+     * Convert BaseMessage format back to LlmMessage
+     */
+    private convertFromBaseMessages(messages: BaseMessage[]): LlmMessage[] {
+        return messages.map((msg) => {
+            const role = msg._getType() === 'ai' ? 'assistant' : 'user';
+            return {
+                role,
+                content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            };
+        });
     }
 }

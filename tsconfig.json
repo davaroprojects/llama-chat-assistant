@@ -11,6 +11,7 @@
 		"rootDir": "src",
 		"strict": true,
 		"skipLibCheck": true,
-		"types": ["node", "mocha"]
-	}
+		"types": ["node", "mocha", "jest"]
+	},
+	"exclude": ["src/**/*.test.ts", "dist", "node_modules"]
 }
