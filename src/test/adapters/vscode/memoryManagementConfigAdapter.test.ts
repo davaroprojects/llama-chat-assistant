@@ -1,122 +1,77 @@
-/**
- * Tests for memory management configuration adapter
- */
-
 import * as vscode from 'vscode';
+import * as assert from 'assert';
 import { MemoryManagementConfigAdapter } from '../../../adapters/vscode/memoryManagementConfigAdapter';
 
-jest.mock('vscode', () => ({
-    workspace: {
-        getConfiguration: jest.fn(),
-        onDidChangeConfiguration: jest.fn()
-    }
-}));
+suite('MemoryManagementConfigAdapter', () => {
+    const originalGetConfiguration = vscode.workspace.getConfiguration;
+    const originalOnDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration;
 
-describe('Memory Management Configuration Adapter', () => {
-    beforeEach(() => {
-        jest.clearAllMocks();
+    teardown(() => {
+        (vscode.workspace as typeof vscode.workspace & { getConfiguration: typeof vscode.workspace.getConfiguration }).getConfiguration = originalGetConfiguration;
+        (vscode.workspace as typeof vscode.workspace & { onDidChangeConfiguration: typeof vscode.workspace.onDidChangeConfiguration }).onDidChangeConfiguration = originalOnDidChangeConfiguration;
     });
 
-    describe('loadFromWorkspaceConfig', () => {
-        it('should load memory configuration from workspace settings', () => {
-            const mockConfig = {
-                get: jest.fn((key: string) => {
-                    const values: Record<string, unknown> = {
-                        contextWindowSize: 16384,
-                        safetyThreshold: 13000,
-                        preserveSystemPrompt: true,
-                        preserveRecentMessagesCount: 3
-                    };
-                    return values[key];
-                })
-            };
+    test('loads memory configuration from workspace settings', () => {
+        const values: Record<string, unknown> = {
+            contextWindowSize: 16384,
+            safetyThreshold: 13000,
+            preserveSystemPrompt: true,
+            preserveRecentMessagesCount: 3
+        };
 
-            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue(mockConfig);
+        let capturedSection = '';
+        (vscode.workspace as typeof vscode.workspace & { getConfiguration: typeof vscode.workspace.getConfiguration }).getConfiguration = ((section?: string) => {
+            capturedSection = String(section || '');
+            return {
+                get: (key: string) => values[key]
+            } as unknown as vscode.WorkspaceConfiguration;
+        }) as typeof vscode.workspace.getConfiguration;
 
-            const config = MemoryManagementConfigAdapter.loadFromWorkspaceConfig();
+        const config = MemoryManagementConfigAdapter.loadFromWorkspaceConfig();
 
-            expect(config.contextWindowSize).toBe(16384);
-            expect(config.safetyThreshold).toBe(13000);
-            expect(config.preserveSystemPrompt).toBe(true);
-            expect(config.preserveRecentMessagesCount).toBe(3);
-        });
-
-        it('should use defaults when settings are not configured', () => {
-            const mockConfig = {
-                get: jest.fn(() => undefined)
-            };
-
-            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue(mockConfig);
-
-            const config = MemoryManagementConfigAdapter.loadFromWorkspaceConfig();
-
-            expect(config.contextWindowSize).toBe(8192);
-            expect(config.safetyThreshold).toBe(6500);
-            expect(config.preserveSystemPrompt).toBe(true);
-            expect(config.preserveRecentMessagesCount).toBe(2);
-        });
-
-        it('should query llamaChat.memory configuration section', () => {
-            const mockConfig = {
-                get: jest.fn(() => undefined)
-            };
-
-            (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue(mockConfig);
-
-            MemoryManagementConfigAdapter.loadFromWorkspaceConfig();
-
-            expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith('llamaChat.memory');
-        });
+        assert.strictEqual(capturedSection, 'llamaChat.memory');
+        assert.strictEqual(config.contextWindowSize, 16384);
+        assert.strictEqual(config.safetyThreshold, 13000);
+        assert.strictEqual(config.preserveSystemPrompt, true);
+        assert.strictEqual(config.preserveRecentMessagesCount, 3);
     });
 
-    describe('onConfigurationChange', () => {
-        it('should register listener for memory configuration changes', () => {
-            const mockDisposable = { dispose: jest.fn() };
-            const mockCallback = jest.fn();
+    test('uses defaults when settings are not configured', () => {
+        (vscode.workspace as typeof vscode.workspace & { getConfiguration: typeof vscode.workspace.getConfiguration }).getConfiguration = (() => {
+            return {
+                get: () => undefined
+            } as unknown as vscode.WorkspaceConfiguration;
+        }) as typeof vscode.workspace.getConfiguration;
 
-            (vscode.workspace.onDidChangeConfiguration as jest.Mock).mockReturnValue(mockDisposable);
+        const config = MemoryManagementConfigAdapter.loadFromWorkspaceConfig();
 
-            const disposable = MemoryManagementConfigAdapter.onConfigurationChange(mockCallback);
+        assert.strictEqual(config.contextWindowSize, 8192);
+        assert.strictEqual(config.safetyThreshold, 6500);
+        assert.strictEqual(config.preserveSystemPrompt, true);
+        assert.strictEqual(config.preserveRecentMessagesCount, 2);
+    });
 
-            expect(disposable).toBe(mockDisposable);
+    test('triggers callback on memory configuration changes only', () => {
+        let changeListener: ((event: vscode.ConfigurationChangeEvent) => void) | undefined;
+        const callbackHits: number[] = [];
+
+        (vscode.workspace as typeof vscode.workspace & { onDidChangeConfiguration: typeof vscode.workspace.onDidChangeConfiguration }).onDidChangeConfiguration = ((listener: (event: vscode.ConfigurationChangeEvent) => unknown) => {
+            changeListener = listener;
+            return { dispose: () => undefined };
+        }) as typeof vscode.workspace.onDidChangeConfiguration;
+
+        MemoryManagementConfigAdapter.onConfigurationChange(() => {
+            callbackHits.push(1);
         });
 
-        it('should trigger callback on memory configuration changes', () => {
-            const mockCallback = jest.fn();
-            let configChangeListener: (event: any) => void;
+        changeListener?.({
+            affectsConfiguration: (section: string) => section === 'llamaChat.memory'
+        } as vscode.ConfigurationChangeEvent);
 
-            (vscode.workspace.onDidChangeConfiguration as jest.Mock).mockImplementation((callback) => {
-                configChangeListener = callback;
-                return { dispose: jest.fn() };
-            });
+        changeListener?.({
+            affectsConfiguration: (section: string) => section === 'other.config'
+        } as vscode.ConfigurationChangeEvent);
 
-            MemoryManagementConfigAdapter.onConfigurationChange(mockCallback);
-
-            // Simulate a configuration change
-            configChangeListener!({
-                affectsConfiguration: (section: string) => section === 'llamaChat.memory'
-            });
-
-            expect(mockCallback).toHaveBeenCalled();
-        });
-
-        it('should not trigger callback for unrelated configuration changes', () => {
-            const mockCallback = jest.fn();
-            let configChangeListener: (event: any) => void;
-
-            (vscode.workspace.onDidChangeConfiguration as jest.Mock).mockImplementation((callback) => {
-                configChangeListener = callback;
-                return { dispose: jest.fn() };
-            });
-
-            MemoryManagementConfigAdapter.onConfigurationChange(mockCallback);
-
-            // Simulate a configuration change for different section
-            configChangeListener!({
-                affectsConfiguration: (section: string) => section === 'other.config'
-            });
-
-            expect(mockCallback).not.toHaveBeenCalled();
-        });
+        assert.strictEqual(callbackHits.length, 1);
     });
 });

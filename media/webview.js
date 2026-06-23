@@ -87,20 +87,6 @@ const elements = {
     serverStartBtn: document.getElementById('server-start-btn'),
     serverStopBtn: document.getElementById('server-stop-btn'),
     ragIndexBtn: document.getElementById('rag-index-btn'),
-    llamaSettingsAccordion: document.getElementById('llama-settings-accordion'),
-    chromadbSettingsAccordion: document.getElementById('chromadb-settings-accordion'),
-    serverParametersList: document.getElementById('server-parameters-list'),
-    ragChromaUrlValue: document.getElementById('rag-chroma-url-value'),
-    ragChromaPortValue: document.getElementById('rag-chroma-port-value'),
-    ragChromaCollectionIdValue: document.getElementById('rag-chroma-collection-id-value'),
-    ragChromaExcludeDirsValue: document.getElementById('rag-chroma-exclude-dirs-value'),
-    ragChromaExcludeFileGlobsValue: document.getElementById('rag-chroma-exclude-file-globs-value'),
-    ragChromaMaxFileSizeKbValue: document.getElementById('rag-chroma-max-file-size-kb-value'),
-    ragChromaMaxIndexedFilesValue: document.getElementById('rag-chroma-max-indexed-files-value'),
-    ragChromaChunkSizeCharsValue: document.getElementById('rag-chroma-chunk-size-chars-value'),
-    ragChromaChunkOverlapCharsValue: document.getElementById('rag-chroma-chunk-overlap-chars-value'),
-    ragChromaVectorCandidatePoolValue: document.getElementById('rag-chroma-vector-candidate-pool-value'),
-    ragChromaMaxQueryResultsValue: document.getElementById('rag-chroma-max-query-results-value'),
     serverActionStartIcon: document.getElementById('server-action-start-icon'),
     serverActionStopIcon: document.getElementById('server-action-stop-icon'),
     serverActionText: document.getElementById('server-action-text'),
@@ -134,6 +120,12 @@ const elements = {
     attachedFilesContainer: null
 };
 
+const ragConnectionSnapshot = {
+    url: 'http://127.0.0.1',
+    port: '8000',
+    collectionId: '-'
+};
+
 function copyActionText(button, text) {
     const content = String(text || '').trim();
     if (!content) {
@@ -162,9 +154,9 @@ function buildChromaPanelCopyText() {
     return [
         'ChromaDB',
         `Action: ${elements.ragActionText?.textContent?.trim() || '-'}`,
-        `URL: ${elements.ragChromaUrlValue?.textContent?.trim() || '-'}`,
-        `Port: ${elements.ragChromaPortValue?.textContent?.trim() || '-'}`,
-        `Collection ID: ${elements.ragChromaCollectionIdValue?.textContent?.trim() || '-'}`
+        `URL: ${ragConnectionSnapshot.url}`,
+        `Port: ${ragConnectionSnapshot.port}`,
+        `Collection ID: ${ragConnectionSnapshot.collectionId}`
     ].join('\n');
 }
 
@@ -185,8 +177,6 @@ const labels = {
     ragIndexingLabel: document.body.dataset.ragIndexingLabel || 'Indexing',
     ragIndexedLabel: document.body.dataset.ragIndexedLabel || 'Indexed',
     ragNeverIndexedLabel: document.body.dataset.ragNeverIndexedLabel || 'Never',
-    ragChromaUrlLabel: document.body.dataset.ragChromaUrlLabel || 'ChromaDB URL',
-    ragChromaPortLabel: document.body.dataset.ragChromaPortLabel || 'ChromaDB port',
     ragChromaUnavailableLabel: document.body.dataset.ragChromaUnavailableLabel || 'ChromaDB server is not active'
 };
 
@@ -418,40 +408,8 @@ const uiState = {
     isInTransaction: false,
     currentContextWindow: 0,
     currentModelName: 'local',
-    currentSessionTokens: 0,
-    settingsAccordionState: {
-        llamaOpen: true,
-        chromadbOpen: false
-    }
+    currentSessionTokens: 0
 };
-
-function readSettingsAccordionState() {
-    return {
-        llamaOpen: !!elements.llamaSettingsAccordion?.open,
-        chromadbOpen: !!elements.chromadbSettingsAccordion?.open
-    };
-}
-
-function applySettingsAccordionState(state) {
-    if (!state || typeof state !== 'object') {
-        return;
-    }
-
-    const nextLlamaOpen = !!state.llamaOpen;
-    const nextChromadbOpen = !!state.chromadbOpen;
-
-    if (elements.llamaSettingsAccordion) {
-        elements.llamaSettingsAccordion.open = nextLlamaOpen;
-    }
-    if (elements.chromadbSettingsAccordion) {
-        elements.chromadbSettingsAccordion.open = nextChromadbOpen;
-    }
-
-    uiState.settingsAccordionState = {
-        llamaOpen: nextLlamaOpen,
-        chromadbOpen: nextChromadbOpen
-    };
-}
 function updateServerActionPanel() {
     if (!elements.serverActionStartIcon || !elements.serverActionStopIcon || !elements.serverActionText || !elements.serverActionLoader) {
         return;
@@ -516,12 +474,6 @@ function updateRagActionPanel() {
     updateSequentialDotTimer();
 }
 
-
-function persistSettingsAccordionState() {
-    const state = readSettingsAccordionState();
-    uiState.settingsAccordionState = state;
-    elements.vscode.postMessage({ type: 'setSettingsAccordionState', state });
-}
 
 function setRagIndexingState(value) {
     isRagIndexing = !!value;
@@ -760,9 +712,6 @@ function handleExtensionMessage(event) {
             if (typeof message.hasActiveSession === 'boolean') {
                 setHasActiveSession(message.hasActiveSession);
             }
-            if (message.settingsAccordionState && typeof message.settingsAccordionState === 'object') {
-                applySettingsAccordionState(message.settingsAccordionState);
-            }
             break;
         case 'updateServerState':
             renderServerState(message);
@@ -800,51 +749,11 @@ function renderRagState(message) {
     updateRagActionButton();
     updateRagActionPanel();
 
-    if (elements.ragChromaUrlValue) {
-        elements.ragChromaUrlValue.textContent = typeof message.chromaUrl === 'string' && message.chromaUrl
-            ? message.chromaUrl
-            : 'http://127.0.0.1';
-    }
-
-    if (elements.ragChromaPortValue) {
-        elements.ragChromaPortValue.textContent = String(Number(message.chromaPort) || 8000);
-    }
-
-    if (elements.ragChromaCollectionIdValue) {
-        elements.ragChromaCollectionIdValue.textContent = String(message.chromaCollectionId || '-');
-    }
-
-    if (elements.ragChromaExcludeDirsValue) {
-        elements.ragChromaExcludeDirsValue.textContent = String(message.chromaExcludeDirs || '-');
-    }
-
-    if (elements.ragChromaExcludeFileGlobsValue) {
-        elements.ragChromaExcludeFileGlobsValue.textContent = String(message.chromaExcludeFileGlobs || '-');
-    }
-
-    if (elements.ragChromaMaxFileSizeKbValue) {
-        elements.ragChromaMaxFileSizeKbValue.textContent = String(Number(message.chromaMaxFileSizeKb) || 0);
-    }
-
-    if (elements.ragChromaMaxIndexedFilesValue) {
-        elements.ragChromaMaxIndexedFilesValue.textContent = String(Number(message.chromaMaxIndexedFiles) || 0);
-    }
-
-    if (elements.ragChromaChunkSizeCharsValue) {
-        elements.ragChromaChunkSizeCharsValue.textContent = String(Number(message.chromaChunkSizeChars) || 0);
-    }
-
-    if (elements.ragChromaChunkOverlapCharsValue) {
-        elements.ragChromaChunkOverlapCharsValue.textContent = String(Number(message.chromaChunkOverlapChars) || 0);
-    }
-
-    if (elements.ragChromaVectorCandidatePoolValue) {
-        elements.ragChromaVectorCandidatePoolValue.textContent = String(Number(message.chromaVectorCandidatePool) || 0);
-    }
-
-    if (elements.ragChromaMaxQueryResultsValue) {
-        elements.ragChromaMaxQueryResultsValue.textContent = String(Number(message.chromaMaxQueryResults) || 0);
-    }
+    ragConnectionSnapshot.url = typeof message.chromaUrl === 'string' && message.chromaUrl
+        ? message.chromaUrl
+        : 'http://127.0.0.1';
+    ragConnectionSnapshot.port = String(Number(message.chromaPort) || 8000);
+    ragConnectionSnapshot.collectionId = String(message.chromaCollectionId || '-');
 
 }
 
@@ -1689,56 +1598,36 @@ function renderServerState(message) {
         elements.serverStopBtn.style.display = isServerRunning ? 'inline-flex' : 'none';
     }
 
-    if (elements.serverParametersList) {
-        elements.serverParametersList.innerHTML = '';
-        (message.parameterRows || []).forEach((row) => {
-            const line = document.createElement('div');
-            line.className = 'server-parameter-row';
+    if (!serverLaunchCommandLine) {
+        const rowsByProperty = new Map((message.parameterRows || []).map((row) => [String(row.property), String(row.value)]));
+        const binaryPath = rowsByProperty.get('binaryPath');
+        const model = rowsByProperty.get('model');
+        const ngl = rowsByProperty.get('ngl');
+        const contextSize = rowsByProperty.get('c');
+        const flashAttn = rowsByProperty.get('flash-attn');
+        const host = rowsByProperty.get('host');
+        const port = rowsByProperty.get('port');
+        const tools = rowsByProperty.get('tools');
+        const jinja = rowsByProperty.get('jinja');
 
-            const propertyLabel = document.createElement('span');
-            propertyLabel.className = 'server-parameter-label';
-            propertyLabel.textContent = String(row.property || '-');
+        if (binaryPath && model) {
+            const parts = [
+                binaryPath,
+                '-m', model,
+                '-ngl', ngl || '99',
+                '-c', contextSize || '16384',
+                '--flash-attn', flashAttn || 'on',
+                '--host', host || '127.0.0.1',
+                '--port', port || '8033',
+                '--tools', tools || 'all',
+                '--chat-template', 'chatml'
+            ];
 
-            const valueLabel = document.createElement('span');
-            valueLabel.className = 'server-parameter-value';
-            valueLabel.textContent = String(row.value || '-');
-
-            line.appendChild(propertyLabel);
-            line.appendChild(valueLabel);
-            elements.serverParametersList.appendChild(line);
-        });
-
-        if (!serverLaunchCommandLine) {
-            const rowsByProperty = new Map((message.parameterRows || []).map((row) => [String(row.property), String(row.value)]));
-            const binaryPath = rowsByProperty.get('binaryPath');
-            const model = rowsByProperty.get('model');
-            const ngl = rowsByProperty.get('ngl');
-            const contextSize = rowsByProperty.get('c');
-            const flashAttn = rowsByProperty.get('flash-attn');
-            const host = rowsByProperty.get('host');
-            const port = rowsByProperty.get('port');
-            const tools = rowsByProperty.get('tools');
-            const jinja = rowsByProperty.get('jinja');
-
-            if (binaryPath && model) {
-                const parts = [
-                    binaryPath,
-                    '-m', model,
-                    '-ngl', ngl || '99',
-                    '-c', contextSize || '16384',
-                    '--flash-attn', flashAttn || 'on',
-                    '--host', host || '127.0.0.1',
-                    '--port', port || '8033',
-                    '--tools', tools || 'all',
-                    '--chat-template', 'chatml'
-                ];
-
-                if (String(jinja).toLowerCase() === 'true') {
-                    parts.push('--jinja');
-                }
-
-                serverLaunchCommandLine = parts.join(' ');
+            if (String(jinja).toLowerCase() === 'true') {
+                parts.push('--jinja');
             }
+
+            serverLaunchCommandLine = parts.join(' ');
         }
     }
 
@@ -1985,38 +1874,7 @@ function renderAboutMarkdown() {
     elements.aboutMarkdownContent.classList.add('markdown-content');
 }
 
-function setupSingleOpenAccordion() {
-    const accordionItems = document.querySelectorAll('.settings-accordion .settings-accordion-item');
-    let foundOpen = false;
-    accordionItems.forEach((item) => {
-        if (item.open && !foundOpen) {
-            foundOpen = true;
-            return;
-        }
-        item.open = false;
-    });
-
-    accordionItems.forEach((item) => {
-        item.addEventListener('toggle', () => {
-            if (!item.open) {
-                persistSettingsAccordionState();
-                return;
-            }
-
-            accordionItems.forEach((otherItem) => {
-                if (otherItem !== item) {
-                    otherItem.open = false;
-                }
-            });
-
-            persistSettingsAccordionState();
-        });
-    });
-
-    uiState.settingsAccordionState = readSettingsAccordionState();
-}
 renderAboutMarkdown();
-setupSingleOpenAccordion();
 updateTokenCounter(0, 0, currentModelName);
 updateServerActionButtons();
 updateRagActionButton();

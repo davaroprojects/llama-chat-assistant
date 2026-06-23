@@ -10,7 +10,7 @@ export function activate(context: vscode.ExtensionContext) {
     const sessionManager = new SessionAdapter(context);
     const llamaChatConfig = vscode.workspace.getConfiguration('llamaChat');
     const debugEnabled = llamaChatConfig.get<boolean>('chat.debug') ?? llamaChatConfig.get<boolean>('debug') ?? false;
-    const logger = new OutputLogger('Llama Chat Assistant', debugEnabled);
+    const logger = new OutputLogger('Llama Chat', debugEnabled);
     context.subscriptions.push(logger);
     LlamaAdapter.setLogger(logger);
 

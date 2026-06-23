@@ -7,7 +7,7 @@
     {{stylePlaceholder}}
 </head>
 
-<body data-empty-chat-ready-label="{{emptyChatReadyLabel}}" data-empty-server-stopped-label="{{emptyServerStoppedLabel}}" data-delete-session-label="{{deleteSessionLabel}}" data-session-unavailable-label="{{sessionUnavailableLabel}}" data-generation-canceled-label="{{generationCanceledLabel}}" data-remove-file-title="{{removeFileTitle}}" data-unavailable-short-label="{{unavailableShortLabel}}" data-copy-code-title="{{copyCodeTitle}}" data-copy-clipboard-title="{{copyClipboardTitle}}" data-new-session-label="{{newSessionLabel}}" data-external-server-blocked-label="{{externalServerBlockedLabel}}" data-repository-badge-label="{{repositoryBadgeLabel}}" data-rag-idle-label="{{ragIdleLabel}}" data-rag-indexing-label="{{ragIndexingLabel}}" data-rag-indexed-label="{{ragIndexedLabel}}" data-rag-never-indexed-label="{{ragNeverIndexedLabel}}" data-rag-chroma-url-label="{{ragChromaUrlLabel}}" data-rag-chroma-port-label="{{ragChromaPortLabel}}" data-rag-chroma-unavailable-label="{{ragChromaUnavailableLabel}}" data-about-markdown="{{aboutMarkdown}}">
+<body data-empty-chat-ready-label="{{emptyChatReadyLabel}}" data-empty-server-stopped-label="{{emptyServerStoppedLabel}}" data-delete-session-label="{{deleteSessionLabel}}" data-session-unavailable-label="{{sessionUnavailableLabel}}" data-generation-canceled-label="{{generationCanceledLabel}}" data-remove-file-title="{{removeFileTitle}}" data-unavailable-short-label="{{unavailableShortLabel}}" data-copy-code-title="{{copyCodeTitle}}" data-copy-clipboard-title="{{copyClipboardTitle}}" data-new-session-label="{{newSessionLabel}}" data-external-server-blocked-label="{{externalServerBlockedLabel}}" data-repository-badge-label="{{repositoryBadgeLabel}}" data-rag-idle-label="{{ragIdleLabel}}" data-rag-indexing-label="{{ragIndexingLabel}}" data-rag-indexed-label="{{ragIndexedLabel}}" data-rag-never-indexed-label="{{ragNeverIndexedLabel}}" data-rag-chroma-unavailable-label="{{ragChromaUnavailableLabel}}" data-about-markdown="{{aboutMarkdown}}">
     <div class="tab-bar" role="tablist" aria-label="Sections">
         <button id="chat-tab-btn" class="tab-button is-active" type="button" role="tab" aria-selected="true">{{chatTabLabel}}</button>
         <button id="settings-tab-btn" class="tab-button" type="button" role="tab" aria-selected="false">{{settingsTabLabel}}</button>
@@ -83,37 +83,6 @@
 
     <div id="about-tab-panel" class="tab-panel about-tab-panel" style="display:none;">
         <div id="about-markdown-content" class="about-markdown-content"></div>
-        <div class="settings-accordion about-settings-accordion">
-            <details id="llama-settings-accordion" class="settings-accordion-item" open>
-                <summary>
-                    <span class="accordion-title">{{settingsLlamaSectionTitle}}</span>
-                </summary>
-                <div class="server-parameters-panel">
-                    <div id="server-parameters-list" class="server-parameters-list"></div>
-                </div>
-            </details>
-
-            <details id="chromadb-settings-accordion" class="settings-accordion-item" open>
-                <summary>
-                    <span class="accordion-title">{{settingsChromaSectionTitle}}</span>
-                </summary>
-                <div class="server-parameters-panel">
-                    <div class="server-parameters-list">
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaUrlLabel}}</span><span id="rag-chroma-url-value" class="server-parameter-value">http://127.0.0.1</span></div>
-
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaCollectionIdLabel}}</span><span id="rag-chroma-collection-id-value" class="server-parameter-value">-</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaExcludeDirsLabel}}</span><span id="rag-chroma-exclude-dirs-value" class="server-parameter-value">-</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaExcludeFileGlobsLabel}}</span><span id="rag-chroma-exclude-file-globs-value" class="server-parameter-value">-</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaMaxFileSizeKbLabel}}</span><span id="rag-chroma-max-file-size-kb-value" class="server-parameter-value">0</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaMaxIndexedFilesLabel}}</span><span id="rag-chroma-max-indexed-files-value" class="server-parameter-value">0</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaChunkSizeCharsLabel}}</span><span id="rag-chroma-chunk-size-chars-value" class="server-parameter-value">0</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaChunkOverlapCharsLabel}}</span><span id="rag-chroma-chunk-overlap-chars-value" class="server-parameter-value">0</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaVectorCandidatePoolLabel}}</span><span id="rag-chroma-vector-candidate-pool-value" class="server-parameter-value">0</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaMaxQueryResultsLabel}}</span><span id="rag-chroma-max-query-results-value" class="server-parameter-value">0</span></div>
-                    </div>
-                </div>
-            </details>
-        </div>
     </div>
 
     <div id="context-window" class="quick-context-window" style="display:none;">

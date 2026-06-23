@@ -152,9 +152,14 @@ describe('Memory Pruning Use Case', () => {
 
             // Should contain truncation marker
             const truncatedMessages = result.filter(
-                (msg) =>
-                    msg.content.includes('[Code snippet truncated to save memory]') ||
-                    msg.content.includes('Observation:')
+                (msg) => {
+                    if (typeof msg.content !== 'string') {
+                        return false;
+                    }
+
+                    return msg.content.includes('[Code snippet truncated to save memory]')
+                        || msg.content.includes('Observation:');
+                }
             );
 
             expect(truncatedMessages.length).toBeGreaterThan(0);

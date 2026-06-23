@@ -10,13 +10,11 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.aboutTabLabel, 'About');
         assert.strictEqual(labels.serverStartLabel, 'Start');
         assert.strictEqual(labels.serverStopLabel, 'Stop');
-        assert.strictEqual(labels.settingsLlamaSectionTitle, 'llama.cpp');
-        assert.strictEqual(labels.settingsChromaSectionTitle, 'ChromaDB');
-        assert.ok(labels.aboutMarkdown.includes('llama.cpp'));
-        assert.ok(labels.aboutMarkdown.includes('ChromaDB'));
-        assert.strictEqual(labels.serverParametersTitle, 'Parameters');
-        assert.strictEqual(labels.propertyLabel, 'Property');
-        assert.strictEqual(labels.valueLabel, 'Value');
+        assert.ok(labels.aboutMarkdown.includes('What Llama Chat does'));
+        assert.ok(labels.aboutMarkdown.includes('How to configure each area'));
+        assert.ok(labels.aboutMarkdown.includes('click the `...` menu at the top'));
+        assert.ok(labels.aboutMarkdown.includes('external or plugin-launched'));
+        assert.ok(labels.aboutMarkdown.includes('ReAct flows for complex queries'));
         assert.strictEqual(labels.emptyChatReadyLabel, 'Start a new session from chat');
         assert.strictEqual(labels.emptyServerStoppedLabel, 'Start the server to begin');
         assert.strictEqual(labels.deleteSessionLabel, 'Delete session permanently');

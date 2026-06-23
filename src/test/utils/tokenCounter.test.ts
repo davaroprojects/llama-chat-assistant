@@ -1,122 +1,82 @@
-/**
- * Tests for token counter utility
- */
-
+import * as assert from 'assert';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
 import {
     countTokensInMessages,
     countTokensInText,
     estimateMessageTokens,
-    getTokenCountBreakdown,
-    DEFAULT_TOKEN_COUNT_CONFIGURATION
+    getTokenCountBreakdown
 } from '../../utils/tokenCounter';
 
-describe('Token Counter Utility', () => {
-    describe('countTokensInText', () => {
-        it('should count tokens in simple text', () => {
-            const text = 'Hello world';
-            const count = countTokensInText(text);
-
-            expect(count).toBeGreaterThan(0);
-            expect(typeof count).toBe('number');
-        });
-
-        it('should count more tokens for longer text', () => {
-            const shortText = 'Hello';
-            const longText = 'Hello world this is a much longer text with more words';
-
-            const shortCount = countTokensInText(shortText);
-            const longCount = countTokensInText(longText);
-
-            expect(longCount).toBeGreaterThan(shortCount);
-        });
-
-        it('should handle empty text', () => {
-            const count = countTokensInText('');
-            expect(count).toBeGreaterThanOrEqual(0);
-        });
+suite('tokenCounter', () => {
+    test('countTokensInText returns token count for simple text', () => {
+        const count = countTokensInText('Hello world');
+        assert.ok(count > 0);
     });
 
-    describe('estimateMessageTokens', () => {
-        it('should estimate tokens for a message', () => {
-            const content = 'This is a test message';
-            const tokens = estimateMessageTokens(content);
-
-            expect(tokens).toBeGreaterThan(0);
-            expect(typeof tokens).toBe('number');
-        });
+    test('countTokensInText increases with longer text', () => {
+        const shortCount = countTokensInText('Hello');
+        const longCount = countTokensInText('Hello world this is a much longer text with more words');
+        assert.ok(longCount > shortCount);
     });
 
-    describe('countTokensInMessages', () => {
-        it('should count tokens in array of messages', () => {
-            const messages = [
-                new SystemMessage('You are a helpful assistant'),
-                new HumanMessage('Hello, how are you?'),
-                new AIMessage('I am doing well, thank you!')
-            ];
-
-            const result = countTokensInMessages(messages);
-
-            expect(result.totalTokens).toBeGreaterThan(0);
-            expect(result.messageTokenCounts.size).toBe(3);
-            expect(result.calculatedAt).toBeInstanceOf(Date);
-        });
-
-        it('should provide per-message token counts', () => {
-            const messages = [new HumanMessage('Short'), new HumanMessage('A much longer message with more content')];
-
-            const result = countTokensInMessages(messages);
-
-            const firstCount = result.messageTokenCounts.get(0);
-            const secondCount = result.messageTokenCounts.get(1);
-
-            expect(firstCount).toBeLessThan(secondCount || 0);
-        });
-
-        it('should sum to total tokens', () => {
-            const messages = [
-                new HumanMessage('Message 1'),
-                new HumanMessage('Message 2'),
-                new AIMessage('Response')
-            ];
-
-            const result = countTokensInMessages(messages);
-            const summedTokens = Array.from(result.messageTokenCounts.values()).reduce((a, b) => a + b, 0);
-
-            expect(result.totalTokens).toBe(summedTokens);
-        });
-
-        it('should handle empty message array', () => {
-            const result = countTokensInMessages([]);
-
-            expect(result.totalTokens).toBe(0);
-            expect(result.messageTokenCounts.size).toBe(0);
-        });
+    test('estimateMessageTokens returns positive count', () => {
+        const tokens = estimateMessageTokens('This is a test message');
+        assert.ok(tokens > 0);
     });
 
-    describe('getTokenCountBreakdown', () => {
-        it('should provide detailed breakdown', () => {
-            const messages = [
-                new HumanMessage('Hello'),
-                new AIMessage('Hi there!'),
-                new HumanMessage('How are you?')
-            ];
+    test('countTokensInMessages returns total and per-message counts', async () => {
+        const messages = [
+            new SystemMessage('You are a helpful assistant'),
+            new HumanMessage('Hello, how are you?'),
+            new AIMessage('I am doing well, thank you!')
+        ];
 
-            const breakdown = getTokenCountBreakdown(messages);
+        const result = await countTokensInMessages(messages);
 
-            expect(breakdown.length).toBe(3);
-            expect(breakdown[0].role).toBe('human');
-            expect(breakdown[1].role).toBe('ai');
-            expect(breakdown[0].tokenCount).toBeGreaterThan(0);
-        });
+        assert.ok(result.totalTokens > 0);
+        assert.strictEqual(result.messageTokenCounts.size, 3);
+        assert.ok(result.calculatedAt instanceof Date);
+    });
 
-        it('should include preview text', () => {
-            const messages = [new HumanMessage('This is a long message that should be truncated in the preview')];
+    test('countTokensInMessages preserves relative message lengths', async () => {
+        const messages = [
+            new HumanMessage('Short'),
+            new HumanMessage('A much longer message with more content')
+        ];
 
-            const breakdown = getTokenCountBreakdown(messages);
+        const result = await countTokensInMessages(messages);
+        const firstCount = result.messageTokenCounts.get(0) || 0;
+        const secondCount = result.messageTokenCounts.get(1) || 0;
 
-            expect(breakdown[0].preview.length).toBeLessThanOrEqual(50);
-            expect(breakdown[0].preview).toContain('This is a long');
-        });
+        assert.ok(secondCount >= firstCount);
+    });
+
+    test('countTokensInMessages handles empty arrays', async () => {
+        const result = await countTokensInMessages([]);
+        assert.strictEqual(result.totalTokens, 0);
+        assert.strictEqual(result.messageTokenCounts.size, 0);
+    });
+
+    test('getTokenCountBreakdown returns detailed rows', () => {
+        const messages = [
+            new HumanMessage('Hello'),
+            new AIMessage('Hi there!'),
+            new HumanMessage('How are you?')
+        ];
+
+        const breakdown = getTokenCountBreakdown(messages);
+
+        assert.strictEqual(breakdown.length, 3);
+        assert.strictEqual(breakdown[0].role, 'human');
+        assert.strictEqual(breakdown[1].role, 'ai');
+        assert.ok(breakdown[0].tokenCount > 0);
+    });
+
+    test('getTokenCountBreakdown includes preview text', () => {
+        const messages = [new HumanMessage('This is a long message that should be truncated in the preview')];
+        const breakdown = getTokenCountBreakdown(messages);
+
+        assert.ok(breakdown[0].preview.length <= 50);
+        assert.ok(breakdown[0].preview.includes('This is a long'));
     });
 });

@@ -1,5 +1,5 @@
 {
-  "name": "llama-chat-assistant",
+  "name": "llama-chat",
   "displayName": "%ext.displayName%",
   "description": "%ext.description%",
   "version": "0.0.1",

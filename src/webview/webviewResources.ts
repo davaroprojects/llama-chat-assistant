@@ -8,8 +8,6 @@ export interface WebviewLabels {
     chatTabLabel: string;
     settingsTabLabel: string;
     aboutTabLabel: string;
-    settingsLlamaSectionTitle: string;
-    settingsChromaSectionTitle: string;
     aboutMarkdown: string;
     serverTabLabel: string;
     ragTabLabel: string;
@@ -20,8 +18,6 @@ export interface WebviewLabels {
     ragStateLabel: string;
     ragIndexedAtLabel: string;
     ragIndexedFilesLabel: string;
-    ragChromaUrlLabel: string;
-    ragChromaPortLabel: string;
     ragChromaCollectionIdLabel: string;
     ragChromaExcludeDirsLabel: string;
     ragChromaExcludeFileGlobsLabel: string;
@@ -40,9 +36,6 @@ export interface WebviewLabels {
     ragIndexedLabel: string;
     ragNeverIndexedLabel: string;
     ragChromaUnavailableLabel: string;
-    serverParametersTitle: string;
-    propertyLabel: string;
-    valueLabel: string;
     emptyChatReadyLabel: string;
     emptyServerStoppedLabel: string;
     deleteSessionLabel: string;
@@ -71,17 +64,60 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
         chatTabLabel: 'Chat',
         settingsTabLabel: 'Settings',
         aboutTabLabel: 'About',
-        settingsLlamaSectionTitle: 'llama.cpp',
-        settingsChromaSectionTitle: 'ChromaDB',
         aboutMarkdown: [
-            '## About',
+            '## What Llama Chat does',
             '',
-            'This assistant runs fully local using **llama.cpp** and **ChromaDB**.',
+            'Llama Chat is a local coding assistant inside VS Code. It helps you ask questions about your project, retrieve relevant code context, and generate grounded answers directly in the editor.',
             '',
-            '- **llama.cpp** handles local model inference and chat completions.',
-            '- **ChromaDB** stores indexed project context used by retrieval.',
+            '- Keeps conversations in session history and streams responses token by token.',
+            '- Uses retrieval when enabled to bring relevant repository context into each answer.',
+            '- Supports direct chat, isolated file analysis, and repository-wide ReAct flows for complex queries.',
+            '- Uses dedicated libraries for chunking, embeddings generation, and token counting/validation before model calls.',
             '',
-            'No cloud dependency is required for core chat and indexing flows.'
+            'You can use the plugin as long as `llama.cpp` is reachable at the configured host and port, whether it is started externally or launched from this plugin.',
+            '',
+            'RAG features are available only when the ChromaDB connection is configured correctly and the server is reachable.',
+            '',
+            '## How to configure each area',
+            '',
+            'In the plugin panel, click the `...` menu at the top, then choose the configuration action. You can also open VS Code Settings and search for `llamaChat`, or edit your `settings.json` directly.',
+            '',
+            '### Chat behavior',
+            '- `llamaChat.chat.temperature`: Controls generation randomness. Lower values improve determinism and reduce off-topic output; higher values increase creativity but may reduce precision.',
+            '- `llamaChat.chat.maxTokens`: Caps response length. Higher values allow longer answers but increase latency and token usage.',
+            '- `llamaChat.chat.maxAttachedFileSizeKb`: Limits manual attachment size. Higher limits allow larger files but increase context pressure.',
+            '- `llamaChat.chat.directLlmTemplate`: Prompt template for direct non-RAG chat. Impacts answer style and instruction strictness.',
+            '- `llamaChat.chat.globalReactTemplate`: Prompt template for repository-wide ReAct flow. Impacts search strategy and iteration quality.',
+            '- `llamaChat.chat.localRagTemplate`: Prompt template for isolated attached-file analysis. Impacts strictness of file-scoped reasoning.',
+            '- `llamaChat.chat.deepReactTemplate`: Prompt template for dependency-expanding ReAct from attached files. Impacts cross-file exploration depth.',
+            '',
+            '### llama.cpp connection',
+            '- `llamaChat.llamaCpp.executablePath`: Path used when launching the server from the plugin. Wrong path prevents local launch.',
+            '- `llamaChat.llamaCpp.modelPath`: GGUF model path. Determines model capability, speed, and memory usage.',
+            '- `llamaChat.llamaCpp.host`: Host used by the extension to connect. Must match the running server binding.',
+            '- `llamaChat.llamaCpp.port`: Port used by the extension to connect. Must match the running server port (external or plugin-launched).',
+            '- `llamaChat.llamaCpp.contextSize`: Context window budget. Higher values allow more history/context but require more memory.',
+            '- `llamaChat.llamaCpp.gpuLayers`: Number of layers offloaded to GPU. Higher values can speed inference if GPU memory allows it.',
+            '- `llamaChat.llamaCpp.flashAttention`: Enables optimized attention path when supported. Can improve throughput on compatible setups.',
+            '',
+            '### ChromaDB indexing and retrieval',
+            '- `llamaChat.chromaDb.url`: ChromaDB base URL. If incorrect, RAG cannot retrieve context.',
+            '- `llamaChat.chromaDb.port`: ChromaDB port. Must match the running ChromaDB instance.',
+            '- `llamaChat.chromaDb.excludeDirs`: Directory filters for indexing. Reduces noise and indexing cost.',
+            '- `llamaChat.chromaDb.excludeFileGlobs`: File pattern filters. Prevents indexing irrelevant or generated assets.',
+            '- `llamaChat.chromaDb.maxFileSizeKb`: Skips oversized files. Protects indexing time and memory usage.',
+            '- `llamaChat.chromaDb.maxIndexedFiles`: Upper bound for indexed files/chunks per run. Controls runtime and storage growth.',
+            '- `llamaChat.chromaDb.chunkSizeChars`: Chunk size used by the text splitter. Larger chunks preserve context but may reduce retrieval precision.',
+            '- `llamaChat.chromaDb.chunkOverlapChars`: Overlap between chunks. Improves continuity at boundaries, but increases index size.',
+            '- `llamaChat.chromaDb.vectorCandidatePool`: Candidate pool before final filtering. Higher values improve recall but increase query cost.',
+            '- `llamaChat.chromaDb.maxQueryResults`: Maximum retrieved fragments included in prompts. Higher values add context but can increase token load.',
+            '- `llamaChat.chromaDb.minCosineSimilarity`: Similarity threshold for acceptance. Higher thresholds improve precision; lower thresholds improve recall.',
+            '',
+            '### Memory management',
+            '- `llamaChat.memory.contextWindowSize`: Logical token budget used for memory strategy. Sets the upper planning limit for retained context.',
+            '- `llamaChat.memory.safetyThreshold`: Pruning trigger threshold. Lower values prune earlier; higher values retain more context before cleanup.',
+            '- `llamaChat.memory.preserveSystemPrompt`: Keeps system instructions during pruning. Improves behavioral consistency across long sessions.',
+            '- `llamaChat.memory.preserveRecentMessagesCount`: Number of newest messages always kept. Balances continuity vs. available token budget.'
         ].join('\n'),
         serverTabLabel: 'Server',
         ragTabLabel: 'RAG',
@@ -92,8 +128,6 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
         ragStateLabel: 'State',
         ragIndexedAtLabel: 'Indexed at',
         ragIndexedFilesLabel: 'Indexed files',
-        ragChromaUrlLabel: 'ChromaDB URL',
-        ragChromaPortLabel: 'ChromaDB port',
         ragChromaCollectionIdLabel: 'ChromaDB collection ID',
         ragChromaExcludeDirsLabel: 'Excluded folders',
         ragChromaExcludeFileGlobsLabel: 'Excluded files (glob)',
@@ -112,9 +146,6 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
         ragIndexedLabel: 'Indexed',
         ragNeverIndexedLabel: 'Never',
         ragChromaUnavailableLabel: 'ChromaDB server is not active',
-        serverParametersTitle: 'Parameters',
-        propertyLabel: 'Property',
-        valueLabel: 'Value',
         emptyChatReadyLabel: 'Start a new session from chat',
         emptyServerStoppedLabel: 'Start the server to begin',
         deleteSessionLabel: 'Delete session permanently',
