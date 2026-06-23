@@ -31,7 +31,6 @@ export interface WebviewLabels {
     ragChromaChunkOverlapCharsLabel: string;
     ragChromaVectorCandidatePoolLabel: string;
     ragChromaMaxQueryResultsLabel: string;
-    ragChromaQueryModeLabel: string;
     ragLlamaApiUrlLabel: string;
     ragLlamaModelLabel: string;
     ragLlamaMaxTokensLabel: string;
@@ -104,7 +103,6 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
         ragChromaChunkOverlapCharsLabel: 'Chunk overlap (chars)',
         ragChromaVectorCandidatePoolLabel: 'Vector candidate pool',
         ragChromaMaxQueryResultsLabel: 'Max query results',
-        ragChromaQueryModeLabel: 'ChromaDB query mode',
         ragLlamaApiUrlLabel: 'llama.cpp API URL',
         ragLlamaModelLabel: 'llama.cpp model',
         ragLlamaMaxTokensLabel: 'llama.cpp max tokens',

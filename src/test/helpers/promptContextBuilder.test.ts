@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import { buildPromptContext } from '../../helpers/promptContextBuilder';
-import { DEFAULT_RAG_MODE_TEMPLATE, DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE } from '../../core/domain/promptTemplate';
-import type { PromptContextOptions } from '../../core/domain/prompt';
+import { DEFAULT_RAG_MODE_TEMPLATE, DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE } from '../../core/model/promptTemplate';
+import type { PromptContextOptions } from '../../core/model/prompt';
 
 const RAG_SNIPPET = {
     path: 'src/services/userService.ts',

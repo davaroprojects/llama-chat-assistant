@@ -1,4 +1,4 @@
-import { ChromaDbConnectionConfig, RagIndexResult } from '../domain/chroma';
+import { ChromaDbConnectionConfig, RagIndexResult } from '../model/chroma';
 
 export interface RepositoryIndexGateway {
     buildWorkspaceGraph(workspaceRoot: string, chromaConfig: ChromaDbConnectionConfig, cacheRoot: string): Promise<void>;

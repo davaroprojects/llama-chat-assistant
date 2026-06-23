@@ -1,5 +1,5 @@
-import { FileMetadata } from '../core/domain/sessionPayload';
-import { RagContextSnippet, PromptContextOptions } from '../core/domain/prompt';
+import { FileMetadata } from '../core/model/sessionPayload';
+import { RagContextSnippet, PromptContextOptions } from '../core/model/prompt';
 
 // Re-export for backward compatibility
 export { RagContextSnippet, PromptContextOptions };
@@ -14,7 +14,7 @@ import {
     interpolateSpecificFile,
     interpolateQueryLabel,
     PromptTemplateBuilder
-} from '../core/domain/promptTemplate';
+} from '../core/model/promptTemplate';
 
 const MAX_CONTEXT_SNIPPET_CHARS = 2500;
 const MAX_RAG_CONTEXT_CHARS = 12000;

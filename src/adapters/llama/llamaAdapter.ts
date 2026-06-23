@@ -1,6 +1,6 @@
-import { Logger } from '../logging/outputLogger';
+import { Logger } from '../vscode/outputLogger';
 import { LlamaGateway, LlmGenerationConfig, LlmGenerationResult, LlmMessage } from '../../core/gateways/llamaGateway';
-import { ChatMessage, LlamaConfig, LlamaServerProps } from '../../core/domain/llama';
+import { ChatMessage, LlamaConfig, LlamaServerProps } from '../../core/model/llama';
 
 export interface StreamingState {
     isActive: boolean;

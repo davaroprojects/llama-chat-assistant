@@ -107,7 +107,6 @@ const elements = {
     ragChromaChunkOverlapCharsValue: document.getElementById('rag-chroma-chunk-overlap-chars-value'),
     ragChromaVectorCandidatePoolValue: document.getElementById('rag-chroma-vector-candidate-pool-value'),
     ragChromaMaxQueryResultsValue: document.getElementById('rag-chroma-max-query-results-value'),
-    ragChromaQueryModeValue: document.getElementById('rag-chroma-query-mode-value'),
     serverActionStartIcon: document.getElementById('server-action-start-icon'),
     serverActionStopIcon: document.getElementById('server-action-stop-icon'),
     serverActionText: document.getElementById('server-action-text'),
@@ -126,6 +125,7 @@ const elements = {
     backToSessionsBtn: document.getElementById('back-to-sessions-btn'),
     sessionsList: document.getElementById('sessions-list'),
     attachBtn: document.getElementById('attach-file-btn'),
+    ragEnabledCheckbox: document.getElementById('rag-enabled'),
     fileBadge: document.getElementById('attached-file-badge'),
     fileNameText: document.getElementById('file-name-text'),
     stopBtn: document.getElementById('stop'),
@@ -170,8 +170,7 @@ function buildChromaPanelCopyText() {
         `Action: ${elements.ragActionText?.textContent?.trim() || '-'}`,
         `URL: ${elements.ragChromaUrlValue?.textContent?.trim() || '-'}`,
         `Port: ${elements.ragChromaPortValue?.textContent?.trim() || '-'}`,
-        `Collection Prefix: ${elements.ragChromaCollectionPrefixValue?.textContent?.trim() || '-'}`,
-        `Mode: ${elements.ragChromaQueryModeValue?.textContent?.trim() || '-'}`
+        `Collection Prefix: ${elements.ragChromaCollectionPrefixValue?.textContent?.trim() || '-'}`
     ].join('\n');
 }
 
@@ -646,6 +645,11 @@ function applyControlState() {
     elements.attachBtn.setAttribute('aria-disabled', String(!allowMainActions));
     elements.backToSessionsBtn.setAttribute('aria-disabled', String(!allowMainActions));
 
+    // Apply same blocking logic to RAG checkbox as attach button
+    if (elements.ragEnabledCheckbox) {
+        elements.ragEnabledCheckbox.disabled = !allowMainActions;
+    }
+
     if (elements.sendBtn) {
         elements.sendBtn.style.display = allowMainActions ? 'flex' : 'none';
         elements.sendBtn.disabled = !allowMainActions;
@@ -908,10 +912,6 @@ function renderRagState(message) {
 
     if (elements.ragChromaMaxQueryResultsValue) {
         elements.ragChromaMaxQueryResultsValue.textContent = String(Number(message.chromaMaxQueryResults) || 0);
-    }
-
-    if (elements.ragChromaQueryModeValue) {
-        elements.ragChromaQueryModeValue.textContent = String(message.chromaQueryMode || 'semantic');
     }
 
 }

@@ -1,7 +1,5 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { ChromaClient } from 'chromadb';
-import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import {
     ChromaConceptualKnnOptions,
     ChromaDbConnectionConfig,
@@ -9,408 +7,56 @@ import {
     ChromaQueryMode,
     ChromaSearchResult,
     RagIndexResult
-} from '../../core/domain/chroma';
+} from '../../core/model/chroma';
 import { RagGateway } from '../../core/gateways/ragGateway';
 import { RepositoryIndexGateway } from '../../core/gateways/repositoryIndexGateway';
 import { WorkspaceDependencyGraphBuilder } from './workspaceDependencyGraphBuilder';
-import { Logger } from '../logging/outputLogger';
+import { Logger } from '../vscode/outputLogger';
 
-const EMBEDDING_DIM = 64;
+// Import utils - embeddings
+import { computeEmbedding, createHuggingFaceEmbeddingFunction } from './utils/embeddings/huggingfaceEmbedding';
 
-interface IndexedChunk {
-    id: string;
-    relativePath: string;
-    fileName: string;
-    extension: string;
-    folder: string;
-    language: string;
-    fileType: string;
-    className: string;
-    methodName: string;
-    projectType: string;
-    chunkIndex: number;
-    chunkCount: number;
-    chunkStart: number;
-    chunkEnd: number;
-    content: string;
-}
+// Import utils - analysis
+import { detectLanguage, classifyFileType, normalizeExtension } from './utils/analysis/fileAnalyzer';
+import { detectProjectType, getEcosystemLanguage } from './utils/analysis/ecosystemDetector';
+import {
+    IndexedChunk,
+    buildEmbeddingInput,
+    buildEmbeddingInputFromDocument,
+    getMetadataString,
+    extractJavaSymbolMetadata
+} from './utils/analysis/metadataBuilder';
+
+// Import utils - text
+import { getSplitterForFile, resolveChunkTuning, ChunkTuning } from './utils/text/textSplitter';
+import { processAndChunkFile, TextChunk } from './utils/text/textChunking';
+
+// Import utils - search
+import { cosineSimilarity } from './utils/search/vectorSimilarity';
+import { tokenizeText, lexicalPathScore, normalizeFilePathFilter } from './utils/search/lexicalSearch';
+
+// Import utils - filesystem
+import {
+    looksBinaryContent,
+    escapeRegex,
+    globToRegExp,
+    shouldExcludeFile,
+    fileExists,
+    readFileContent,
+    readFileStats,
+    listDirectoryEntries
+} from './utils/filesystem/fileSystemUtils';
+
+// Import utils - chroma
+import { getClient } from './utils/chroma/chromaClient';
+import { cleanupEphemeralCollections, getLatestEphemeralCollectionName } from './utils/chroma/chromaCollections';
+
 
 type ChromaWhereFilter = {
     file_path: {
         $in: string[];
     };
 };
-
-function getClient(config: ChromaDbConnectionConfig, signal?: AbortSignal): ChromaClient {
-    const parsedUrl = new URL(config.url);
-    return new ChromaClient({
-        host: parsedUrl.hostname,
-        port: config.port,
-        ssl: parsedUrl.protocol === 'https:',
-        fetchOptions: signal ? ({ signal } as any) : undefined
-    } as any);
-}
-
-function computeEmbedding(text: string): number[] {
-    const vec = new Array<number>(EMBEDDING_DIM).fill(0);
-    for (let i = 0; i < text.length; i += 1) {
-        const slot = i % EMBEDDING_DIM;
-        vec[slot] += text.charCodeAt(i) / 65535;
-    }
-
-    const norm = Math.sqrt(vec.reduce((sum, value) => sum + value * value, 0));
-    if (norm > 0) {
-        for (let i = 0; i < vec.length; i += 1) {
-            vec[i] = vec[i] / norm;
-        }
-    }
-
-    return vec;
-}
-
-function createLocalEmbeddingFunction() {
-    return {
-        generate: async (texts: string[]) => texts.map((text) => computeEmbedding(text))
-    } as any;
-}
-
-function normalizeExtension(fileName: string): string {
-    const dotIndex = fileName.lastIndexOf('.');
-    if (dotIndex < 0 || dotIndex === fileName.length - 1) {
-        return '';
-    }
-
-    return fileName.slice(dotIndex + 1).toLowerCase();
-}
-
-function detectLanguage(fileName: string): string {
-    const extension = normalizeExtension(fileName);
-    const languageByExtension: Record<string, string> = {
-        ts: 'typescript',
-        tsx: 'typescript',
-        js: 'javascript',
-        jsx: 'javascript',
-        mjs: 'javascript',
-        cjs: 'javascript',
-        json: 'json',
-        md: 'markdown',
-        py: 'python',
-        java: 'java',
-        cs: 'csharp',
-        cpp: 'cpp',
-        c: 'c',
-        h: 'c',
-        go: 'go',
-        rs: 'rust',
-        rb: 'ruby',
-        php: 'php',
-        html: 'html',
-        css: 'css',
-        scss: 'scss',
-        yml: 'yaml',
-        yaml: 'yaml',
-        xml: 'xml',
-        properties: 'properties',
-        env: 'properties',
-        sql: 'sql',
-        sh: 'shell'
-    };
-
-    return languageByExtension[extension] || 'text';
-}
-
-function classifyFileType(fileName: string, language: string): string {
-    const extension = normalizeExtension(fileName).toLowerCase();
-    const configExtensions = new Set(['xml', 'yaml', 'yml', 'properties', 'env', 'json', 'toml', 'ini', 'conf', 'config']);
-    const configKeywords = /(?:config|settings|application|deployment|manifest|pom|gradle|build|docker|k8s|kubernetes)/i;
-
-    if (configExtensions.has(extension) || configKeywords.test(fileName)) {
-        return 'configuration';
-    }
-
-    return 'source_code';
-}
-
-function getEcosystemLanguage(language: string, projectType: string): string {
-    if (projectType === 'java') {
-        if (language === 'xml' || language === 'properties' || language === 'json' || language === 'yaml') {
-            return 'java-ecosystem';
-        }
-        return language === 'java' ? 'java' : 'java-ecosystem';
-    }
-
-    if (projectType === 'node') {
-        if (language === 'yaml' || language === 'json' || language === 'properties') {
-            return 'node-ecosystem';
-        }
-        return language === 'javascript' || language === 'typescript' ? language : 'node-ecosystem';
-    }
-
-    if (projectType === 'python') {
-        if (language === 'yaml' || language === 'properties' || language === 'text') {
-            return 'python-ecosystem';
-        }
-        return language === 'python' ? 'python' : 'python-ecosystem';
-    }
-
-    return language;
-}
-
-interface TextChunk {
-    text: string;
-    start: number;
-    end: number;
-}
-
-interface ChunkTuning {
-    chunkSizeChars?: number;
-    chunkOverlapChars?: number;
-}
-
-function resolveChunkTuning(
-    tuning: ChunkTuning | undefined,
-    defaultChunkSize: number,
-    defaultChunkOverlap: number
-): { chunkSize: number; chunkOverlap: number } {
-    const configuredSize = Math.max(200, Math.floor(tuning?.chunkSizeChars ?? defaultChunkSize));
-    const configuredOverlap = Math.max(0, Math.floor(tuning?.chunkOverlapChars ?? defaultChunkOverlap));
-
-    return {
-        chunkSize: configuredSize,
-        chunkOverlap: Math.min(configuredOverlap, Math.max(configuredSize - 1, 0))
-    };
-}
-
-function getSplitterForFile(fileName: string, tuning?: ChunkTuning): RecursiveCharacterTextSplitter {
-    const extension = path.extname(fileName).toLowerCase();
-
-    switch (extension) {
-        case '.java':
-            {
-                const chunk = resolveChunkTuning(tuning, 1000, 150);
-            return new RecursiveCharacterTextSplitter({
-                chunkSize: chunk.chunkSize,
-                chunkOverlap: chunk.chunkOverlap,
-                separators: [
-                    '\n\n',
-                    '\npublic\n',
-                    '\nprotected\n',
-                    '\nprivate\n',
-                    '\nclass ',
-                    '\ninterface ',
-                    '\n}',
-                    '\n'
-                ]
-            });
-            }
-
-        case '.py':
-            {
-                const chunk = resolveChunkTuning(tuning, 800, 100);
-            return new RecursiveCharacterTextSplitter({
-                chunkSize: chunk.chunkSize,
-                chunkOverlap: chunk.chunkOverlap,
-                separators: ['\n\n', '\ndef ', '\nclass ', '\n', ' ']
-            });
-            }
-
-        case '.xml':
-            {
-                const chunk = resolveChunkTuning(tuning, 600, 50);
-            return new RecursiveCharacterTextSplitter({
-                chunkSize: chunk.chunkSize,
-                chunkOverlap: chunk.chunkOverlap,
-                separators: ['</bean>', '</dependency>', '</plugin>', '\n\n', '\n']
-            });
-            }
-
-        case '.yaml':
-        case '.yml':
-            {
-                const chunk = resolveChunkTuning(tuning, 500, 50);
-            return new RecursiveCharacterTextSplitter({
-                chunkSize: chunk.chunkSize,
-                chunkOverlap: chunk.chunkOverlap,
-                separators: ['\n\n', '\n-', '\n  ', '\n']
-            });
-            }
-
-        case '.properties':
-        case '.env':
-        case '.conf':
-            {
-                const chunk = resolveChunkTuning(tuning, 400, 0);
-            return new RecursiveCharacterTextSplitter({
-                chunkSize: chunk.chunkSize,
-                chunkOverlap: chunk.chunkOverlap,
-                separators: ['\n\n', '\n']
-            });
-            }
-
-        default:
-            {
-                const chunk = resolveChunkTuning(tuning, 800, 100);
-            return new RecursiveCharacterTextSplitter({
-                chunkSize: chunk.chunkSize,
-                chunkOverlap: chunk.chunkOverlap,
-                separators: ['\n\n', '\n', ' ']
-            });
-            }
-    }
-}
-
-async function processAndChunkFile(filePath: string, content: string, tuning?: ChunkTuning): Promise<TextChunk[]> {
-    const fileName = path.basename(filePath);
-    const splitter = getSplitterForFile(fileName, tuning);
-
-    const chunkTexts = await splitter.splitText(content);
-
-    const chunks: TextChunk[] = [];
-    let currentPos = 0;
-
-    for (const chunkText of chunkTexts) {
-        const startPos = content.indexOf(chunkText, currentPos);
-        const start = startPos >= 0 ? startPos : currentPos;
-        const end = start + chunkText.length;
-
-        chunks.push({
-            text: chunkText,
-            start,
-            end
-        });
-
-        currentPos = end;
-    }
-
-    return chunks;
-}
-
-function buildEmbeddingInput(chunk: IndexedChunk): string {
-    return [
-        chunk.relativePath,
-        chunk.fileName,
-        chunk.extension,
-        chunk.folder,
-        chunk.language,
-        chunk.fileType,
-        chunk.className,
-        chunk.methodName,
-        chunk.projectType,
-        chunk.content
-    ].join('\n');
-}
-
-function buildEmbeddingInputFromDocument(content: string, metadata: Record<string, unknown> | undefined): string {
-    return [
-        getMetadataString(metadata, 'path'),
-        getMetadataString(metadata, 'fileName'),
-        getMetadataString(metadata, 'extension'),
-        getMetadataString(metadata, 'folder'),
-        getMetadataString(metadata, 'language'),
-        getMetadataString(metadata, 'file_type'),
-        getMetadataString(metadata, 'class_name'),
-        getMetadataString(metadata, 'method_name'),
-        getMetadataString(metadata, 'project_type'),
-        content
-    ].join('\n');
-}
-
-function cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length || a.length === 0) {
-        return 0;
-    }
-
-    let dot = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < a.length; i += 1) {
-        dot += a[i] * b[i];
-        normA += a[i] * a[i];
-        normB += b[i] * b[i];
-    }
-
-    if (normA <= 0 || normB <= 0) {
-        return 0;
-    }
-
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-function tokenizeText(value: string): string[] {
-    return value
-        .toLowerCase()
-        .split(/[^a-z0-9_.\/-]+/)
-        .filter((token) => token.length >= 2);
-}
-
-function lexicalPathScore(queryText: string, metadata: Record<string, unknown> | undefined): number {
-    if (!metadata) {
-        return 0;
-    }
-
-    const searchable = [
-        typeof metadata.path === 'string' ? metadata.path : '',
-        typeof metadata.fileName === 'string' ? metadata.fileName : '',
-        typeof metadata.folder === 'string' ? metadata.folder : '',
-        typeof metadata.extension === 'string' ? metadata.extension : '',
-        typeof metadata.language === 'string' ? metadata.language : ''
-    ].join(' ').toLowerCase();
-
-    if (!searchable.trim()) {
-        return 0;
-    }
-
-    const queryTokens = tokenizeText(queryText);
-    if (queryTokens.length === 0) {
-        return 0;
-    }
-
-    let hits = 0;
-    queryTokens.forEach((token) => {
-        if (searchable.includes(token)) {
-            hits += 1;
-        }
-    });
-
-    return hits / queryTokens.length;
-}
-
-function getMetadataString(metadata: Record<string, unknown> | undefined, key: string, fallback = ''): string {
-    const value = metadata?.[key];
-    return typeof value === 'string' ? value : fallback;
-}
-
-function normalizeFilePathFilter(filePaths?: string[]): string[] {
-    if (!filePaths || filePaths.length === 0) {
-        return [];
-    }
-
-    const normalized = new Set<string>();
-    filePaths.forEach((filePath) => {
-        const trimmed = filePath.trim();
-        if (!trimmed) {
-            return;
-        }
-
-        const candidate = trimmed.split('\\').join('/');
-        const segments = candidate.split('/');
-        if (segments.some((segment) => segment === '.' || segment === '..')) {
-            return;
-        }
-
-        if (candidate.startsWith('/')) {
-            return;
-        }
-
-        if (!/^[A-Za-z0-9_./-]+$/.test(candidate)) {
-            return;
-        }
-
-        normalized.add(candidate);
-    });
-
-    return Array.from(normalized);
-}
 
 function buildWhereFilter(filePaths?: string[]): ChromaWhereFilter | undefined {
     const normalizedPaths = normalizeFilePathFilter(filePaths);
@@ -423,102 +69,6 @@ function buildWhereFilter(filePaths?: string[]): ChromaWhereFilter | undefined {
             $in: normalizedPaths
         }
     };
-}
-
-function looksBinaryContent(content: string): boolean {
-    if (!content) {
-        return false;
-    }
-
-    const sample = content.slice(0, 4096);
-    if (sample.includes('\u0000')) {
-        return true;
-    }
-
-    let controlCount = 0;
-    for (let i = 0; i < sample.length; i += 1) {
-        const code = sample.charCodeAt(i);
-        const isControl = code < 32 && code !== 9 && code !== 10 && code !== 13;
-        if (isControl) {
-            controlCount += 1;
-        }
-    }
-
-    return controlCount / Math.max(sample.length, 1) > 0.08;
-}
-
-function escapeRegex(text: string): string {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function globToRegExp(pattern: string): RegExp {
-    const normalized = pattern.split('\\').join('/');
-    const escaped = escapeRegex(normalized)
-        .replace(/\\\*\\\*/g, '::DOUBLE_STAR::')
-        .replace(/\\\*/g, '[^/]*')
-        .replace(/::DOUBLE_STAR::/g, '.*');
-
-    return new RegExp(`^${escaped}$`, 'i');
-}
-
-function shouldExcludeFile(relativePath: string, excludeRegexes: RegExp[]): boolean {
-    return excludeRegexes.some((regex) => regex.test(relativePath));
-}
-
-function extractJavaSymbolMetadata(content: string, chunkEnd: number): { className: string; methodName: string } {
-    const scope = content.slice(0, chunkEnd);
-    const classRegex = /\b(?:class|interface|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)/g;
-    const methodRegex = /\b(?:public|protected|private|static|final|synchronized|abstract|native|default|strictfp|\s)*[A-Za-z_][A-Za-z0-9_<>,\[\]\s?]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;{}]*\)\s*\{/g;
-    const ignoredMethodNames = new Set(['if', 'for', 'while', 'switch', 'catch', 'try', 'return', 'new']);
-
-    let className = '';
-    let match: RegExpExecArray | null;
-    while ((match = classRegex.exec(scope)) !== null) {
-        className = match[1] || className;
-    }
-
-    let methodName = '';
-    while ((match = methodRegex.exec(scope)) !== null) {
-        const candidate = match[1] || '';
-        if (!ignoredMethodNames.has(candidate)) {
-            methodName = candidate;
-        }
-    }
-
-    return { className, methodName };
-}
-
-async function exists(absolutePath: string): Promise<boolean> {
-    try {
-        await fs.access(absolutePath);
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-async function detectProjectType(workspaceRoot: string): Promise<string> {
-    if (await exists(path.join(workspaceRoot, 'pom.xml')) || await exists(path.join(workspaceRoot, 'build.gradle'))) {
-        return 'java';
-    }
-
-    if (await exists(path.join(workspaceRoot, 'package.json'))) {
-        return 'node';
-    }
-
-    if (await exists(path.join(workspaceRoot, 'pyproject.toml')) || await exists(path.join(workspaceRoot, 'requirements.txt'))) {
-        return 'python';
-    }
-
-    if (await exists(path.join(workspaceRoot, 'Cargo.toml'))) {
-        return 'rust';
-    }
-
-    if (await exists(path.join(workspaceRoot, 'go.mod'))) {
-        return 'go';
-    }
-
-    return 'generic';
 }
 
 async function listTextFiles(
@@ -626,43 +176,6 @@ async function listTextFiles(
     return indexed;
 }
 
-async function cleanupEphemeralCollections(client: ChromaClient, collectionPrefix: string, logger?: ChromaQueryLogger): Promise<void> {
-    try {
-        const collections = await client.listCollections({ limit: 500, offset: 0 });
-        for (const collection of collections) {
-            if (collection.name.startsWith(collectionPrefix)) {
-                try {
-                    await client.deleteCollection({ name: collection.name });
-                    logger?.info('rag', 'Deleted ephemeral collection', { name: collection.name });
-                } catch (err) {
-                    logger?.warn('rag', 'Failed to delete ephemeral collection', { name: collection.name, error: String(err) });
-                }
-            }
-        }
-    } catch (err) {
-        logger?.warn('rag', 'Failed to list collections during cleanup', { error: String(err) });
-    }
-}
-
-async function getLatestEphemeralCollectionName(client: ChromaClient, collectionPrefix: string): Promise<string | null> {
-    const collections = await client.listCollections({ limit: 500, offset: 0 });
-    const ephemeralCollectionNames = collections
-        .map((collection) => collection.name)
-        .filter((name) => name.startsWith(`${collectionPrefix}-`));
-
-    if (ephemeralCollectionNames.length === 0) {
-        return null;
-    }
-
-    ephemeralCollectionNames.sort((a, b) => {
-        const aStamp = Number(a.slice(collectionPrefix.length + 1));
-        const bStamp = Number(b.slice(collectionPrefix.length + 1));
-        return bStamp - aStamp;
-    });
-
-    return ephemeralCollectionNames[0] || null;
-}
-
 export async function isChromaDbAvailable(config: ChromaDbConnectionConfig): Promise<boolean> {
     try {
         const client = getClient(config);
@@ -688,7 +201,7 @@ export async function indexAllWithChromaDb(
     const collectionName = `${config.collectionPrefix}-${indexedAt}`;
     const collection = await client.createCollection({
         name: collectionName,
-        embeddingFunction: createLocalEmbeddingFunction()
+        embeddingFunction: createHuggingFaceEmbeddingFunction()
     } as any);
 
     const projectType = await detectProjectType(workspaceRoot);
@@ -697,10 +210,13 @@ export async function indexAllWithChromaDb(
 
     for (let i = 0; i < files.length; i += batchSize) {
         const chunk = files.slice(i, i + batchSize);
+        const embeddings = await Promise.all(
+            chunk.map((item) => computeEmbedding(buildEmbeddingInput(item)))
+        );
         await collection.add({
             ids: chunk.map((item) => item.id),
             documents: chunk.map((item) => item.content),
-            embeddings: chunk.map((item) => computeEmbedding(buildEmbeddingInput(item))),
+            embeddings,
             metadatas: chunk.map((item) => ({
                 path: item.relativePath,
                 file_path: item.relativePath,
@@ -795,11 +311,12 @@ export async function queryRelevantContextFromChromaDbSemantic(
     try {
         const collection = await client.getCollection({
             name: collectionName,
-            embeddingFunction: createLocalEmbeddingFunction()
+            embeddingFunction: createHuggingFaceEmbeddingFunction()
         } as any);
         const where = buildWhereFilter(filePathFilter);
+        const queryEmbedding = await computeEmbedding(queryText);
         const queryResult = await collection.query({
-            queryEmbeddings: [computeEmbedding(queryText)],
+            queryEmbeddings: [queryEmbedding],
             nResults: Math.max(maxResults, config.vectorCandidatePool),
             include: ['documents', 'metadatas', 'distances'],
             where
@@ -893,7 +410,7 @@ export async function queryRelevantContextFromChromaDbLexical(
     try {
         const collection = await client.getCollection({
             name: collectionName,
-            embeddingFunction: createLocalEmbeddingFunction()
+            embeddingFunction: createHuggingFaceEmbeddingFunction()
         } as any);
         const where = buildWhereFilter(filePathFilter);
         const pageSize = 500;
@@ -1015,9 +532,9 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
     try {
         const collection = await client.getCollection({
             name: collectionName,
-            embeddingFunction: createLocalEmbeddingFunction()
+            embeddingFunction: createHuggingFaceEmbeddingFunction()
         } as any);
-        const queryEmbedding = computeEmbedding(queryText);
+        const queryEmbedding = await computeEmbedding(queryText);
 
         const pageSize = 500;
         let offset = 0;
@@ -1051,7 +568,7 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
                 }
 
                 const metadata = metadatas[i] as Record<string, unknown> | undefined;
-                const docEmbedding = computeEmbedding(buildEmbeddingInputFromDocument(content, metadata));
+                const docEmbedding = await computeEmbedding(buildEmbeddingInputFromDocument(content, metadata));
                 const cosineScore = cosineSimilarity(queryEmbedding, docEmbedding);
                 if (cosineScore < minCosineSimilarity) {
                     continue;

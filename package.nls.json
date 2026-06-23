@@ -35,9 +35,6 @@
   "config.rag.vectorCandidatePool.description": "Semantic candidate pool size before final ranking.",
   "config.rag.maxQueryResults.description": "Maximum retrieved context blocks per query.",
   "config.rag.minCosineSimilarity.description": "Minimum cosine similarity threshold used by conceptual KNN retrieval.",
-  "config.rag.queryMode.description": "Retrieval mode used for repository context queries.",
-  "config.rag.queryMode.semantic.description": "Semantic retrieval using vector similarity over indexed chunks.",
-  "config.rag.queryMode.lexical.description": "Lexical retrieval using filename/path token matching.",
 
   "command.openSettings.title": "prrrrr: Configure",
   "command.moveSidebarRight.title": "prrrrr: Move Sidebar Right",

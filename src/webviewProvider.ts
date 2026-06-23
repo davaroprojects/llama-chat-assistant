@@ -6,30 +6,30 @@ import { SesionGateway } from './core/gateways/sesionGateway';
 import {
     SessionPayloadBuilder,
 } from './helpers/sessionPayloadBuilder';
-import { FileMetadata, UserMessagePayload, AssistantMessagePayload } from './core/domain/sessionPayload';
-import { LlamaServerProps } from './core/domain/llama';
+import { FileMetadata, UserMessagePayload, AssistantMessagePayload } from './core/model/sessionPayload';
+import { LlamaServerProps } from './core/model/llama';
 import { LlamaAdapter } from './adapters/llama/llamaAdapter';
 import {
     buildServerLaunchCommand,
     buildServerParameterRows,
 } from './adapters/llama/llamaServerConfig';
-import { LlamaServerLaunchConfig } from './core/domain/llamaServer';
+import { LlamaServerLaunchConfig } from './core/model/llamaServer';
 import { sendActiveEditorContext } from './webview/editorContext';
 import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
 import {
     ChromaAdapter
 } from './adapters/chroma/chromaAdapter';
-import { ChromaDbConnectionConfig, ChromaQueryMode } from './core/domain/chroma';
+import { ChromaDbConnectionConfig } from './core/model/chroma';
 import { EndpointFlowResolver } from './helpers/endpointFlowResolver';
-import { classifyUserIntent, QueryIntentType } from './core/domain/queryIntent';
-import { Logger } from './adapters/logging/outputLogger';
+import { classifyUserIntent, QueryIntentType } from './core/model/queryIntent';
+import { Logger } from './adapters/vscode/outputLogger';
 import { ResolveContextStrategyUseCase } from './core/usecases/resolveContextStrategyUseCase';
 import { RagGateway } from './core/gateways/ragGateway';
 import { LlamaGateway } from './core/gateways/llamaGateway';
 import { GenerateAssistantReplyUseCase } from './core/usecases/generateAssistantReplyUseCase';
 import { readLlamaRuntimeConfig, readLlamaServerLaunchConfig } from './adapters/llama/llamaConfig';
-import { readChromaDbConfig, readChromaQueryMode } from './adapters/chroma/chromaConfig';
+import { readChromaDbConfig } from './adapters/chroma/chromaConfig';
 import { RepositoryIndexGateway } from './core/gateways/repositoryIndexGateway';
 import { IndexWorkspaceUseCase } from './core/usecases/indexWorkspaceUseCase';
 
@@ -629,7 +629,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
                 abortSignal,
                 llamaConfig: this.getLlamaConfig(),
                 chromaConfig: this.getChromaDbConfig(),
-                chromaQueryMode: this.getChromaQueryMode(),
                 onToken: (token) => {
                     webviewView.webview.postMessage({
                         type: 'appendToken',
@@ -775,10 +774,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
         return readChromaDbConfig(workspaceRoot);
     }
 
-    private getChromaQueryMode(): ChromaQueryMode {
-        return readChromaQueryMode();
-    }
-
     private async refreshServerProps(retries = 1, delayMs = 0): Promise<void> {
         const config = this.getLlamaConfig();
 
@@ -831,7 +826,6 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     private postRagState(webviewView: vscode.WebviewView): void {
         const ragState = this.sessionManager.getRagIndexState();
         const chromaConfig = this.getChromaDbConfig();
-        const queryMode = this.getChromaQueryMode();
         webviewView.webview.postMessage({
             type: 'updateRagState',
             isIndexing: this.isRagIndexing || ragState.status === 'indexing',
@@ -848,8 +842,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
             chromaChunkOverlapChars: chromaConfig.chunkOverlapChars,
             chromaVectorCandidatePool: chromaConfig.vectorCandidatePool,
             chromaMaxQueryResults: chromaConfig.maxQueryResults,
-            chromaMinCosineSimilarity: chromaConfig.minCosineSimilarity,
-            chromaQueryMode: queryMode
+            chromaMinCosineSimilarity: chromaConfig.minCosineSimilarity
         });
     }
 

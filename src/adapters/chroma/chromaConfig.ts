@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as crypto from 'node:crypto';
-import { ChromaDbConnectionConfig, ChromaQueryMode } from '../../core/domain/chroma';
+import { ChromaDbConnectionConfig, ChromaQueryMode } from '../../core/model/chroma';
 
 function getConfigValue<T>(
     config: vscode.WorkspaceConfiguration,

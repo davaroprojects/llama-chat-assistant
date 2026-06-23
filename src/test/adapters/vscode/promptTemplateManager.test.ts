@@ -1,7 +1,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { PromptTemplateManager } from '../../../adapters/vscode/promptTemplateManager';
-import { DEFAULT_RAG_MODE_TEMPLATE, DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE } from '../../../core/domain/promptTemplate';
+import { DEFAULT_RAG_MODE_TEMPLATE, DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE } from '../../../core/model/promptTemplate';
 
 function mockVscodeConfig(settings: Record<string, unknown>): void {
     const original = vscode.workspace.getConfiguration;

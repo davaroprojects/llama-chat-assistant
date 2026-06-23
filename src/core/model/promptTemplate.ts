@@ -64,13 +64,13 @@ interface LegacySpecificFilesModeTemplate {
 
 export const DEFAULT_RAG_MODE_TEMPLATE: RagModeTemplate = {
     executionMode: {
-        header: '<modo_ejecucion>',
+        header: '<execution_mode>',
         scope: 'SCOPE: Global Project Analysis (RAG).',
         instruction: 'You are given multiple independent fragments retrieved from the project database. Synthesize them to explain the requested concept and cite file paths when describing relationships.'
     },
     retrievedContext: {
-        header: '<contexto_recuperado>',
-        footer: '</contexto_recuperado>',
+        header: '<retrieved_context>',
+        footer: '</retrieved_context>',
         fragmentFormat: 'Fragment {index} | Source: {path}{distance}\n```\n{content}\n```'
     },
     query: {
@@ -80,13 +80,13 @@ export const DEFAULT_RAG_MODE_TEMPLATE: RagModeTemplate = {
 
 export const DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE: SpecificFilesModeTemplate = {
     executionMode: {
-        header: '<modo_ejecucion>',
+        header: '<execution_mode>',
         scope: 'SCOPE: Selected Specific Files.',
-        instruction: 'Analyze the code provided inside <archivos_objetivo> tags to answer the user query. Ignore assumptions not grounded in the visible code.'
+        instruction: 'Analyze the code provided inside <target_files> tags to answer the user query. Ignore assumptions not grounded in the visible code.'
     },
     targetFiles: {
-        header: '<archivos_objetivo>',
-        footer: '</archivos_objetivo>',
+        header: '<target_files>',
+        footer: '</target_files>',
         fileFormat: 'File: {name}\nType: {type}\nExtension: {extension}\n```\n{content}\n```'
     },
     query: {
@@ -225,13 +225,13 @@ export class PromptTemplateBuilder {
         template: RagModeTemplate = DEFAULT_RAG_MODE_TEMPLATE
     ): string {
         const { header, scope, instruction } = template.executionMode;
-        return `${header}\n${scope}\nInstruction: ${instruction}\n</modo_ejecucion>`;
+        return `${header}\n${scope}\nInstruction: ${instruction}\n</execution_mode>`;
     }
 
     static buildSpecificFilesModeExecution(
         template: SpecificFilesModeTemplate = DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE
     ): string {
         const { header, scope, instruction } = template.executionMode;
-        return `${header}\n${scope}\nInstruction: ${instruction}\n</modo_ejecucion>`;
+        return `${header}\n${scope}\nInstruction: ${instruction}\n</execution_mode>`;
     }
 }

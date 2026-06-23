@@ -1,9 +1,9 @@
-import { FileMetadata } from '../domain/sessionPayload';
+import { FileMetadata } from '../model/sessionPayload';
 import { buildPromptContext, RagContextSnippet } from '../../helpers/promptContextBuilder';
 import { PromptTemplateManager } from '../../adapters/vscode/promptTemplateManager';
 import { LlamaMessageBuilder } from '../../helpers/llamaMessageBuilder';
-import { ChromaConceptualKnnOptions, ChromaDbConnectionConfig, ChromaQueryMode } from '../domain/chroma';
-import { Logger } from '../../adapters/logging/outputLogger';
+import { ChromaConceptualKnnOptions, ChromaDbConnectionConfig } from '../model/chroma';
+import { Logger } from '../../adapters/vscode/outputLogger';
 import { LlamaGateway, LlmGenerationConfig, LlmGenerationResult, LlmMessage } from '../gateways/llamaGateway';
 import { RagContextMatch, RagGateway } from '../gateways/ragGateway';
 import { ResolveContextStrategyUseCase } from './resolveContextStrategyUseCase';
@@ -17,7 +17,6 @@ export interface GenerateAssistantReplyInput {
     abortSignal?: AbortSignal;
     llamaConfig: LlmGenerationConfig;
     chromaConfig: ChromaDbConnectionConfig;
-    chromaQueryMode: ChromaQueryMode;
     onToken: (token: string) => void;
 }
 
@@ -132,23 +131,12 @@ export class GenerateAssistantReplyUseCase {
                     input.userPrompt,
                     input.chromaConfig,
                     input.chromaConfig.maxQueryResults,
-                    input.chromaQueryMode,
+                    'semantic',
                     input.abortSignal,
                     input.endpointFlowPaths
                 );
 
-                if (results.length === 0 && input.chromaQueryMode !== 'semantic') {
-                    results = await this.ragGateway.queryByMode(
-                        input.userPrompt,
-                        input.chromaConfig,
-                        input.chromaConfig.maxQueryResults,
-                        'semantic',
-                        input.abortSignal,
-                        input.endpointFlowPaths
-                    );
-                }
-
-                if (results.length === 0 && input.chromaQueryMode !== 'lexical') {
+                if (results.length === 0) {
                     results = await this.ragGateway.queryByMode(
                         input.userPrompt,
                         input.chromaConfig,
@@ -164,7 +152,7 @@ export class GenerateAssistantReplyUseCase {
                         input.userPrompt,
                         input.chromaConfig,
                         input.chromaConfig.maxQueryResults,
-                        input.chromaQueryMode,
+                        'semantic',
                         input.abortSignal,
                         undefined
                     );

@@ -1,5 +1,5 @@
-import { ChatMessage } from '../core/domain/llama';
-import { FileMetadata } from '../core/domain/sessionPayload';
+import { ChatMessage } from '../core/model/llama';
+import { FileMetadata } from '../core/model/sessionPayload';
 
 function getBaseName(name: string): string {
     return name.replace(/:\d+(?:-\d+)?$/, '');

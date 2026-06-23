@@ -1,4 +1,4 @@
-import { AssistantMessagePayload, FileMetadata, UserMessagePayload } from '../core/domain/sessionPayload';
+import { AssistantMessagePayload, FileMetadata, UserMessagePayload } from '../core/model/sessionPayload';
 
 export class SessionPayloadBuilder {
 

@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { LlamaServerLaunchConfig, ServerParameterRow } from '../../core/domain/llamaServer';
+import { LlamaServerLaunchConfig, ServerParameterRow } from '../../core/model/llamaServer';
 
 export function resolveWorkspacePath(value: string, workspaceRoot?: string): string {
     if (!value || !workspaceRoot || path.isAbsolute(value)) {

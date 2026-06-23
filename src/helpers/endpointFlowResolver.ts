@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import type { ProjectComponent, WorkspaceGraph } from '../core/domain/workspace';
+import type { ProjectComponent, WorkspaceGraph } from '../core/model/workspace';
 
 interface WorkspaceGraphFilePayload {
     components?: WorkspaceGraph;

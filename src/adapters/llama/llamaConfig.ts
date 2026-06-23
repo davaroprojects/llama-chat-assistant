@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { buildChatApiUrl } from './llamaServerConfig';
-import { LlamaConfig } from '../../core/domain/llama';
-import { LlamaServerLaunchConfig } from '../../core/domain/llamaServer';
+import { LlamaConfig } from '../../core/model/llama';
+import { LlamaServerLaunchConfig } from '../../core/model/llamaServer';
 
 function getConfigValue<T>(
     config: vscode.WorkspaceConfiguration,

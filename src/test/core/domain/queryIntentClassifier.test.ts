@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { classifyUserIntent, QueryIntentType } from '../../../core/domain/queryIntent';
+import { classifyUserIntent, QueryIntentType } from '../../../core/model/queryIntent';
 
 suite('QueryIntentClassifier - classifyUserIntent', () => {
     test('Classifies endpoint question as STRUCTURED_FOCUSED', () => {

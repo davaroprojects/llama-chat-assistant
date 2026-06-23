@@ -9,7 +9,7 @@ import {
     interpolateQueryLabel,
     interpolateConsulta,
     PromptTemplateBuilder,
-} from '../../../core/domain/promptTemplate';
+} from '../../../core/model/promptTemplate';
 
 suite('promptTemplate - normalizeRagModeTemplate', () => {
     test('Returns defaults when template is undefined', () => {

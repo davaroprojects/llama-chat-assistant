@@ -5,7 +5,7 @@ import {
     ChatUiState,
     RagIndexState,
     SettingsAccordionState
-} from '../../core/domain/session';
+} from '../../core/model/session';
 import { SesionGateway } from '../../core/gateways/sesionGateway';
 
 interface StoredChatState {

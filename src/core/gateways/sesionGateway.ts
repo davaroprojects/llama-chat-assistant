@@ -1,4 +1,4 @@
-import { ChatSession, ChatUiState, RagIndexState, SettingsAccordionState } from '../domain/session';
+import { ChatSession, ChatUiState, RagIndexState, SettingsAccordionState } from '../model/session';
 
 export interface SesionGateway {
     getAllSessions(): { id: string; title: string; relativeTime: string }[];

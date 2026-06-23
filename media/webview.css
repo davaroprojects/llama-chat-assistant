@@ -687,6 +687,37 @@ textarea {
     pointer-events: none;
 }
 
+/* Input actions left controls */
+.input-left-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* RAG checkbox label */
+.rag-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+    color: var(--vscode-foreground);
+    font-size: 12px;
+    opacity: 0.7;
+    transition: opacity 0.15s ease;
+}
+
+.rag-checkbox-label:hover {
+    opacity: 0.9;
+}
+
+.rag-checkbox-label input[type="checkbox"] {
+    cursor: pointer;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--vscode-checkbox-background);
+}
+
 /* Botón de enviar completamente circular */
 #send { 
     background: var(--vscode-button-background); 

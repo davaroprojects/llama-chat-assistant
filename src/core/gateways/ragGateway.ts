@@ -1,4 +1,4 @@
-import { ChromaConceptualKnnOptions, ChromaDbConnectionConfig, ChromaQueryMode } from '../domain/chroma';
+import { ChromaConceptualKnnOptions, ChromaDbConnectionConfig, ChromaQueryMode } from '../model/chroma';
 
 export interface RagContextMatch {
     path: string;

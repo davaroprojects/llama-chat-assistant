@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { searchFlowByEndpoint } from '../../helpers/endpointFlowResolver';
-import { WorkspaceGraph } from '../../core/domain/workspace';
+import { WorkspaceGraph } from '../../core/model/workspace';
 
 suite('EndpointFlowResolver - searchFlowByEndpoint', () => {
     test('Returns DFS flow from matching trigger', () => {

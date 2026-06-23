@@ -6,7 +6,7 @@ import {
     normalizeSpecificFilesModeTemplate,
     DEFAULT_RAG_MODE_TEMPLATE,
     DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE
-} from '../../core/domain/promptTemplate';
+} from '../../core/model/promptTemplate';
 
 export class PromptTemplateManager {
     static getRagModeTemplate(): RagModeTemplate {

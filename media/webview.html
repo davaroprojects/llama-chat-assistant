@@ -39,11 +39,17 @@
 
             <textarea id="prompt" rows="2" placeholder="{{promptPlaceholder}}"></textarea>
             <div class="input-actions">
-                <div id="attach-file-btn" class="add-icon-button" title="{{attachFileTitle}}">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M5 12h14M12 5v14" />
-                    </svg>
+                <div class="input-left-controls">
+                    <div id="attach-file-btn" class="add-icon-button" title="{{attachFileTitle}}">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 12h14M12 5v14" />
+                        </svg>
+                    </div>
+                    <label class="rag-checkbox-label">
+                        <input type="checkbox" id="rag-enabled" name="ragEnabled" />
+                        <span>rag</span>
+                    </label>
                 </div>
                 <div class="chat-action-buttons">
                     <button id="send" title="{{sendMessageTitle}}">
@@ -94,7 +100,7 @@
                 <div class="server-parameters-panel">
                     <div class="server-parameters-list">
                         <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaUrlLabel}}</span><span id="rag-chroma-url-value" class="server-parameter-value">http://127.0.0.1</span></div>
-                        <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaPortLabel}}</span><span id="rag-chroma-port-value" class="server-parameter-value">8000</span></div>
+
                         <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaCollectionPrefixLabel}}</span><span id="rag-chroma-collection-prefix-value" class="server-parameter-value">llama-chat-ephemeral</span></div>
                         <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaExcludeDirsLabel}}</span><span id="rag-chroma-exclude-dirs-value" class="server-parameter-value">-</span></div>
                         <div class="server-parameter-row"><span class="server-parameter-label">{{ragChromaExcludeFileGlobsLabel}}</span><span id="rag-chroma-exclude-file-globs-value" class="server-parameter-value">-</span></div>

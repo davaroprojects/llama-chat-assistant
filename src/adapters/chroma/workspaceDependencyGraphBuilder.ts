@@ -2,8 +2,8 @@ import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import type { Dirent } from 'node:fs';
 import * as path from 'node:path';
-import { ChromaDbConnectionConfig } from '../../core/domain/chroma';
-import { ProjectComponent, WorkspaceGraph } from '../../core/domain/workspace';
+import { ChromaDbConnectionConfig } from '../../core/model/chroma';
+import { ProjectComponent, WorkspaceGraph } from '../../core/model/workspace';
 
 const CODE_FILE_EXTENSIONS = new Set([
     '.ts',
