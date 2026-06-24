@@ -176,49 +176,37 @@ The FS walker is a recursive `async function walk(dir)` that scans the workspace
 
 **Effect of `maxIndexedFiles`:** this is a chunk count, not a file count. A single large file may produce many chunks. Reaching the limit mid-walk causes a hard stop; the remaining files in the walk are silently skipped.
 
-### 4.3 Chunking — `RecursiveCharacterTextSplitter`
+### 4.3 Chunking — Tree-sitter + Token Budgets
 
-Chunking is performed by `@langchain/textsplitters`'s `RecursiveCharacterTextSplitter`. The splitter tries each separator in order, falling back to the next one until chunks fit within `chunkSize`.
+Chunking now uses syntax trees as the primary segmentation strategy. Files supported by Tree-sitter are parsed and split by semantic nodes (classes, functions, methods, declarations, config blocks) instead of character separators.
 
-**Language-aware separator sets:**
+Supported by syntax chunking in this phase:
 
-| Extension | `chunkSize` | `chunkOverlap` | Separators |
-|---|---|---|---|
-| `.java` | 1000 | 150 | `\n\n`, `\npublic\n`, `\nprotected\n`, `\nprivate\n`, `\nclass `, `\ninterface `, `\n}`, `\n` |
-| `.py` | 800 | 100 | `\n\n`, `\ndef `, `\nclass `, `\n`, ` ` |
-| `.xml` | 600 | 50 | `</bean>`, `</dependency>`, `</plugin>`, `\n\n`, `\n` |
-| `.yaml` / `.yml` | 500 | 50 | `\n\n`, `\n-`, `\n  `, `\n` |
-| `.properties` / `.env` / `.conf` | 400 | 0 | `\n\n`, `\n` |
-| all others | 800 | 100 | `\n\n`, `\n`, ` ` |
+- `ts`, `tsx`, `js`, `jsx`
+- `java`, `py`
+- `json`, `yaml`, `xml`
+- `properties`, `.env*`
 
-**User-configured overrides** (`chunkSizeChars`, `chunkOverlapChars`) override these per-language defaults via `resolveChunkTuning()`:
+Unsupported formats (for example `.conf`) use a manual fallback chunker.
 
-```typescript
-configuredSize    = max(200, floor(tuning.chunkSizeChars ?? languageDefault))
-configuredOverlap = max(0,   floor(tuning.chunkOverlapChars ?? languageDefault))
-configuredOverlap = min(configuredOverlap, configuredSize - 1)
-```
+Token budgets are enforced with `js-tiktoken`:
 
-The minimum enforced chunk size is `200` characters. Overlap is always less than chunk size.
-
-**How parameters affect the index:**
-
-| Parameter | Low value | High value |
+| Setting | Default | Role |
 |---|---|---|
-| `chunkSizeChars` | Finer granularity; more chunks; each chunk captures one function or few lines; retrieval is more precise but loses cross-function context | Coarser; fewer chunks; an entire class may be one chunk; better structural context but dilutes semantic signal |
-| `chunkOverlapChars` | Less redundancy; function signatures at chunk boundaries may be split across chunks; faster indexing | More redundancy; boundary tokens repeat in consecutive chunks; signature always present in next chunk; larger total storage |
+| `targetChunkTokens` | `350` | Target size for syntax-aware chunk assembly |
+| `maxChunkTokens` | `512` | Hard cap per chunk |
+| `minChunkTokens` | `120` | Preferred minimum before adjacent merge |
+| `fallbackChunkTokens` | `300` | Target for manual fallback chunking |
 
-Approximate chunk count formula:
+Chunking strategy:
 
-```
-n_chunks ≈ (file_chars - chunkOverlapChars) / (chunkSizeChars - chunkOverlapChars)
-```
-
-For a 10,000-character file with defaults (size=2000, overlap=300):
-
-```
-n_chunks ≈ (10000 - 300) / (2000 - 300) ≈ 5.7 → 6 chunks
-```
+1. Parse file with Tree-sitter when supported.
+2. Select semantic candidate nodes.
+3. Measure node text with token counter.
+4. Keep nodes that fit `maxChunkTokens`.
+5. Recursively descend into children for oversized nodes.
+6. Merge undersized adjacent nodes up to `targetChunkTokens`.
+7. Use manual fallback only for unsupported/unresolvable files.
 
 ### 4.4 Keyword Entity Extraction
 
@@ -265,7 +253,7 @@ The `createHuggingFaceEmbeddingFunction()` factory wraps this into the ChromaDB 
 
 **What the embedding encodes:** semantic meaning of the chunk's content. Two chunks describing similar concepts (e.g., two different authentication implementations) will have high cosine similarity even if they share no literal tokens. This is why semantic search finds conceptually related code even when the query uses different terminology.
 
-**Effect of the 512-token input limit:** for very large chunks (>2000 characters of dense code), only the first 512 tokens are encoded. The `chunkSizeChars` default of 2000 characters typically falls around 500–600 tokens for typical code density, staying just within the model's window.
+**Effect of the 512-token input limit:** chunks are capped at `maxChunkTokens` (default `512`) before embedding. Syntax-aware chunking aims for `targetChunkTokens` while staying under this hard cap, which keeps embedding calls bounded and reduces truncation risk.
 
 ### 4.6 ChromaDB Collection Management
 

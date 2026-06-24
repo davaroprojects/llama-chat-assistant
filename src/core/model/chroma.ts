@@ -14,8 +14,10 @@ export interface ChromaDbConnectionConfig {
     excludeFileGlobs: string[];
     maxFileSizeKb: number;
     maxIndexedFiles: number;
-    chunkSizeChars: number;
-    chunkOverlapChars: number;
+    targetChunkTokens: number;
+    maxChunkTokens: number;
+    minChunkTokens: number;
+    fallbackChunkTokens: number;
     vectorCandidatePool: number;
     maxQueryResults: number;
     minCosineSimilarity: number;

@@ -8,6 +8,11 @@ export function normalizeExtension(fileName: string): string {
 }
 
 export function detectLanguage(fileName: string): string {
+    const normalizedFileName = fileName.toLowerCase();
+    if (normalizedFileName === '.env' || normalizedFileName.startsWith('.env.')) {
+        return 'properties';
+    }
+
     const extension = normalizeExtension(fileName);
     const languageByExtension: Record<string, string> = {
         ts: 'typescript',
@@ -44,6 +49,11 @@ export function detectLanguage(fileName: string): string {
 }
 
 export function classifyFileType(fileName: string): string {
+    const normalizedFileName = fileName.toLowerCase();
+    if (normalizedFileName === '.env' || normalizedFileName.startsWith('.env.')) {
+        return 'configuration';
+    }
+
     const extension = normalizeExtension(fileName).toLowerCase();
     const configExtensions = new Set(['xml', 'yaml', 'yml', 'properties', 'env', 'json', 'toml', 'ini', 'conf', 'config']);
     const configKeywords = /(?:config|settings|application|deployment|manifest|pom|gradle|build|docker|k8s|kubernetes)/i;

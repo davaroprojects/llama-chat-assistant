@@ -3,7 +3,7 @@
   "publisher": "davaro",
   "displayName": "%ext.displayName%",
   "description": "%ext.description%",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "license": "GPL-3.0-or-later",
   "engines": {
     "vscode": "^1.120.0"
@@ -203,17 +203,29 @@
             "minimum": 1,
             "description": "%config.rag.maxIndexedFiles.description%"
           },
-          "laLlamaChat.chromaDb.chunkSizeChars": {
+          "laLlamaChat.chromaDb.targetChunkTokens": {
             "type": "number",
-            "default": 2000,
-            "minimum": 200,
-            "description": "%config.rag.chunkSizeChars.description%"
+            "default": 350,
+            "minimum": 32,
+            "description": "%config.rag.targetChunkTokens.description%"
           },
-          "laLlamaChat.chromaDb.chunkOverlapChars": {
+          "laLlamaChat.chromaDb.maxChunkTokens": {
+            "type": "number",
+            "default": 512,
+            "minimum": 64,
+            "description": "%config.rag.maxChunkTokens.description%"
+          },
+          "laLlamaChat.chromaDb.minChunkTokens": {
+            "type": "number",
+            "default": 120,
+            "minimum": 1,
+            "description": "%config.rag.minChunkTokens.description%"
+          },
+          "laLlamaChat.chromaDb.fallbackChunkTokens": {
             "type": "number",
             "default": 300,
-            "minimum": 0,
-            "description": "%config.rag.chunkOverlapChars.description%"
+            "minimum": 32,
+            "description": "%config.rag.fallbackChunkTokens.description%"
           },
           "laLlamaChat.chromaDb.vectorCandidatePool": {
             "type": "number",
@@ -312,7 +324,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
-    "copy-media": "node -e \"const fs=require('fs'); fs.mkdirSync('dist/media', {recursive:true}); fs.copyFileSync('media/webview.html', 'dist/media/webview.html'); fs.copyFileSync('media/webview.css', 'dist/media/webview.css'); fs.copyFileSync('media/webview.js', 'dist/media/webview.js'); fs.copyFileSync('media/prism.min.js', 'dist/media/prism.min.js'); fs.copyFileSync('media/marked.min.js', 'dist/media/marked.min.js'); fs.copyFileSync('media/purify.min.js', 'dist/media/purify.min.js');\"",
+    "copy-media": "node scripts/copy-dist-assets.js",
     "compile": "npm run check-types && npm run lint && node esbuild.js && npm run copy-media",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
@@ -341,9 +353,14 @@
   "dependencies": {
     "@hey-api/client-fetch": "^0.13.1",
     "@huggingface/transformers": "^4.2.0",
-    "@langchain/textsplitters": "^1.0.1",
+    "@langchain/core": "^1.2.1",
+    "@lumis-sh/wasm-json": "^0.26.2",
+    "@lumis-sh/wasm-xml": "^0.26.1",
+    "@lumis-sh/wasm-yaml": "^0.26.0",
+    "@vscode/tree-sitter-wasm": "^0.3.1",
     "chromadb": "^3.4.3",
     "dompurify": "^3.4.11",
-    "js-tiktoken": "^1.0.21"
+    "js-tiktoken": "^1.0.21",
+    "web-tree-sitter": "^0.26.9"
   }
 }

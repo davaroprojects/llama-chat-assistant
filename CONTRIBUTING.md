@@ -94,7 +94,7 @@ src/
 │   │       ├── embeddings/           # HuggingFace transformers pipeline
 │   │       ├── filesystem/           # File walking and binary detection
 │   │       ├── search/               # Vector similarity and lexical search
-│   │       └── text/                 # Chunking via LangChain RecursiveCharacterTextSplitter
+│   │       └── text/                 # Tree-sitter syntax chunking + token-aware fallback
 │   ├── llama/                        # llama.cpp HTTP adapter
 │   │   ├── llamaAdapter.ts           # Implements LlamaGateway
 │   │   ├── llamaConfig.ts            # Reads laLlamaChat.chat.* VS Code settings

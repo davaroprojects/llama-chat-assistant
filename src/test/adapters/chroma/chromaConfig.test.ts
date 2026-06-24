@@ -27,8 +27,10 @@ suite('readChromaDbConfig - defaults', () => {
         const config = readChromaDbConfig(WORKSPACE_ROOT);
         assert.strictEqual(config.maxFileSizeKb, 2048);
         assert.strictEqual(config.maxIndexedFiles, 10000);
-        assert.strictEqual(config.chunkSizeChars, 2000);
-        assert.strictEqual(config.chunkOverlapChars, 300);
+        assert.strictEqual(config.targetChunkTokens, 350);
+        assert.strictEqual(config.maxChunkTokens, 512);
+        assert.strictEqual(config.minChunkTokens, 120);
+        assert.strictEqual(config.fallbackChunkTokens, 300);
         assert.strictEqual(config.maxQueryResults, 12);
         assert.strictEqual(config.minCosineSimilarity, 0.2);
     });

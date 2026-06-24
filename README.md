@@ -113,8 +113,10 @@ code --install-extension llama-chat-0.0.1.vsix
   "laLlamaChat.chromaDb.excludeFileGlobs": ["**/*.bin", "**/*.class", "**/*.jar", "**/*.lock"],
   "laLlamaChat.chromaDb.maxFileSizeKb": 512,
   "laLlamaChat.chromaDb.maxIndexedFiles": 2000,
-  "laLlamaChat.chromaDb.chunkSizeChars": 2000,
-  "laLlamaChat.chromaDb.chunkOverlapChars": 300,
+  "laLlamaChat.chromaDb.targetChunkTokens": 350,
+  "laLlamaChat.chromaDb.maxChunkTokens": 512,
+  "laLlamaChat.chromaDb.minChunkTokens": 120,
+  "laLlamaChat.chromaDb.fallbackChunkTokens": 300,
   "laLlamaChat.chromaDb.vectorCandidatePool": 50,
   "laLlamaChat.chromaDb.maxQueryResults": 12,
   "laLlamaChat.chromaDb.minCosineSimilarity": 0.2
@@ -163,8 +165,10 @@ code --install-extension llama-chat-0.0.1.vsix
 | `laLlamaChat.chromaDb.excludeFileGlobs` | `["**/*.bin", ...]` | File patterns skipped during indexing |
 | `laLlamaChat.chromaDb.maxFileSizeKb` | `512` | Max file size to index (KB) |
 | `laLlamaChat.chromaDb.maxIndexedFiles` | `2000` | Max chunks/files per index run |
-| `laLlamaChat.chromaDb.chunkSizeChars` | `2000` | Chunk size in characters |
-| `laLlamaChat.chromaDb.chunkOverlapChars` | `300` | Chunk overlap in characters |
+| `laLlamaChat.chromaDb.targetChunkTokens` | `350` | Target token budget for syntax-aware chunk assembly |
+| `laLlamaChat.chromaDb.maxChunkTokens` | `512` | Hard token cap per chunk |
+| `laLlamaChat.chromaDb.minChunkTokens` | `120` | Preferred minimum chunk size before merge |
+| `laLlamaChat.chromaDb.fallbackChunkTokens` | `300` | Token target for manual fallback chunking |
 | `laLlamaChat.chromaDb.vectorCandidatePool` | `50` | Candidate pool for semantic retrieval |
 | `laLlamaChat.chromaDb.maxQueryResults` | `12` | Max results returned per query |
 | `laLlamaChat.chromaDb.minCosineSimilarity` | `0.2` | Minimum cosine similarity threshold |
@@ -200,9 +204,11 @@ Click **Start Server** in the extension panel, or run manually:
 Open the La Llama Chat panel in the Activity Bar and click **Index Workspace**. The extension will:
 
 1. Walk your project files (respecting `excludeDirs` and `excludeFileGlobs`).
-2. Chunk file contents into overlapping segments.
-3. Compute 384-dimensional vector embeddings using `Xenova/all-MiniLM-L6-v2` (runs locally via `@huggingface/transformers`, ~22 MB cached).
-4. Store everything in ChromaDB under a workspace-specific collection.
+2. Chunk file contents with Tree-sitter when supported (`ts`, `tsx`, `js`, `jsx`, `java`, `py`, `json`, `yaml`, `xml`, `properties`, `.env*`).
+3. Apply token-budgeted chunk sizing using `js-tiktoken` (`targetChunkTokens`, `maxChunkTokens`, `minChunkTokens`).
+4. Fall back to manual chunking for unsupported types (including `.conf`) using `fallbackChunkTokens`.
+5. Compute 384-dimensional vector embeddings using `Xenova/all-MiniLM-L6-v2` (runs locally via `@huggingface/transformers`, ~22 MB cached).
+6. Store everything in ChromaDB under a workspace-specific collection.
 
 > Re-index after significant refactors to keep context fresh.
 

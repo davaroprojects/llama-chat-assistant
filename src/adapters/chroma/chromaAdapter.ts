@@ -129,13 +129,15 @@ async function listTextFiles(
                 const fileType = classifyFileType(fileName);
                 const ecosystemLanguage = getEcosystemLanguage(language, projectType);
                 const docsListosParaChroma = await getSplitterForFile(fileName, content, {
-                    chunkSizeChars: config.chunkSizeChars,
-                    chunkOverlapChars: config.chunkOverlapChars
+                    targetChunkTokens: config.targetChunkTokens,
+                    maxChunkTokens: config.maxChunkTokens,
+                    minChunkTokens: config.minChunkTokens,
+                    fallbackChunkTokens: config.fallbackChunkTokens
                 });
 
                 docsListosParaChroma.forEach((chunk) => {
                     const javaMetadata = language === 'java'
-                        ? extractJavaSymbolMetadata(content, chunk.text.length)
+                        ? extractJavaSymbolMetadata(content, chunk.end)
                         : { className: '', methodName: '' };
 
                     indexed.push({
@@ -151,8 +153,8 @@ async function listTextFiles(
                         projectType,
                         chunkIndex: chunk.index,
                         chunkCount: chunk.totalChunks,
-                        chunkStart: 0,
-                        chunkEnd: chunk.text.length,
+                        chunkStart: chunk.start,
+                        chunkEnd: chunk.end,
                         content: chunk.text,
                         keywordEntities: chunk.keywordEntities.join('|')
                     });

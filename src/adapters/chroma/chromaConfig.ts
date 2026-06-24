@@ -68,8 +68,10 @@ export function readChromaDbConfig(
         ]),
         maxFileSizeKb: getConfigValue(config, 'chromaDb.maxFileSizeKb', 'rag.maxFileSizeKb', 2048),
         maxIndexedFiles: getConfigValue(config, 'chromaDb.maxIndexedFiles', 'rag.maxIndexedFiles', 10000),
-        chunkSizeChars: getConfigValue(config, 'chromaDb.chunkSizeChars', 'rag.chunkSizeChars', 2000),
-        chunkOverlapChars: getConfigValue(config, 'chromaDb.chunkOverlapChars', 'rag.chunkOverlapChars', 300),
+        targetChunkTokens: getConfigValue(config, 'chromaDb.targetChunkTokens', 'rag.targetChunkTokens', 350),
+        maxChunkTokens: getConfigValue(config, 'chromaDb.maxChunkTokens', 'rag.maxChunkTokens', 512),
+        minChunkTokens: getConfigValue(config, 'chromaDb.minChunkTokens', 'rag.minChunkTokens', 120),
+        fallbackChunkTokens: getConfigValue(config, 'chromaDb.fallbackChunkTokens', 'rag.fallbackChunkTokens', 300),
         vectorCandidatePool: getConfigValue(config, 'chromaDb.vectorCandidatePool', 'rag.vectorCandidatePool', 50),
         maxQueryResults: getConfigValue(config, 'chromaDb.maxQueryResults', 'rag.maxQueryResults', 12),
         minCosineSimilarity: getConfigValue(config, 'chromaDb.minCosineSimilarity', 'rag.minCosineSimilarity', 0.2)

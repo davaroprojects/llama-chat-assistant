@@ -19,12 +19,8 @@ export interface WebviewLabels {
     ragIndexedAtLabel: string;
     ragIndexedFilesLabel: string;
     ragChromaCollectionIdLabel: string;
-    ragChromaExcludeDirsLabel: string;
-    ragChromaExcludeFileGlobsLabel: string;
     ragChromaMaxFileSizeKbLabel: string;
     ragChromaMaxIndexedFilesLabel: string;
-    ragChromaChunkSizeCharsLabel: string;
-    ragChromaChunkOverlapCharsLabel: string;
     ragChromaVectorCandidatePoolLabel: string;
     ragChromaMaxQueryResultsLabel: string;
     ragLlamaApiUrlLabel: string;
@@ -103,12 +99,12 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
             '### ChromaDB indexing and retrieval',
             '- `laLlamaChat.chromaDb.url`: ChromaDB base URL. If incorrect, RAG cannot retrieve context.',
             '- `laLlamaChat.chromaDb.port`: ChromaDB port. Must match the running ChromaDB instance.',
-            '- `laLlamaChat.chromaDb.excludeDirs`: Directory filters for indexing. Reduces noise and indexing cost.',
-            '- `laLlamaChat.chromaDb.excludeFileGlobs`: File pattern filters. Prevents indexing irrelevant or generated assets.',
             '- `laLlamaChat.chromaDb.maxFileSizeKb`: Skips oversized files. Protects indexing time and memory usage.',
             '- `laLlamaChat.chromaDb.maxIndexedFiles`: Upper bound for indexed files/chunks per run. Controls runtime and storage growth.',
-            '- `laLlamaChat.chromaDb.chunkSizeChars`: Chunk size used by the text splitter. Larger chunks preserve context but may reduce retrieval precision.',
-            '- `laLlamaChat.chromaDb.chunkOverlapChars`: Overlap between chunks. Improves continuity at boundaries, but increases index size.',
+            '- `laLlamaChat.chromaDb.targetChunkTokens`: Token target used by syntax-aware chunk assembly.',
+            '- `laLlamaChat.chromaDb.maxChunkTokens`: Hard token cap for each indexed chunk.',
+            '- `laLlamaChat.chromaDb.minChunkTokens`: Preferred minimum chunk size before adjacent chunk merging.',
+            '- `laLlamaChat.chromaDb.fallbackChunkTokens`: Token target for manual fallback chunking in unsupported files.',
             '- `laLlamaChat.chromaDb.vectorCandidatePool`: Candidate pool before final filtering. Higher values improve recall but increase query cost.',
             '- `laLlamaChat.chromaDb.maxQueryResults`: Maximum retrieved fragments included in prompts. Higher values add context but can increase token load.',
             '- `laLlamaChat.chromaDb.minCosineSimilarity`: Similarity threshold for acceptance. Higher thresholds improve precision; lower thresholds improve recall.',
@@ -129,12 +125,8 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
         ragIndexedAtLabel: 'Indexed at',
         ragIndexedFilesLabel: 'Indexed files',
         ragChromaCollectionIdLabel: 'ChromaDB collection ID',
-        ragChromaExcludeDirsLabel: 'Excluded folders',
-        ragChromaExcludeFileGlobsLabel: 'Excluded files (glob)',
         ragChromaMaxFileSizeKbLabel: 'Max file size (KB)',
         ragChromaMaxIndexedFilesLabel: 'Max indexed files/chunks',
-        ragChromaChunkSizeCharsLabel: 'Chunk size (chars)',
-        ragChromaChunkOverlapCharsLabel: 'Chunk overlap (chars)',
         ragChromaVectorCandidatePoolLabel: 'Vector candidate pool',
         ragChromaMaxQueryResultsLabel: 'Max query results',
         ragLlamaApiUrlLabel: 'llama.cpp API URL',
