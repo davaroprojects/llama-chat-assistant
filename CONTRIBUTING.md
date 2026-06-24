@@ -94,7 +94,7 @@ src/
 │   │       ├── embeddings/           # HuggingFace transformers pipeline
 │   │       ├── filesystem/           # File walking and binary detection
 │   │       ├── search/               # Vector similarity and lexical search
-│   │       └── text/                 # Chunking via LangChain RecursiveCharacterTextSplitter
+│   │       └── text/                 # Tree-sitter syntax chunking + token-aware fallback
 │   ├── llama/                        # llama.cpp HTTP adapter
 │   │   ├── llamaAdapter.ts           # Implements LlamaGateway
 │   │   ├── llamaConfig.ts            # Reads laLlamaChat.chat.* VS Code settings
@@ -188,6 +188,32 @@ npx tsc --noEmit --noUnusedLocals --noUnusedParameters
 ```bash
 npm run lint
 ```
+
+### Debugging RAG Pipeline
+
+To debug indexation and query performance, enable debug logging in the test/dev VS Code instance:
+
+```jsonc
+// settings.json in the development workspace
+{
+  "laLlamaChat.chat.debug": true
+}
+```
+
+Then open the **RAG** output channel (`Ctrl+Shift+U` → select **RAG**) to view structured logs during:
+
+- **Indexing:** File walk results, parser initialization, chunk assembly, embedding computation
+- **Querying:** Phase 1 semantic retrieval scores, Phase 2 cross-encoder reranking scores
+- **ReAct loop:** Action parsing, query execution, observation formatting
+
+**Common debugging scenarios:**
+
+| Problem | Log marker to search | Debugging steps |
+|---|---|---|
+| Many files skipped during indexing | `readErrors`, `errorSamples` | Check if tree-sitter parser initialization failed; see `INDEXING_PROCESS.md` § 2b |
+| Queries return no results | `query.results` shows `count: 0` | Verify ChromaDB collection exists; run manual index first |
+| Poor retrieval quality | `query.ranking_phase1`, `query.ranking_phase2` | Check if lexical score includes metadata (path, class_name, method_name); verify reranker model loaded |
+| ReAct loop stuck in format correction | `action.extract` shows `success: false` | Check if model output contains valid `Action:` line; see `runReactAgentConversationUseCase.ts` line ~100 |
 
 ---
 

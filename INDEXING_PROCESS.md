@@ -44,8 +44,10 @@ VS Code configuration namespace: `laLlamaChat`
 | `laLlamaChat.chromaDb.excludeFileGlobs` | `excludeFileGlobs` | `['**/*.bin', '**/*.class', '**/*.jar', '**/*.lock']` | Glob patterns of files to exclude |
 | `laLlamaChat.chromaDb.maxFileSizeKb` | `maxFileSizeKb` | `2048` | Maximum file size to index (KB) |
 | `laLlamaChat.chromaDb.maxIndexedFiles` | `maxIndexedFiles` | `10000` | Total indexed file limit |
-| `laLlamaChat.chromaDb.chunkSizeChars` | `chunkSizeChars` | `2000` | Chunk size in characters (global override) |
-| `laLlamaChat.chromaDb.chunkOverlapChars` | `chunkOverlapChars` | `300` | Overlap between chunks in characters (global override) |
+| `laLlamaChat.chromaDb.targetChunkTokens` | `targetChunkTokens` | `350` | Target token size for syntax-aware chunk assembly |
+| `laLlamaChat.chromaDb.maxChunkTokens` | `maxChunkTokens` | `512` | Hard token cap per chunk |
+| `laLlamaChat.chromaDb.minChunkTokens` | `minChunkTokens` | `120` | Preferred minimum token size before chunk merge |
+| `laLlamaChat.chromaDb.fallbackChunkTokens` | `fallbackChunkTokens` | `300` | Token target for manual fallback chunking |
 | `laLlamaChat.chromaDb.vectorCandidatePool` | `vectorCandidatePool` | `50` | Vector candidates retrieved before re-ranking |
 | `laLlamaChat.chromaDb.maxQueryResults` | `maxQueryResults` | `12` | Maximum results returned per query |
 | `laLlamaChat.chromaDb.minCosineSimilarity` | `minCosineSimilarity` | `0.2` | Minimum cosine similarity threshold to accept a result |
@@ -76,6 +78,51 @@ await client.heartbeat();           // HTTP GET /api/v1/heartbeat
 ```
 
 On failure → `IndexWorkspaceUseCase` returns `{ availability: false }` and aborts silently.
+
+**Logging:** All indexing phases now emit structured DEBUG and INFO logs:
+
+```
+[INFO]  [rag] Starting workspace indexing | {"collectionName": "...", "workspaceRoot": "..."}
+[DEBUG] [rag] ChromaDB index.config | {"maxIndexedFiles": 2000, "maxFileSizeKb": 512, ...}
+[INFO]  [rag] File scan finished for indexing | {"visitedDirectories": 108, "readErrors": 0, "errorSamples": []}
+[INFO]  [rag] Prepared chunks for indexing | {"collectionName": "...", "uniqueFiles": 181, "totalChunks": 365}
+[DEBUG] [rag] Indexing batch started | {"batchNumber": 1, "totalBatches": 6, ...}
+[DEBUG] [rag] Indexing batch completed | {"batchNumber": 1, ...}
+[INFO]  [rag] Workspace indexing complete | {"indexedFiles": 365, "indexingDurationMs": 41868}
+```
+
+These logs help diagnose indexing performance and failures.
+
+---
+
+## 2b. Parser Initialization & Error Handling
+
+File: `src/adapters/chroma/utils/text/textSplitter.ts` → `createSyntaxChunks()`
+
+**Recent fix (2026-06-24):** 
+The parser is now initialized with `await ensureParserRuntime()` before construction to prevent the error `"cannot construct a Parser before calling init()"`. This ensures that tree-sitter WASM runtime is loaded before attempting to create a Parser instance.
+
+```typescript
+await ensureParserRuntime();  // ← Load WASM runtime first
+const parser = new Parser();   // ← Now safe to construct
+parser.setLanguage(await loadGrammar(grammar));
+```
+
+When a file fails to parse (e.g., encoding issues, unsupported syntax), the chunker automatically falls back to `manualFallbackChunks()`, which uses token-based splitting instead of syntax-aware chunking. This ensures no files are dropped from the index.
+
+**Error diagnostics:** Failed file reads are now logged with samples:
+
+```json
+{
+  "readErrors": 175,
+  "errorSamples": [
+    { "path": "bin/generated-sources/.../FileTagMapperImpl.java", "reason": "cannot construct a Parser before calling `init()`" },
+    ...
+  ]
+}
+```
+
+This allows indexing diagnostics to identify exact failure patterns.
 
 ---
 
@@ -134,20 +181,26 @@ File: `src/adapters/chroma/utils/text/textSplitter.ts` → `getSplitterForFile()
 
 ### Chunking engine
 
-Uses **LangChain `RecursiveCharacterTextSplitter`** (`@langchain/textsplitters`), which splits text recursively by trying each separator in order until all fragments fit within `chunkSize`.
+Uses **Tree-sitter (WASM runtime)** for syntax-aware chunking plus `js-tiktoken` to enforce token budgets.
 
-### Parameters per file type
+### Supported syntax chunking
 
-Values shown are the **per-extension defaults**. If `chunkSizeChars` / `chunkOverlapChars` are set in VS Code, they are applied via `resolveChunkTuning()` (minimum chunk size of 200 chars, minimum overlap of 0).
+- `.ts`, `.tsx`, `.js`, `.jsx`
+- `.java`, `.py`
+- `.json`, `.yaml`, `.yml`, `.xml`
+- `.properties`, `.env`, `.env.*`
 
-| Extension | `chunkSize` (chars) | `chunkOverlap` (chars) | Separators (in order) |
-|---|---|---|---|
-| `.java` | 1000 | 150 | `\n\n`, `\npublic\n`, `\nprotected\n`, `\nprivate\n`, `\nclass `, `\ninterface `, `\n}`, `\n` |
-| `.py` | 800 | 100 | `\n\n`, `\ndef `, `\nclass `, `\n`, ` ` |
-| `.xml` | 600 | 50 | `</bean>`, `</dependency>`, `</plugin>`, `\n\n`, `\n` |
-| `.yaml` / `.yml` | 500 | 50 | `\n\n`, `\n-`, `\n  `, `\n` |
-| `.properties` / `.env` / `.conf` | 400 | 0 | `\n\n`, `\n` |
-| *(default)* | 800 | 100 | `\n\n`, `\n`, ` ` |
+Unsupported files (including `.conf`) use the manual fallback chunker.
+
+### Token-budgeted behavior
+
+1. Parse supported files into syntax trees.
+2. Select semantic nodes as chunk candidates.
+3. Measure candidate text with token counter.
+4. Keep candidates under `maxChunkTokens`.
+5. Recursively descend oversized nodes.
+6. Merge adjacent small candidates up to `targetChunkTokens`.
+7. Fallback to manual chunking for unsupported files using `fallbackChunkTokens`.
 
 ### Chunking output: `ChunkWithMetadata`
 
@@ -157,6 +210,8 @@ interface ChunkWithMetadata {
     index: number;          // Chunk index within the file (0-based)
     totalChunks: number;    // Total chunks generated for that file
     keywordEntities: string[];  // Extracted code entities (see §5.1)
+    start: number;          // Source offset start in original file
+    end: number;            // Source offset end in original file
 }
 ```
 
@@ -263,8 +318,8 @@ Chunks are inserted in batches of **64** (`batchSize = 64`) via `collection.add(
 | `project_type` | `detectProjectType()` | `string` |
 | `chunkIndex` | `chunk.index` | `string` |
 | `chunkCount` | `chunk.totalChunks` | `string` |
-| `chunkStart` | `0` (reserved) | `string` |
-| `chunkEnd` | `chunk.text.length` | `string` |
+| `chunkStart` | `chunk.start` | `string` |
+| `chunkEnd` | `chunk.end` | `string` |
 | `keyword_entities` | `extractKeywordEntities()` joined with `\|` | `string` |
 
 ### Chunk ID format
@@ -307,18 +362,21 @@ flowchart TD
     F --> G{File passes filters?}
     G -- No --> F
     G -- Yes --> H[getSplitterForFile]
-    H --> I[RecursiveCharacterTextSplitter\nby extension]
-    I --> J[extractKeywordEntities\nper chunk]
-    J --> K{language === java?}
-    K -- Yes --> L[extractJavaSymbolMetadata]
-    K -- No --> M[className/methodName empty]
-    L --> N[IndexedChunk]
-    M --> N
-    N --> O{Batch of 64 chunks?}
-    O -- No --> F
-    O -- Yes --> P[buildEmbeddingInput\nmetadata + content]
-    P --> Q[computeEmbedding\nXenova/all-MiniLM-L6-v2\ndim=384]
-    Q --> R[collection.add\nids + docs + embeddings + metadatas]
-    R --> F
+    H --> I{Tree-sitter supported?}
+    I -- Yes --> J[Syntax chunks + token budgets]
+    I -- No --> K[Manual fallback chunking]
+    J --> L[extractKeywordEntities\nper chunk]
+    K --> L
+    L --> M{language === java?}
+    M -- Yes --> N[extractJavaSymbolMetadata]
+    M -- No --> O[className/methodName empty]
+    N --> P[IndexedChunk]
+    O --> P
+    P --> Q{Batch of 64 chunks?}
+    Q -- No --> F
+    Q -- Yes --> R[buildEmbeddingInput\nmetadata + content]
+    R --> S[computeEmbedding\nXenova/all-MiniLM-L6-v2\ndim=384]
+    S --> T[collection.add\nids + docs + embeddings + metadatas]
+    T --> F
     F -- Traversal complete --> S([RagIndexResult])
 ```

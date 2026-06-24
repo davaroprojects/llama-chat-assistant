@@ -809,17 +809,11 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             isIndexing: this.isRagIndexing || ragState.status === 'indexing',
             chromaAvailable: this.isChromaAvailable,
             status: ragState.status,
+            indexedAt: ragState.indexedAt,
+            indexedFiles: ragState.indexedFiles,
             chromaUrl: chromaConfig.url,
             chromaPort: chromaConfig.port,
             chromaCollectionId: ragState.collectionId,
-            chromaExcludeDirs: chromaConfig.excludeDirs.join(', '),
-            chromaExcludeFileGlobs: chromaConfig.excludeFileGlobs.join(', '),
-            chromaMaxFileSizeKb: chromaConfig.maxFileSizeKb,
-            chromaMaxIndexedFiles: chromaConfig.maxIndexedFiles,
-            chromaChunkSizeChars: chromaConfig.chunkSizeChars,
-            chromaChunkOverlapChars: chromaConfig.chunkOverlapChars,
-            chromaVectorCandidatePool: chromaConfig.vectorCandidatePool,
-            chromaMaxQueryResults: chromaConfig.maxQueryResults,
             chromaMinCosineSimilarity: chromaConfig.minCosineSimilarity
         });
     }

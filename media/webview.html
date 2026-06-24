@@ -41,11 +41,14 @@
                             <path d="M5 12h14M12 5v14" />
                         </svg>
                     </div>
-                    <label class="rag-switch-label" for="rag-enabled">
-                        <span class="rag-switch-text">rag</span>
-                        <input type="checkbox" id="rag-enabled" name="ragEnabled" />
-                        <span class="rag-switch-track" aria-hidden="true"></span>
-                    </label>
+                        <div id="rag-context-control" class="rag-context-control">
+                            <label id="rag-switch-label" class="rag-switch-label" for="rag-enabled">
+                                <span class="rag-switch-text">rag</span>
+                                <input type="checkbox" id="rag-enabled" name="ragEnabled" />
+                                <span class="rag-switch-track" aria-hidden="true"></span>
+                            </label>
+                            <button id="rag-no-data-btn" class="action-icon-btn rag-no-data-btn" type="button" style="display:none;">no data</button>
+                        </div>
                 </div>
                 <div class="chat-action-buttons">
                     <button id="send" title="{{sendMessageTitle}}">
@@ -111,7 +114,7 @@
                     <span class="action-header-title">ChromaDB</span>
                 </div>
                 <div class="action-content">
-                    <span id="rag-action-text" class="action-text">index</span><span id="rag-action-loader" class="action-loader" style="display:none;"></span>
+                    <span id="rag-action-text" class="action-text">The project has not been indexed</span><span id="rag-action-loader" class="action-loader" style="display:none;"></span>
                 </div>
                 <div class="action-buttons">
                     <div class="action-buttons-left">

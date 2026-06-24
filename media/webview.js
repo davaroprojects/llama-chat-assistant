@@ -102,7 +102,10 @@ const elements = {
     backToSessionsBtn: document.getElementById('back-to-sessions-btn'),
     sessionsList: document.getElementById('sessions-list'),
     attachBtn: document.getElementById('attach-file-btn'),
+    ragContextControl: document.getElementById('rag-context-control'),
+    ragSwitchLabel: document.getElementById('rag-switch-label'),
     ragEnabledCheckbox: document.getElementById('rag-enabled'),
+    ragNoDataBtn: document.getElementById('rag-no-data-btn'),
     fileBadge: document.getElementById('attached-file-badge'),
     fileNameText: document.getElementById('file-name-text'),
     stopBtn: document.getElementById('stop'),
@@ -153,7 +156,7 @@ function buildLlamaPanelCopyText() {
 function buildChromaPanelCopyText() {
     return [
         'ChromaDB',
-        `Action: ${elements.ragActionText?.textContent?.trim() || '-'}`,
+        `Status: ${elements.ragActionText?.textContent?.trim() || '-'}`,
         `URL: ${ragConnectionSnapshot.url}`,
         `Port: ${ragConnectionSnapshot.port}`,
         `Collection ID: ${ragConnectionSnapshot.collectionId}`
@@ -277,6 +280,12 @@ let currentSessionTokens = 0;
 let serverLaunchCommandLine = '';
 let sequentialDotFrame = 0;
 let sequentialDotTimer = null;
+let ragIndexState = {
+    status: 'idle',
+    indexedAt: null,
+    indexedFiles: 0,
+    collectionId: null
+};
 
 const serverActionStartIconMarkup = elements.serverActionStartIcon?.innerHTML || '';
 const serverActionStopIconMarkup = elements.serverActionStopIcon?.innerHTML || '';
@@ -304,6 +313,47 @@ function getRagControlState() {
         isIndexing: isRagIndexing,
         canIndex: !isRagIndexing && !isUnavailable
     };
+}
+
+function isProjectIndexed() {
+    return ragIndexState.status === 'indexed';
+}
+
+function formatRagIndexedAt(indexedAt) {
+    if (indexedAt === null || indexedAt === undefined) {
+        return '-';
+    }
+
+    const date = new Date(Number(indexedAt));
+    if (Number.isNaN(date.getTime())) {
+        return '-';
+    }
+
+    const pad = (value) => String(value).padStart(2, '0');
+    return [
+        `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`,
+        `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+    ].join(' ');
+}
+
+function buildRagStatusText() {
+    if (ragIndexState.status === 'indexing') {
+        return 'Indexing';
+    }
+
+    if (ragIndexState.status !== 'indexed') {
+        return 'The project has not been indexed';
+    }
+
+    return [
+        `collectionId: ${ragIndexState.collectionId || '-'}`,
+        `indexedAt: ${formatRagIndexedAt(ragIndexState.indexedAt)}`,
+        `indexedFilesCount: ${Number(ragIndexState.indexedFiles) || 0}`
+    ].join('\n');
+}
+
+function buildRagNoDataWindowText() {
+    return 'The project has not been indexed';
 }
 
 function updateLlamaStatusBadge() {
@@ -458,14 +508,13 @@ function updateRagActionPanel() {
     }
 
     const state = getRagControlState();
+    elements.ragActionText.textContent = buildRagStatusText();
 
     if (state.isIndexing) {
-        elements.ragActionText.textContent = 'indexing';
         elements.ragActionRefreshIcon.textContent = getSequentialDotsText();
         elements.ragActionRefreshIcon.disabled = true;
         elements.ragActionLoader.style.display = 'none';
     } else {
-        elements.ragActionText.textContent = 'index';
         elements.ragActionRefreshIcon.innerHTML = ragActionRefreshIconMarkup;
         elements.ragActionLoader.style.display = 'none';
         elements.ragActionRefreshIcon.disabled = state.isUnavailable;
@@ -480,6 +529,31 @@ function setRagIndexingState(value) {
     uiState.isRagIndexing = isRagIndexing;
     updateRagActionButton();
     updateRagActionPanel();
+    updateRagInputVisibility();
+}
+
+function updateRagInputVisibility() {
+    const isIndexed = isProjectIndexed();
+
+    if (elements.ragContextControl) {
+        elements.ragContextControl.style.display = 'inline-flex';
+    }
+
+    if (elements.ragSwitchLabel) {
+        elements.ragSwitchLabel.style.display = isIndexed ? 'inline-flex' : 'none';
+    }
+
+    if (elements.ragEnabledCheckbox) {
+        elements.ragEnabledCheckbox.disabled = !isIndexed || !canUseInputActions();
+        if (!isIndexed) {
+            elements.ragEnabledCheckbox.checked = false;
+        }
+    }
+
+    if (elements.ragNoDataBtn) {
+        elements.ragNoDataBtn.style.display = isIndexed ? 'none' : 'inline-flex';
+        elements.ragNoDataBtn.disabled = false;
+    }
 }
 
 function createAutoContextKey(name, content) {
@@ -536,8 +610,10 @@ function applyControlState() {
     elements.attachBtn.setAttribute('aria-disabled', String(!allowMainActions));
     elements.backToSessionsBtn.setAttribute('aria-disabled', String(!allowMainActions));
 
+    updateRagInputVisibility();
+
     if (elements.ragEnabledCheckbox) {
-        elements.ragEnabledCheckbox.disabled = !allowMainActions;
+        elements.ragEnabledCheckbox.disabled = !isProjectIndexed() || !allowMainActions;
     }
 
     if (elements.sendBtn) {
@@ -610,6 +686,19 @@ elements.ragActionRefreshIcon?.addEventListener('click', () => {
 });
 elements.ragActionCopyIcon?.addEventListener('click', () => {
     copyActionText(elements.ragActionCopyIcon, buildChromaPanelCopyText());
+});
+elements.ragNoDataBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (!elements.ragNoDataBtn) {
+        return;
+    }
+    const shouldClose = activeContextMenu === 'rag-empty' && elements.contextWindow?.style.display === 'block';
+    if (shouldClose) {
+        hideContextWindow();
+        return;
+    }
+
+    showContextWindow('rag-empty', elements.ragNoDataBtn);
 });
 elements.backToSessionsBtn.addEventListener('click', handleBackToSessions);
 elements.sendBtn.addEventListener('click', sendMessage);
@@ -785,11 +874,22 @@ function updateRagActionButton() {
 }
 
 function renderRagState(message) {
+    ragIndexState = {
+        status: typeof message.status === 'string' ? message.status : 'idle',
+        indexedAt: message.indexedAt ?? null,
+        indexedFiles: Number(message.indexedFiles) || 0,
+        collectionId: typeof message.chromaCollectionId === 'string' && message.chromaCollectionId.trim()
+            ? message.chromaCollectionId.trim()
+            : null
+    };
+
     setRagIndexingState(!!message.isIndexing);
     isChromaAvailable = !!message.chromaAvailable;
     uiState.isChromaAvailable = isChromaAvailable;
+
     updateRagActionButton();
     updateRagActionPanel();
+    updateRagInputVisibility();
 
     ragConnectionSnapshot.url = typeof message.chromaUrl === 'string' && message.chromaUrl
         ? message.chromaUrl
@@ -1752,6 +1852,15 @@ function renderContextWindowContent(menuType) {
         modelItem.className = 'quick-context-item';
         modelItem.textContent = `Model: ${resolvedModelName}`;
         elements.contextWindowContent.appendChild(modelItem);
+        return;
+    }
+
+    if (menuType === 'rag-empty') {
+        elements.contextWindowContent.innerHTML = '';
+        const messageNode = document.createElement('div');
+        messageNode.className = 'quick-context-item';
+        messageNode.textContent = buildRagNoDataWindowText();
+        elements.contextWindowContent.appendChild(messageNode);
         return;
     }
 
