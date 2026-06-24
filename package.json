@@ -3,7 +3,7 @@
   "publisher": "davaro",
   "displayName": "%ext.displayName%",
   "description": "%ext.description%",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "license": "GPL-3.0-or-later",
   "engines": {
     "node": ">=24.0.0",
