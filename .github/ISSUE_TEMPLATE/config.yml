@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/davaroprojects/llama-chat-assistant/blob/main/README.md
+    about: Review the README before opening an issue.
+  - name: Architecture Reference
+    url: https://github.com/davaroprojects/llama-chat-assistant/blob/main/ARCHITECTURE.md
+    about: Check architecture and pipeline details before proposing structural changes.
