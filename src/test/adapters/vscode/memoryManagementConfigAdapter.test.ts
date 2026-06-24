@@ -29,7 +29,7 @@ suite('MemoryManagementConfigAdapter', () => {
 
         const config = MemoryManagementConfigAdapter.loadFromWorkspaceConfig();
 
-        assert.strictEqual(capturedSection, 'llamaChat.memory');
+        assert.strictEqual(capturedSection, 'laLlamaChat.memory');
         assert.strictEqual(config.contextWindowSize, 16384);
         assert.strictEqual(config.safetyThreshold, 13000);
         assert.strictEqual(config.preserveSystemPrompt, true);
@@ -65,7 +65,7 @@ suite('MemoryManagementConfigAdapter', () => {
         });
 
         changeListener?.({
-            affectsConfiguration: (section: string) => section === 'llamaChat.memory'
+            affectsConfiguration: (section: string) => section === 'laLlamaChat.memory'
         } as vscode.ConfigurationChangeEvent);
 
         changeListener?.({

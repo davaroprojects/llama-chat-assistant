@@ -2,7 +2,7 @@ import { Logger } from '../../adapters/vscode/outputLogger';
 import { ChromaDbConnectionConfig } from '../model/chroma';
 import { RagContextMatch, RagGateway } from '../gateways/ragGateway';
 
-export interface LlamaChatAgentSearchResult {
+export interface LaLlamaChatAgentSearchResult {
     queryText: string;
     matches: RagContextMatch[];
     observationText: string;
@@ -11,7 +11,7 @@ export interface LlamaChatAgentSearchResult {
 function formatObservation(queryText: string, matches: RagContextMatch[]): string {
     if (matches.length === 0) {
         return [
-            'Tool: llamachat_agent_search',
+            'Tool: lalamachat_agent_search',
             `Query: ${queryText}`,
             'No indexed code matched the query.'
         ].join('\n');
@@ -25,14 +25,14 @@ function formatObservation(queryText: string, matches: RagContextMatch[]): strin
     ].join('\n'));
 
     return [
-        'Tool: llamachat_agent_search',
+        'Tool: lalamachat_agent_search',
         `Query: ${queryText}`,
         '',
         ...sections
     ].join('\n');
 }
 
-export class LlamaChatAgentSearchUseCase {
+export class LaLlamaChatAgentSearchUseCase {
     constructor(
         private readonly ragGateway: RagGateway,
         private readonly logger: Logger
@@ -42,20 +42,20 @@ export class LlamaChatAgentSearchUseCase {
         queryText: string,
         config: ChromaDbConnectionConfig,
         signal?: AbortSignal
-    ): Promise<LlamaChatAgentSearchResult> {
+    ): Promise<LaLlamaChatAgentSearchResult> {
         const normalizedQuery = queryText.trim();
         if (!normalizedQuery) {
-            this.logger.warn('rag', 'llamachat_agent_search skipped because query text is empty');
+            this.logger.warn('rag', 'lalamachat_agent_search skipped because query text is empty');
             return {
                 queryText: normalizedQuery,
                 matches: [],
-                observationText: 'Tool: llamachat_agent_search\nQuery: \nNo indexed code matched the query.'
+                observationText: 'Tool: lalamachat_agent_search\nQuery: \nNo indexed code matched the query.'
             };
         }
 
         const isAvailable = await this.ragGateway.isAvailable(config);
         if (!isAvailable) {
-            this.logger.warn('rag', 'llamachat_agent_search skipped because ChromaDB is unavailable', {
+            this.logger.warn('rag', 'lalamachat_agent_search skipped because ChromaDB is unavailable', {
                 queryText: normalizedQuery,
                 collectionId: config.collectionId
             });
@@ -63,14 +63,14 @@ export class LlamaChatAgentSearchUseCase {
                 queryText: normalizedQuery,
                 matches: [],
                 observationText: [
-                    'Tool: llamachat_agent_search',
+                    'Tool: lalamachat_agent_search',
                     `Query: ${normalizedQuery}`,
                     'ChromaDB is unavailable or the repository is not indexed.'
                 ].join('\n')
             };
         }
 
-        this.logger.debug('rag', 'Executing llamachat_agent_search', { queryText: normalizedQuery });
+        this.logger.debug('rag', 'Executing lalamachat_agent_search', { queryText: normalizedQuery });
 
         const matches = await this.ragGateway.query(
             normalizedQuery,
@@ -80,7 +80,7 @@ export class LlamaChatAgentSearchUseCase {
             undefined
         );
 
-        this.logger.info('rag', 'llamachat_agent_search completed', {
+        this.logger.info('rag', 'lalamachat_agent_search completed', {
             queryText: normalizedQuery,
             collectionId: config.collectionId,
             matches: matches.length,

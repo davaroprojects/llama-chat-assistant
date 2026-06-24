@@ -23,7 +23,7 @@ function getConfigValue<T>(
 }
 
 export function readLlamaServerLaunchConfig(): LlamaServerLaunchConfig {
-    const config = vscode.workspace.getConfiguration('llamaChat');
+    const config = vscode.workspace.getConfiguration('laLlamaChat');
     return {
         executablePath: getConfigValue(config, 'llamaCpp.executablePath', 'server.executablePath', './build/bin/llama-server'),
         modelPath: getConfigValue(config, 'llamaCpp.modelPath', 'server.modelPath', './models/qwen2.5-coder-7b-instruct-q4_k_m.gguf'),
@@ -39,7 +39,7 @@ export function readLlamaServerLaunchConfig(): LlamaServerLaunchConfig {
 }
 
 export function readLlamaRuntimeConfig(serverConfig: LlamaServerLaunchConfig): LlamaConfig {
-    const config = vscode.workspace.getConfiguration('llamaChat');
+    const config = vscode.workspace.getConfiguration('laLlamaChat');
     return {
         apiUrl: buildChatApiUrl(serverConfig),
         model: getConfigValue(config, 'chat.model', 'model', 'local'),

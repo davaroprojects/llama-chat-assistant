@@ -42,7 +42,7 @@ export function readChromaDbConfig(
     collectionId: string | null = null,
     previousCollectionId: string | null = null
 ): ChromaDbConnectionConfig {
-    const config = vscode.workspace.getConfiguration('llamaChat');
+    const config = vscode.workspace.getConfiguration('laLlamaChat');
     return {
         url: getConfigValue(config, 'chromaDb.url', 'rag.chromaUrl', 'http://127.0.0.1'),
         port: getConfigValue(config, 'chromaDb.port', 'rag.chromaPort', 8000),

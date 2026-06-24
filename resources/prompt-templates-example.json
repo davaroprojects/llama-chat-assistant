@@ -1,5 +1,5 @@
 {
-  "llamaChat.ragModeTemplate": {
+  "laLlamaChat.ragModeTemplate": {
     "modoEjecucion": {
       "header": "<modo_ejecucion>",
       "alcance": "ALCANCE: Análisis Global del Proyecto (RAG).",
@@ -14,7 +14,7 @@
       "label": "Consulta General del Usuario: {prompt}"
     }
   },
-  "llamaChat.specificFilesModeTemplate": {
+  "laLlamaChat.specificFilesModeTemplate": {
     "modoEjecucion": {
       "header": "<modo_ejecucion>",
       "alcance": "ALCANCE: Archivos Específicos Seleccionados.",

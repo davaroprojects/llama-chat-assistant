@@ -1,4 +1,4 @@
-# Llama Chat Assistant — Architecture Reference
+# La Llama Chat Assistant — Architecture Reference
 
 > **Document type:** Architecture Decision Record + Technical Design
 > **Status:** Living document — authoritative source of truth for the development team
@@ -23,14 +23,14 @@
 
 ## 1. System Overview
 
-Llama Chat Assistant is a VS Code extension that implements a **local Retrieval-Augmented Generation (RAG) pipeline**. It has no dependency on external cloud APIs. All inference and retrieval run on the developer's own hardware.
+La Llama Chat Assistant is a VS Code extension that implements a **local Retrieval-Augmented Generation (RAG) pipeline**. It has no dependency on external cloud APIs. All inference and retrieval run on the developer's own hardware.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                     Developer Machine                    │
 │                                                         │
 │  ┌──────────────┐    ┌──────────────┐   ┌───────────┐  │
-│  │  VS Code UI  │◄──►│  Llama Chat Assistant │──►│ llama.cpp │  │
+│  │  VS Code UI  │◄──►│  La Llama Chat Assistant │──►│ llama.cpp │  │
 │  │  (Webview)   │    │  (this repo) │   │  :8033    │  │
 │  └──────────────┘    └──────┬───────┘   └───────────┘  │
 │                             │                            │
@@ -68,7 +68,7 @@ The codebase follows the **Hexagonal (Ports & Adapters)** pattern with an explic
 │  ├── generateAssistantReplyUseCase.ts                            │
 │  ├── resolveConversationFlowUseCase.ts                           │
 │  ├── runReactAgentConversationUseCase.ts                         │
-│  ├── llamaChatAgentSearchUseCase.ts                              │
+│  ├── laLlamaChatAgentSearchUseCase.ts                              │
 │  ├── indexWorkspaceUseCase.ts                                    │
 │  └── memoryPruningUseCase.ts                                     │
 │  src/helpers/                                                    │
@@ -493,7 +493,7 @@ RunReactAgentConversationUseCase.execute(input)
   │   │  6. extractActionQuery(text)                            │
   │   │     → regex: /Action:\s*[a-z_]*(?:agent_search|search)  │
   │   │              \s*\(\s*["']?([^"'\)]+)["']?\s*\)/i        │
-  │   │     → accepts: agent_search, llamachat_agent_search,    │
+  │   │     → accepts: agent_search, lalamachat_agent_search,    │
   │   │                search, etc.                             │
   │   │                                                         │
   │   │  7. if no action found:                                 │
@@ -504,7 +504,7 @@ RunReactAgentConversationUseCase.execute(input)
   │   │     → inject "already searched" observation             │
   │   │     → continue                                          │
   │   │                                                         │
-  │   │  9. LlamaChatAgentSearchUseCase.execute(actionQuery)    │
+  │   │  9. LaLlamaChatAgentSearchUseCase.execute(actionQuery)    │
   │   │     → RagGateway.query(query, config, 5, signal)        │
   │   │     → semantic search in ChromaDB                       │
   │   │     → format observation block                          │
@@ -531,7 +531,7 @@ At each step, the model receives the full growing conversation:
 ```
 [system prompt]
 [user original prompt]
-[assistant: Thought: ... Action: llamachat_agent_search("query")]
+[assistant: Thought: ... Action: lalamachat_agent_search("query")]
 [user: Observation:\n<search results>\n\nContinue the loop...]
 [assistant: Thought: ... Action: ...]
 [user: Observation:\n...]
@@ -540,7 +540,7 @@ At each step, the model receives the full growing conversation:
 
 The **system prompt** (set in `DEFAULT_GLOBAL_REACT_TEMPLATE` or `DEFAULT_DEEP_REACT_TEMPLATE`) defines:
 - The model's role as a code-navigation agent
-- The single available tool: `llamachat_agent_search(query_text: string)`
+- The single available tool: `lalamachat_agent_search(query_text: string)`
 - The strict Thought/Action/Observation format
 - The requirement to make at least one tool call before emitting `Final Answer:`
 
@@ -595,7 +595,7 @@ codebase-wide architecture. Your goal is to answer the user query by iteratively
 exploring the project repository using ChromaDB.
 
 You have access to a single tool:
-- `llamachat_agent_search(query_text: string)`: Searches the vector database 
+- `lalamachat_agent_search(query_text: string)`: Searches the vector database 
   for relevant code structures, files, functions, or architectural implementations 
   matching the text.
 
@@ -604,7 +604,7 @@ thought process:
 
 Thought: Reason about what you need to find in the codebase or what architectural 
 layer you need to inspect next.
-Action: llamachat_agent_search(your specific search terms here)
+Action: lalamachat_agent_search(your specific search terms here)
 Observation: [The system will automatically inject the code blocks found here. 
 Do not invent this section]
 
@@ -620,7 +620,7 @@ Final Answer: your comprehensive, professional, and detailed architectural answe
 ```
 <execution_mode>
 SCOPE: Global Project Analysis (RAG / ReAct Agent Mode).
-Instruction: Use the `llamachat_agent_search` tool to discover files and functions 
+Instruction: Use the `lalamachat_agent_search` tool to discover files and functions 
 across the project. Do not guess; find the source code.
 First response requirement: emit Thought and Action only. Do not emit Final Answer 
 before the first tool call.
@@ -679,7 +679,7 @@ cross-file analysis. Your goal is to evaluate the provided code files and resolv
 their external dependencies using ChromaDB to give a flawless technical answer.
 
 You have access to a single tool:
-- `llamachat_agent_search(query_text: string)`: Searches the project repository 
+- `lalamachat_agent_search(query_text: string)`: Searches the project repository 
   for missing functions, classes, imports, or type definitions that are called 
   but not defined in the target files.
 
@@ -687,7 +687,7 @@ You MUST reason and act step-by-step using the following strict format:
 
 Thought: Analyze the current files. Identify what external method, import, or 
 class interaction is missing or needs further inspection to fully understand the logic.
-Action: llamachat_agent_search(name of the external function, class, or file to fetch)
+Action: lalamachat_agent_search(name of the external function, class, or file to fetch)
 Observation: [The system will automatically inject the code blocks found here. 
 Do not invent this section]
 
@@ -702,7 +702,7 @@ Final Answer: your comprehensive, professional, and highly detailed technical re
 ```
 <execution_mode>
 SCOPE: Selected Specific Files (ReAct Dependency Expansion Mode).
-Instruction: Analyze the target files first. Use `llamachat_agent_search` only 
+Instruction: Analyze the target files first. Use `lalamachat_agent_search` only 
 to resolve external definitions or code references that impact this specific scope.
 First response requirement: emit Thought and Action only. Do not emit Final Answer 
 before the first tool call.
@@ -722,7 +722,7 @@ User Query: {{user_query}}
 Each search result is formatted as an observation block:
 
 ```
-Tool: llamachat_agent_search
+Tool: lalamachat_agent_search
 Query: {queryText}
 
 Result 1 | Source: src/services/userService.ts [chunk 2/4]
@@ -798,7 +798,7 @@ Two special prompts are injected during the ReAct loop to enforce format complia
 
 #### `REACT_CONTINUATION_PROMPT`
 
-Injected as a user message when the model successfully emits an `Action: llamachat_agent_search(...)` line.
+Injected as a user message when the model successfully emits an `Action: lalamachat_agent_search(...)` line.
 
 ```
 Observation:
@@ -819,7 +819,7 @@ Your previous response did not follow the required ReAct format.
 Do not answer the user yet.
 You must respond with exactly these sections:
 Thought: <what you need to inspect next>
-Action: llamachat_agent_search("specific codebase search terms")
+Action: lalamachat_agent_search("specific codebase search terms")
 Do not emit Final Answer before at least one successful tool call.
 ```
 
@@ -834,7 +834,7 @@ This is appended to the conversation as a user message, forcing the model to res
 ### 7.1 Trigger
 
 ```
-safetyThreshold = llamaChat.memory.safetyThreshold   (default: 6500 tokens)
+safetyThreshold = laLlamaChat.memory.safetyThreshold   (default: 6500 tokens)
 
 if countTokens(workingMessages) > safetyThreshold:
     pruneMessages(workingMessages)
@@ -917,7 +917,7 @@ interface FileMetadata {
 
 ### 8.2 Session Lifecycle
 
-Sessions are created on the first user message and persist across VS Code restarts in `globalState['llamaChatSessions']`. Each session stores its complete message history including file metadata. On deletion, the session is filtered from the stored array.
+Sessions are created on the first user message and persist across VS Code restarts in `globalState['laLlamaChatSessions']`. Each session stores its complete message history including file metadata. On deletion, the session is filtered from the stored array.
 
 ### 8.3 UI State (in-memory only)
 
@@ -946,7 +946,7 @@ logger.warn('rag', '...',  details);
 logger.error('rag', '...', error);
 ```
 
-Debug output is suppressed unless `llamaChat.chat.debug = true`.
+Debug output is suppressed unless `laLlamaChat.chat.debug = true`.
 
 ### 9.2 Abort / Cancellation
 
@@ -996,11 +996,11 @@ All use cases receive their dependencies via constructor injection. Wiring is pe
 ```
 extension.ts
 │
-├── webviewProvider.ts (LlamaChatViewProvider)
+├── webviewProvider.ts (LaLlamaChatViewProvider)
 │   ├── core/usecases/generateAssistantReplyUseCase.ts
 │   │   ├── core/usecases/resolveConversationFlowUseCase.ts
 │   │   ├── core/usecases/runReactAgentConversationUseCase.ts
-│   │   │   ├── core/usecases/llamaChatAgentSearchUseCase.ts
+│   │   │   ├── core/usecases/laLlamaChatAgentSearchUseCase.ts
 │   │   │   │   └── core/gateways/ragGateway.ts  ← impl: adapters/chroma/chromaAdapter.ts
 │   │   │   ├── core/usecases/memoryPruningUseCase.ts
 │   │   │   │   ├── core/domain/memoryConfig.ts

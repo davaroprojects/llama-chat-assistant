@@ -10,7 +10,7 @@ suite('webviewResources', () => {
         assert.strictEqual(labels.aboutTabLabel, 'About');
         assert.strictEqual(labels.serverStartLabel, 'Start');
         assert.strictEqual(labels.serverStopLabel, 'Stop');
-        assert.ok(labels.aboutMarkdown.includes('What Llama Chat does'));
+        assert.ok(labels.aboutMarkdown.includes('What La Llama Chat does'));
         assert.ok(labels.aboutMarkdown.includes('How to configure each area'));
         assert.ok(labels.aboutMarkdown.includes('click the `...` menu at the top'));
         assert.ok(labels.aboutMarkdown.includes('external or plugin-launched'));

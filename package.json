@@ -1,5 +1,5 @@
 {
-  "name": "llama-chat",
+  "name": "la-llama-chat",
   "publisher": "davaro",
   "displayName": "%ext.displayName%",
   "description": "%ext.description%",
@@ -22,63 +22,63 @@
       {
         "title": "%config.chat.title%",
         "properties": {
-          "llamaChat.chat.temperature": {
+          "laLlamaChat.chat.temperature": {
             "type": "number",
             "default": 0.2,
             "minimum": 0,
             "maximum": 2,
             "description": "%config.temperature.description%"
           },
-          "llamaChat.chat.model": {
+          "laLlamaChat.chat.model": {
             "type": "string",
             "default": "local",
             "description": "%config.model.description%"
           },
-          "llamaChat.chat.maxTokens": {
+          "laLlamaChat.chat.maxTokens": {
             "type": "number",
             "default": 2048,
             "minimum": 1,
             "maximum": 16384,
             "description": "%config.maxTokens.description%"
           },
-          "llamaChat.chat.debug": {
+          "laLlamaChat.chat.debug": {
             "type": "boolean",
             "default": false,
             "description": "%config.debug.description%"
           },
-          "llamaChat.chat.maxAttachedFileSizeKb": {
+          "laLlamaChat.chat.maxAttachedFileSizeKb": {
             "type": "number",
             "default": 256,
             "minimum": 1,
             "maximum": 4096,
             "description": "%config.maxAttachedFileSizeKb.description%"
           },
-          "llamaChat.chat.directLlmTemplate": {
+          "laLlamaChat.chat.directLlmTemplate": {
             "type": "object",
             "default": {},
             "description": "%config.chat.directLlmTemplate.description%"
           },
-          "llamaChat.chat.globalReactTemplate": {
+          "laLlamaChat.chat.globalReactTemplate": {
             "type": "object",
             "default": {},
             "description": "%config.chat.globalReactTemplate.description%"
           },
-          "llamaChat.chat.localRagTemplate": {
+          "laLlamaChat.chat.localRagTemplate": {
             "type": "object",
             "default": {},
             "description": "%config.chat.localRagTemplate.description%"
           },
-          "llamaChat.chat.deepReactTemplate": {
+          "laLlamaChat.chat.deepReactTemplate": {
             "type": "object",
             "default": {},
             "description": "%config.chat.deepReactTemplate.description%"
           },
-          "llamaChat.chat.ragModeTemplate": {
+          "laLlamaChat.chat.ragModeTemplate": {
             "type": "object",
             "default": {},
             "description": "%config.chat.ragModeTemplate.description%"
           },
-          "llamaChat.chat.specificFilesModeTemplate": {
+          "laLlamaChat.chat.specificFilesModeTemplate": {
             "type": "object",
             "default": {},
             "description": "%config.chat.specificFilesModeTemplate.description%"
@@ -88,55 +88,55 @@
       {
         "title": "%config.llamaCpp.title%",
         "properties": {
-          "llamaChat.llamaCpp.executablePath": {
+          "laLlamaChat.llamaCpp.executablePath": {
             "type": "string",
             "default": "./build/bin/llama-server",
             "description": "%config.server.executablePath.description%"
           },
-          "llamaChat.llamaCpp.modelPath": {
+          "laLlamaChat.llamaCpp.modelPath": {
             "type": "string",
             "default": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
             "description": "%config.server.modelPath.description%"
           },
-          "llamaChat.llamaCpp.gpuLayers": {
+          "laLlamaChat.llamaCpp.gpuLayers": {
             "type": "number",
             "default": 99,
             "description": "%config.server.gpuLayers.description%"
           },
-          "llamaChat.llamaCpp.contextSize": {
+          "laLlamaChat.llamaCpp.contextSize": {
             "type": "number",
             "default": 16384,
             "minimum": 1,
             "description": "%config.server.contextSize.description%"
           },
-          "llamaChat.llamaCpp.flashAttention": {
+          "laLlamaChat.llamaCpp.flashAttention": {
             "type": "boolean",
             "default": true,
             "description": "%config.server.flashAttention.description%"
           },
-          "llamaChat.llamaCpp.host": {
+          "laLlamaChat.llamaCpp.host": {
             "type": "string",
             "default": "127.0.0.1",
             "description": "%config.server.host.description%"
           },
-          "llamaChat.llamaCpp.port": {
+          "laLlamaChat.llamaCpp.port": {
             "type": "number",
             "default": 8033,
             "minimum": 1,
             "maximum": 65535,
             "description": "%config.server.port.description%"
           },
-          "llamaChat.llamaCpp.chatCompletionsPath": {
+          "laLlamaChat.llamaCpp.chatCompletionsPath": {
             "type": "string",
             "default": "/v1/chat/completions",
             "description": "%config.server.chatCompletionsPath.description%"
           },
-          "llamaChat.llamaCpp.jinja": {
+          "laLlamaChat.llamaCpp.jinja": {
             "type": "boolean",
             "default": true,
             "description": "%config.server.jinja.description%"
           },
-          "llamaChat.llamaCpp.tools": {
+          "laLlamaChat.llamaCpp.tools": {
             "type": "string",
             "default": "all",
             "description": "%config.server.tools.description%"
@@ -146,19 +146,19 @@
       {
         "title": "%config.chromaDb.title%",
         "properties": {
-          "llamaChat.chromaDb.url": {
+          "laLlamaChat.chromaDb.url": {
             "type": "string",
             "default": "http://127.0.0.1",
             "description": "%config.rag.chromaUrl.description%"
           },
-          "llamaChat.chromaDb.port": {
+          "laLlamaChat.chromaDb.port": {
             "type": "number",
             "default": 8000,
             "minimum": 1,
             "maximum": 65535,
             "description": "%config.rag.chromaPort.description%"
           },
-          "llamaChat.chromaDb.excludeDirs": {
+          "laLlamaChat.chromaDb.excludeDirs": {
             "type": "array",
             "default": [
               ".git",
@@ -177,7 +177,7 @@
             },
             "description": "%config.rag.excludeDirs.description%"
           },
-          "llamaChat.chromaDb.excludeFileGlobs": {
+          "laLlamaChat.chromaDb.excludeFileGlobs": {
             "type": "array",
             "default": [
               "**/*.bin",
@@ -190,43 +190,43 @@
             },
             "description": "%config.rag.excludeFileGlobs.description%"
           },
-          "llamaChat.chromaDb.maxFileSizeKb": {
+          "laLlamaChat.chromaDb.maxFileSizeKb": {
             "type": "number",
             "default": 512,
             "minimum": 1,
             "description": "%config.rag.maxFileSizeKb.description%"
           },
-          "llamaChat.chromaDb.maxIndexedFiles": {
+          "laLlamaChat.chromaDb.maxIndexedFiles": {
             "type": "number",
             "default": 2000,
             "minimum": 1,
             "description": "%config.rag.maxIndexedFiles.description%"
           },
-          "llamaChat.chromaDb.chunkSizeChars": {
+          "laLlamaChat.chromaDb.chunkSizeChars": {
             "type": "number",
             "default": 2000,
             "minimum": 200,
             "description": "%config.rag.chunkSizeChars.description%"
           },
-          "llamaChat.chromaDb.chunkOverlapChars": {
+          "laLlamaChat.chromaDb.chunkOverlapChars": {
             "type": "number",
             "default": 300,
             "minimum": 0,
             "description": "%config.rag.chunkOverlapChars.description%"
           },
-          "llamaChat.chromaDb.vectorCandidatePool": {
+          "laLlamaChat.chromaDb.vectorCandidatePool": {
             "type": "number",
             "default": 50,
             "minimum": 1,
             "description": "%config.rag.vectorCandidatePool.description%"
           },
-          "llamaChat.chromaDb.maxQueryResults": {
+          "laLlamaChat.chromaDb.maxQueryResults": {
             "type": "number",
             "default": 12,
             "minimum": 1,
             "description": "%config.rag.maxQueryResults.description%"
           },
-          "llamaChat.chromaDb.minCosineSimilarity": {
+          "laLlamaChat.chromaDb.minCosineSimilarity": {
             "type": "number",
             "default": 0.2,
             "minimum": 0,
@@ -238,24 +238,24 @@
       {
         "title": "%config.memory.title%",
         "properties": {
-          "llamaChat.memory.contextWindowSize": {
+          "laLlamaChat.memory.contextWindowSize": {
             "type": "number",
             "default": 8192,
             "minimum": 1024,
             "description": "%config.memory.contextWindowSize.description%"
           },
-          "llamaChat.memory.safetyThreshold": {
+          "laLlamaChat.memory.safetyThreshold": {
             "type": "number",
             "default": 6500,
             "minimum": 512,
             "description": "%config.memory.safetyThreshold.description%"
           },
-          "llamaChat.memory.preserveSystemPrompt": {
+          "laLlamaChat.memory.preserveSystemPrompt": {
             "type": "boolean",
             "default": true,
             "description": "%config.memory.preserveSystemPrompt.description%"
           },
-          "llamaChat.memory.preserveRecentMessagesCount": {
+          "laLlamaChat.memory.preserveRecentMessagesCount": {
             "type": "number",
             "default": 2,
             "minimum": 1,
@@ -266,12 +266,12 @@
     ],
     "commands": [
       {
-        "command": "llamaChatAssistant.openSettings",
+        "command": "laLlamaChat.openSettings",
         "title": "%command.openSettings.title%",
         "icon": "settings-gear"
       },
       {
-        "command": "llamaChatAssistant.moveSidebarRight",
+        "command": "laLlamaChat.moveSidebarRight",
         "title": "%command.moveSidebarRight.title%",
         "icon": "arrow-right"
       }
@@ -297,12 +297,12 @@
     "menus": {
       "view/title": [
         {
-          "command": "llamaChatAssistant.openSettings",
+          "command": "laLlamaChat.openSettings",
           "when": "view == llama-chat-assistant-view",
           "group": "$(navigation)"
         },
         {
-          "command": "llamaChatAssistant.moveSidebarRight",
+          "command": "laLlamaChat.moveSidebarRight",
           "when": "view == llama-chat-assistant-view",
           "group": "navigation@1"
         }

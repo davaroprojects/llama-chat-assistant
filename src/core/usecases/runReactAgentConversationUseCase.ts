@@ -2,7 +2,7 @@ import { Logger } from '../../adapters/vscode/outputLogger';
 import { LlamaMessageBuilder } from '../../helpers/llamaMessageBuilder';
 import { ChromaDbConnectionConfig } from '../model/chroma';
 import { LlmGenerationConfig, LlmGenerationResult, LlmMessage, LlamaGateway } from '../gateways/llamaGateway';
-import { LlamaChatAgentSearchUseCase } from './llamaChatAgentSearchUseCase';
+import { LaLlamaChatAgentSearchUseCase } from './laLlamaChatAgentSearchUseCase';
 import { MemoryPruningUseCase } from './memoryPruningUseCase';
 import { countTokensInMessages } from '../../utils/tokenCounter';
 import { TokenCountConfiguration } from '../domain/tokenCount';
@@ -22,7 +22,7 @@ const REACT_FORMAT_CORRECTION_PROMPT = [
     'Do not answer the user yet.',
     'You must respond with exactly these sections:',
     'Thought: <what you need to inspect next>',
-    'Action: llamachat_agent_search("specific codebase search terms")',
+    'Action: lalamachat_agent_search("specific codebase search terms")',
     'Do not emit Final Answer before at least one successful tool call.'
 ].join('\n');
 
@@ -89,7 +89,7 @@ function buildSortedReferences(paths: Set<string>): string[] {
 export class RunReactAgentConversationUseCase {
     constructor(
         private readonly llamaGateway: LlamaGateway,
-        private readonly agentSearchUseCase: LlamaChatAgentSearchUseCase,
+        private readonly agentSearchUseCase: LaLlamaChatAgentSearchUseCase,
         private readonly memoryPruningUseCase: MemoryPruningUseCase,
         private readonly tokenCountConfig: TokenCountConfiguration,
         private readonly logger: Logger
@@ -230,7 +230,7 @@ export class RunReactAgentConversationUseCase {
                     actionQuery
                 });
                 observationText = [
-                    'Tool: llamachat_agent_search',
+                    'Tool: lalamachat_agent_search',
                     `Query: ${actionQuery}`,
                     'This exact query was already executed. Refine the search terms before trying again.'
                 ].join('\n');

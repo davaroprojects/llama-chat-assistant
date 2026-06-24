@@ -3,7 +3,7 @@ import { MemoryManagementConfig, DEFAULT_MEMORY_MANAGEMENT_CONFIG } from '../../
 
 export class MemoryManagementConfigAdapter {
     static loadFromWorkspaceConfig(): MemoryManagementConfig {
-        const workspaceConfig = vscode.workspace.getConfiguration('llamaChat.memory');
+        const workspaceConfig = vscode.workspace.getConfiguration('laLlamaChat.memory');
 
         return {
             contextWindowSize: workspaceConfig.get('contextWindowSize') ?? DEFAULT_MEMORY_MANAGEMENT_CONFIG.contextWindowSize,
@@ -16,7 +16,7 @@ export class MemoryManagementConfigAdapter {
 
     static onConfigurationChange(callback: () => void): vscode.Disposable {
         return vscode.workspace.onDidChangeConfiguration((event) => {
-            if (event.affectsConfiguration('llamaChat.memory')) {
+            if (event.affectsConfiguration('laLlamaChat.memory')) {
                 callback();
             }
         });

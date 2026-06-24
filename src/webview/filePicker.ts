@@ -95,7 +95,7 @@ function processSelectedFile(fileUri: vscode.Uri, webviewView: vscode.WebviewVie
     try {
         const filePath = fileUri.fsPath;
         const fileName = path.basename(filePath);
-        const config = vscode.workspace.getConfiguration('llamaChat');
+        const config = vscode.workspace.getConfiguration('laLlamaChat');
         const maxFileSizeKb = config.get<number>('chat.maxAttachedFileSizeKb')
             ?? config.get<number>('maxAttachedFileSizeKb')
             ?? 256;

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { SessionAdapter } from '../../../adapters/vscode/sessionAdapter';
 
 function createMockContext(storedSessions: unknown[] = []): vscode.ExtensionContext {
-    const store = new Map<string, unknown>([['llamaChatSessions', storedSessions]]);
+    const store = new Map<string, unknown>([['laLlamaChatSessions', storedSessions]]);
 
     return {
         globalState: {
@@ -43,7 +43,7 @@ suite('SessionAdapter', () => {
         manager.setActiveTab('settings');
         manager.setCurrentSession(session.id);
 
-        const storedState = context.globalState.get<any>('llamaChatSessions');
+        const storedState = context.globalState.get<any>('laLlamaChatSessions');
         assert.strictEqual(storedState.uiState.activeTab, 'settings');
         assert.strictEqual(storedState.uiState.currentSessionId, session.id);
     });

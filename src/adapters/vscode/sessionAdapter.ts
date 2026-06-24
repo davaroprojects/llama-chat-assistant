@@ -16,7 +16,7 @@ interface StoredChatState {
 export class SessionAdapter implements SesionGateway {
     private sessions: Map<string, ChatSession> = new Map();
     private currentSessionId: string | null = null;
-    private readonly STORAGE_KEY = 'llamaChatSessions';
+    private readonly STORAGE_KEY = 'laLlamaChatSessions';
     private uiState: ChatUiState = {
         activeTab: 'chat',
         activeScreens: ['chat'],

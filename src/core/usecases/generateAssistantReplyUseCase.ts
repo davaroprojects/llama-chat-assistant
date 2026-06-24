@@ -7,7 +7,7 @@ import { ConversationFlowDecision, ConversationFlowType } from '../model/convers
 import { Logger } from '../../adapters/vscode/outputLogger';
 import { LlamaGateway, LlmGenerationConfig, LlmGenerationResult, LlmMessage } from '../gateways/llamaGateway';
 import { RagGateway } from '../gateways/ragGateway';
-import { LlamaChatAgentSearchUseCase } from './llamaChatAgentSearchUseCase';
+import { LaLlamaChatAgentSearchUseCase } from './laLlamaChatAgentSearchUseCase';
 import { ResolveConversationFlowUseCase } from './resolveConversationFlowUseCase';
 import { RunReactAgentConversationUseCase } from './runReactAgentConversationUseCase';
 import { MemoryPruningUseCase } from './memoryPruningUseCase';
@@ -46,7 +46,7 @@ export class GenerateAssistantReplyUseCase {
 
         this.reactAgentConversationUseCase = new RunReactAgentConversationUseCase(
             this.llamaGateway,
-            new LlamaChatAgentSearchUseCase(this.ragGateway, this.logger),
+            new LaLlamaChatAgentSearchUseCase(this.ragGateway, this.logger),
             memoryPruningUseCase,
             DEFAULT_TOKEN_COUNT_CONFIGURATION,
             this.logger

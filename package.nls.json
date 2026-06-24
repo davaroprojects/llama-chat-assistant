@@ -1,10 +1,10 @@
 {
-  "ext.displayName": "La Llama Chat",
-  "ext.description": "Llama Chat local chat and RAG assistant for VS Code.",
+  "ext.displayName": "La Llama Chat (local chat and RAG assistant)",
+  "ext.description": "La Llama Chat local chat and RAG assistant for VS Code.",
 
-  "config.chat.title": "Llama Chat › Chat",
-  "config.llamaCpp.title": "Llama Chat › llama.cpp",
-  "config.chromaDb.title": "Llama Chat › chromadb",
+  "config.chat.title": "La Llama Chat › Chat",
+  "config.llamaCpp.title": "La Llama Chat › llama.cpp",
+  "config.chromaDb.title": "La Llama Chat › chromadb",
   "config.temperature.description": "The generation temperature for the model.",
   "config.model.description": "Model name sent in OpenAI-compatible chat requests.",
   "config.maxTokens.description": "Maximum tokens requested per completion.",
@@ -38,15 +38,15 @@
   "config.rag.maxQueryResults.description": "Maximum retrieved context blocks per query.",
   "config.rag.minCosineSimilarity.description": "Minimum cosine similarity threshold used by conceptual KNN retrieval.",
 
-  "config.memory.title": "Llama Chat › Memory Management",
+  "config.memory.title": "La Llama Chat › Memory Management",
   "config.memory.contextWindowSize.description": "Total context window size available in the LLM (defines maximum memory budget).",
   "config.memory.safetyThreshold.description": "Token count threshold that triggers automatic memory pruning (typically 80% of context window).",
   "config.memory.preserveSystemPrompt.description": "Whether to keep the system prompt in memory during pruning operations.",
   "config.memory.preserveRecentMessagesCount.description": "Number of recent conversation messages to always preserve during memory cleanup.",
 
-  "command.openSettings.title": "Llama Chat: Configure",
-  "command.moveSidebarRight.title": "Llama Chat: Move Sidebar Right",
+  "command.openSettings.title": "La Llama Chat: Configure",
+  "command.moveSidebarRight.title": "La Llama Chat: Move Sidebar Right",
 
-  "views.container.title": "Llama Chat",
-  "views.chat.name": "Llama Chat"
+  "views.container.title": "La Llama Chat",
+  "views.chat.name": "La Llama Chat"
 }

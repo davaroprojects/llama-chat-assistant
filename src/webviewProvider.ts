@@ -152,7 +152,7 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
     }
 }
 
-export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
+export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
     private currentAbortController: AbortController | null = null;
     private generationLock: Promise<void> = Promise.resolve();
     private _view?: vscode.WebviewView;
@@ -687,7 +687,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
 
     private setupConfigurationListener(): void {
         const configurationListener = vscode.workspace.onDidChangeConfiguration(async (event) => {
-            if (!event.affectsConfiguration('llamaChat')) {
+            if (!event.affectsConfiguration('laLlamaChat')) {
                 return;
             }
 
@@ -825,7 +825,7 @@ export class LlamaChatViewProvider implements vscode.WebviewViewProvider, vscode
     }
 
     private maybeLogMetrics(): void {
-        const config = vscode.workspace.getConfiguration('llamaChat');
+        const config = vscode.workspace.getConfiguration('laLlamaChat');
         const debugEnabled = config.get<boolean>('chat.debug') ?? config.get<boolean>('debug') ?? false;
 
         if (!debugEnabled || this.metrics.totalRequests === 0) {

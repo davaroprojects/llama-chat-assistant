@@ -81,13 +81,13 @@ code --install-extension llama-chat-0.0.1.vsix
 
 ```jsonc
 {
-  "llamaChat.llamaCpp.executablePath": "./build/bin/llama-server",
-  "llamaChat.llamaCpp.modelPath": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
-  "llamaChat.llamaCpp.host": "127.0.0.1",
-  "llamaChat.llamaCpp.port": 8033,
-  "llamaChat.llamaCpp.gpuLayers": 99,
-  "llamaChat.llamaCpp.contextSize": 16384,
-  "llamaChat.llamaCpp.flashAttention": true
+  "laLlamaChat.llamaCpp.executablePath": "./build/bin/llama-server",
+  "laLlamaChat.llamaCpp.modelPath": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
+  "laLlamaChat.llamaCpp.host": "127.0.0.1",
+  "laLlamaChat.llamaCpp.port": 8033,
+  "laLlamaChat.llamaCpp.gpuLayers": 99,
+  "laLlamaChat.llamaCpp.contextSize": 16384,
+  "laLlamaChat.llamaCpp.flashAttention": true
 }
 ```
 
@@ -95,19 +95,19 @@ code --install-extension llama-chat-0.0.1.vsix
 
 ```jsonc
 {
-  "llamaChat.chromaDb.url": "http://127.0.0.1",
-  "llamaChat.chromaDb.port": 8000,
-  "llamaChat.chromaDb.excludeDirs": [
+  "laLlamaChat.chromaDb.url": "http://127.0.0.1",
+  "laLlamaChat.chromaDb.port": 8000,
+  "laLlamaChat.chromaDb.excludeDirs": [
     ".git", "node_modules", "dist", "out", "build", "coverage", "target", ".vscode"
   ],
-  "llamaChat.chromaDb.excludeFileGlobs": ["**/*.bin", "**/*.class", "**/*.jar", "**/*.lock"],
-  "llamaChat.chromaDb.maxFileSizeKb": 512,
-  "llamaChat.chromaDb.maxIndexedFiles": 2000,
-  "llamaChat.chromaDb.chunkSizeChars": 2000,
-  "llamaChat.chromaDb.chunkOverlapChars": 300,
-  "llamaChat.chromaDb.vectorCandidatePool": 50,
-  "llamaChat.chromaDb.maxQueryResults": 12,
-  "llamaChat.chromaDb.minCosineSimilarity": 0.2
+  "laLlamaChat.chromaDb.excludeFileGlobs": ["**/*.bin", "**/*.class", "**/*.jar", "**/*.lock"],
+  "laLlamaChat.chromaDb.maxFileSizeKb": 512,
+  "laLlamaChat.chromaDb.maxIndexedFiles": 2000,
+  "laLlamaChat.chromaDb.chunkSizeChars": 2000,
+  "laLlamaChat.chromaDb.chunkOverlapChars": 300,
+  "laLlamaChat.chromaDb.vectorCandidatePool": 50,
+  "laLlamaChat.chromaDb.maxQueryResults": 12,
+  "laLlamaChat.chromaDb.minCosineSimilarity": 0.2
 }
 ```
 
@@ -115,10 +115,10 @@ code --install-extension llama-chat-0.0.1.vsix
 
 ```jsonc
 {
-  "llamaChat.chat.temperature": 0.2,
-  "llamaChat.chat.maxTokens": 2048,
-  "llamaChat.chat.maxAttachedFileSizeKb": 256,
-  "llamaChat.chat.debug": false
+  "laLlamaChat.chat.temperature": 0.2,
+  "laLlamaChat.chat.maxTokens": 2048,
+  "laLlamaChat.chat.maxAttachedFileSizeKb": 256,
+  "laLlamaChat.chat.debug": false
 }
 ```
 
@@ -126,10 +126,10 @@ code --install-extension llama-chat-0.0.1.vsix
 
 ```jsonc
 {
-  "llamaChat.memory.contextWindowSize": 8192,
-  "llamaChat.memory.safetyThreshold": 6500,
-  "llamaChat.memory.preserveSystemPrompt": true,
-  "llamaChat.memory.preserveRecentMessagesCount": 2
+  "laLlamaChat.memory.contextWindowSize": 8192,
+  "laLlamaChat.memory.safetyThreshold": 6500,
+  "laLlamaChat.memory.preserveSystemPrompt": true,
+  "laLlamaChat.memory.preserveRecentMessagesCount": 2
 }
 ```
 
@@ -137,35 +137,35 @@ code --install-extension llama-chat-0.0.1.vsix
 
 | Setting | Default | Description |
 |---|---|---|
-| `llamaChat.llamaCpp.host` | `127.0.0.1` | llama.cpp server host |
-| `llamaChat.llamaCpp.port` | `8033` | llama.cpp server port |
-| `llamaChat.llamaCpp.executablePath` | `./build/bin/llama-server` | Path to llama-server binary |
-| `llamaChat.llamaCpp.modelPath` | `./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf` | Path to GGUF model |
-| `llamaChat.llamaCpp.gpuLayers` | `99` | GPU layers to offload |
-| `llamaChat.llamaCpp.contextSize` | `16384` | Context window in tokens |
-| `llamaChat.llamaCpp.flashAttention` | `true` | Enable flash attention |
-| `llamaChat.llamaCpp.chatCompletionsPath` | `/v1/chat/completions` | Chat endpoint path |
-| `llamaChat.llamaCpp.jinja` | `true` | Enable `--jinja` flag |
-| `llamaChat.llamaCpp.tools` | `all` | Value passed to `--tools` |
-| `llamaChat.chromaDb.url` | `http://127.0.0.1` | ChromaDB base URL |
-| `llamaChat.chromaDb.port` | `8000` | ChromaDB port |
-| `llamaChat.chromaDb.excludeDirs` | see defaults | Folders skipped during indexing |
-| `llamaChat.chromaDb.excludeFileGlobs` | `["**/*.bin", ...]` | File patterns skipped during indexing |
-| `llamaChat.chromaDb.maxFileSizeKb` | `512` | Max file size to index (KB) |
-| `llamaChat.chromaDb.maxIndexedFiles` | `2000` | Max chunks/files per index run |
-| `llamaChat.chromaDb.chunkSizeChars` | `2000` | Chunk size in characters |
-| `llamaChat.chromaDb.chunkOverlapChars` | `300` | Chunk overlap in characters |
-| `llamaChat.chromaDb.vectorCandidatePool` | `50` | Candidate pool for semantic retrieval |
-| `llamaChat.chromaDb.maxQueryResults` | `12` | Max results returned per query |
-| `llamaChat.chromaDb.minCosineSimilarity` | `0.2` | Minimum cosine similarity threshold |
-| `llamaChat.chat.temperature` | `0.2` | Generation temperature |
-| `llamaChat.chat.maxTokens` | `2048` | Max tokens per response |
-| `llamaChat.chat.debug` | `false` | Enable verbose logs |
-| `llamaChat.chat.maxAttachedFileSizeKb` | `256` | Max size for manually attached files |
-| `llamaChat.memory.contextWindowSize` | `8192` | Total context window token budget |
-| `llamaChat.memory.safetyThreshold` | `6500` | Token threshold that triggers pruning |
-| `llamaChat.memory.preserveSystemPrompt` | `true` | Keep system prompt during pruning |
-| `llamaChat.memory.preserveRecentMessagesCount` | `2` | Recent messages always preserved during pruning |
+| `laLlamaChat.llamaCpp.host` | `127.0.0.1` | llama.cpp server host |
+| `laLlamaChat.llamaCpp.port` | `8033` | llama.cpp server port |
+| `laLlamaChat.llamaCpp.executablePath` | `./build/bin/llama-server` | Path to llama-server binary |
+| `laLlamaChat.llamaCpp.modelPath` | `./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf` | Path to GGUF model |
+| `laLlamaChat.llamaCpp.gpuLayers` | `99` | GPU layers to offload |
+| `laLlamaChat.llamaCpp.contextSize` | `16384` | Context window in tokens |
+| `laLlamaChat.llamaCpp.flashAttention` | `true` | Enable flash attention |
+| `laLlamaChat.llamaCpp.chatCompletionsPath` | `/v1/chat/completions` | Chat endpoint path |
+| `laLlamaChat.llamaCpp.jinja` | `true` | Enable `--jinja` flag |
+| `laLlamaChat.llamaCpp.tools` | `all` | Value passed to `--tools` |
+| `laLlamaChat.chromaDb.url` | `http://127.0.0.1` | ChromaDB base URL |
+| `laLlamaChat.chromaDb.port` | `8000` | ChromaDB port |
+| `laLlamaChat.chromaDb.excludeDirs` | see defaults | Folders skipped during indexing |
+| `laLlamaChat.chromaDb.excludeFileGlobs` | `["**/*.bin", ...]` | File patterns skipped during indexing |
+| `laLlamaChat.chromaDb.maxFileSizeKb` | `512` | Max file size to index (KB) |
+| `laLlamaChat.chromaDb.maxIndexedFiles` | `2000` | Max chunks/files per index run |
+| `laLlamaChat.chromaDb.chunkSizeChars` | `2000` | Chunk size in characters |
+| `laLlamaChat.chromaDb.chunkOverlapChars` | `300` | Chunk overlap in characters |
+| `laLlamaChat.chromaDb.vectorCandidatePool` | `50` | Candidate pool for semantic retrieval |
+| `laLlamaChat.chromaDb.maxQueryResults` | `12` | Max results returned per query |
+| `laLlamaChat.chromaDb.minCosineSimilarity` | `0.2` | Minimum cosine similarity threshold |
+| `laLlamaChat.chat.temperature` | `0.2` | Generation temperature |
+| `laLlamaChat.chat.maxTokens` | `2048` | Max tokens per response |
+| `laLlamaChat.chat.debug` | `false` | Enable verbose logs |
+| `laLlamaChat.chat.maxAttachedFileSizeKb` | `256` | Max size for manually attached files |
+| `laLlamaChat.memory.contextWindowSize` | `8192` | Total context window token budget |
+| `laLlamaChat.memory.safetyThreshold` | `6500` | Token threshold that triggers pruning |
+| `laLlamaChat.memory.preserveSystemPrompt` | `true` | Keep system prompt during pruning |
+| `laLlamaChat.memory.preserveRecentMessagesCount` | `2` | Recent messages always preserved during pruning |
 
 ---
 
@@ -248,14 +248,14 @@ Each conversation mode assigns a specific role to the LLM by default. Here's wha
 
 | Conversation Flow | Role | System Prompt Defines | Customization Key |
 |---|---|---|---|
-| **DIRECT_LLM** | General Software Engineer | Answers development Q&A using pre-trained knowledge; no RAG or file context | `llamaChat.chat.directLlmTemplate` |
-| **LOCAL_RAG** | Deep Code Analyst | Analyzes ONLY attached files in isolation; warns about external dependencies | `llamaChat.chat.localRagTemplate` |
-| **GLOBAL_REACT_AGENT** | Code Navigator & Architect | Iteratively searches the entire codebase using ChromaDB; builds comprehensive understanding of architecture | `llamaChat.chat.globalReactTemplate` |
-| **DEEP_REACT_AGENT** | Cross-File Dependency Expert | Analyzes attached files, then expands to dependencies using ChromaDB search; resolves external references | `llamaChat.chat.deepReactTemplate` |
+| **DIRECT_LLM** | General Software Engineer | Answers development Q&A using pre-trained knowledge; no RAG or file context | `laLlamaChat.chat.directLlmTemplate` |
+| **LOCAL_RAG** | Deep Code Analyst | Analyzes ONLY attached files in isolation; warns about external dependencies | `laLlamaChat.chat.localRagTemplate` |
+| **GLOBAL_REACT_AGENT** | Code Navigator & Architect | Iteratively searches the entire codebase using ChromaDB; builds comprehensive understanding of architecture | `laLlamaChat.chat.globalReactTemplate` |
+| **DEEP_REACT_AGENT** | Cross-File Dependency Expert | Analyzes attached files, then expands to dependencies using ChromaDB search; resolves external references | `laLlamaChat.chat.deepReactTemplate` |
 
 **ReAct flows** use the `Thought/Action/Observation` format:
 - Each `Thought` reasons about what to search next
-- Each `Action` calls `llamachat_agent_search(terms)` to query ChromaDB
+- Each `Action` calls `lalamachat_agent_search(terms)` to query ChromaDB
 - `Observation` shows the search results
 - Loop continues until sufficient context is gathered, then emits `Final Answer`
 
@@ -267,19 +267,19 @@ You can override the **system prompt and user prompt** for each conversation flo
 
 ```jsonc
 {
-  "llamaChat.chat.directLlmTemplate": {
+  "laLlamaChat.chat.directLlmTemplate": {
     "systemPrompt": "Your custom system prompt here for DIRECT_LLM mode",
     "userPrompt": "Your custom user prompt template with {{user_query}} placeholder"
   },
-  "llamaChat.chat.globalReactTemplate": {
+  "laLlamaChat.chat.globalReactTemplate": {
     "systemPrompt": "Your custom system prompt here for GLOBAL_REACT_AGENT mode",
     "userPrompt": "Your custom user prompt template"
   },
-  "llamaChat.chat.localRagTemplate": {
+  "laLlamaChat.chat.localRagTemplate": {
     "systemPrompt": "Your custom system prompt here for LOCAL_RAG mode",
     "userPrompt": "Your custom user prompt template with {{target_files}} placeholder"
   },
-  "llamaChat.chat.deepReactTemplate": {
+  "laLlamaChat.chat.deepReactTemplate": {
     "systemPrompt": "Your custom system prompt here for DEEP_REACT_AGENT mode",
     "userPrompt": "Your custom user prompt template with {{target_files}} placeholder"
   }
@@ -294,7 +294,7 @@ You can override the **system prompt and user prompt** for each conversation flo
 
 These templates control the formatting of retrieved context and target files display (used internally for non-ReAct flows):
 
-**RAG mode** (`llamaChat.chat.ragModeTemplate`):
+**RAG mode** (`laLlamaChat.chat.ragModeTemplate`):
 
 ```json
 {
@@ -314,7 +314,7 @@ These templates control the formatting of retrieved context and target files dis
 }
 ```
 
-**Specific files mode** (`llamaChat.chat.specificFilesModeTemplate`):
+**Specific files mode** (`laLlamaChat.chat.specificFilesModeTemplate`):
 
 ```json
 {
@@ -379,7 +379,7 @@ I want to bring new capabilities to this plugin, including:
 
 ## Data structures
 
-### Session storage (`globalState` key: `llamaChatSessions`)
+### Session storage (`globalState` key: `laLlamaChatSessions`)
 
 ```json
 [
