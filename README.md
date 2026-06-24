@@ -1,6 +1,6 @@
 # La Llama Chat
 
-![Version](https://img.shields.io/badge/version-0.0.1-blue?style=flat-square) ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.120.0-007ACC?style=flat-square&logo=visualstudiocode) ![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square) ![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)
+![Version](https://img.shields.io/badge/version-0.0.1-blue?style=flat-square) ![VS Code](https://img.shields.io/badge/VS%20Code-%5E1.120.0-007ACC?style=flat-square&logo=visualstudiocode) ![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square) ![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)
 
 **La Llama Chat** is a VS Code extension that brings AI-powered code intelligence directly into your editor — running entirely on your local machine, with no data leaving your environment.
 
@@ -375,6 +375,15 @@ I want to bring new capabilities to this plugin, including:
 - ESLint rules must pass.
 - No comments in source code.
 
+### Contribution Legal Policy
+
+- This project is licensed as **GPL-3.0-or-later**.
+- Contributors retain copyright in their own contributions.
+- By submitting a contribution, you agree that your contribution is distributed under **GPL-3.0-or-later**.
+- **DCO sign-off is enforced** for pull requests. Sign commits with: `git commit -s`.
+- **CLA signature is also required** for pull requests. The repository uses CLA Assistant Lite and stores signatures in-repo.
+- Read the contributor agreement in [`CLA.md`](CLA.md) before opening a pull request.
+
 ---
 
 ## Data structures
@@ -464,7 +473,7 @@ Unit tests cover: session timing/state persistence, editor context labels, paylo
 
 ## 📄 License
 
-Distributed under the **GNU GPL v3.0 License**. See [`LICENSE`](LICENSE) for full text.
+This project is distributed under **GNU GPL v3.0 or later** (`GPL-3.0-or-later`). Contributors retain copyright to their own contributions, which are distributed under the same license terms. See [`LICENSE`](LICENSE) for the full license text.
 
 ## Third-Party Notice
 

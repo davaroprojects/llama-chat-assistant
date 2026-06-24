@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a reproducible defect in the extension
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please provide enough detail to reproduce the issue locally.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the bug
+      placeholder: The extension fails to index the workspace when...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the exact steps needed to trigger the issue
+      placeholder: |
+        1. Open the extension panel
+        2. Click Index Workspace
+        3. Observe the error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: Indexing should complete and create a ChromaDB collection.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: Indexing stops after the availability check.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, VS Code version, extension version, llama.cpp version, and ChromaDB version if relevant
+      placeholder: |
+        OS: Ubuntu 24.04
+        VS Code: 1.120.0
+        Extension: 0.0.1
+        llama.cpp: latest
+        ChromaDB: latest
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Paste relevant logs, stack traces, or screenshots
+      render: shell

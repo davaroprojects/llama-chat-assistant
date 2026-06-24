@@ -1,0 +1,37 @@
+name: DCO Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  dco:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Signed-off-by lines
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          missing=0
+          while IFS= read -r commit; do
+            if ! git log -1 --format=%B "$commit" | grep -qi '^Signed-off-by: '; then
+              echo "Missing Signed-off-by in commit: $commit"
+              git log -1 --format='%h %s' "$commit"
+              missing=1
+            fi
+          done < <(git rev-list "$BASE_SHA..$HEAD_SHA")
+
+          if [[ "$missing" -ne 0 ]]; then
+            echo "DCO check failed. Recreate or amend commits with: git commit -s"
+            exit 1
+          fi
+
+          echo "All commits include Signed-off-by lines."

@@ -1,0 +1,36 @@
+name: Feature request
+description: Propose a new capability or workflow improvement
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the problem first, then the proposed solution.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem are you trying to solve?
+      placeholder: It is difficult to inspect multi-step ReAct searches because...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the preferred behavior or UX
+      placeholder: Add a panel that shows the ReAct Thought/Action/Observation history.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you evaluated
+  - type: textarea
+    id: scope
+    attributes:
+      label: Additional context
+      description: Include architecture, UX, or compatibility notes if relevant

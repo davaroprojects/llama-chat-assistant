@@ -13,8 +13,9 @@ Thank you for your interest in contributing. This guide covers everything you ne
 5. [Development Workflow](#5-development-workflow)
 6. [Running Tests](#6-running-tests)
 7. [Code Style](#7-code-style)
-8. [Submitting Changes](#8-submitting-changes)
-9. [Key Documentation](#9-key-documentation)
+8. [Legal Policy](#8-legal-policy)
+9. [Submitting Changes](#9-submitting-changes)
+10. [Key Documentation](#10-key-documentation)
 
 ---
 
@@ -228,7 +229,34 @@ Key rules enforced:
 
 ---
 
-## 8. Submitting Changes
+## 8. Legal Policy
+
+This project is distributed under **GPL-3.0-or-later**.
+
+- Contributors retain copyright in their own contributions.
+- By contributing code, documentation, tests, or assets, you agree that your contribution is distributed under **GPL-3.0-or-later**.
+- **DCO (Developer Certificate of Origin)** is enforced through signed commits.
+- **CLA (Contributor License Agreement)** is required for pull requests and is handled through CLA Assistant Lite.
+
+Use:
+
+```bash
+git commit -s
+```
+
+This adds a `Signed-off-by:` line certifying that you have the right to submit the contribution.
+
+### CLA workflow
+
+Before opening a pull request, review [`CLA.md`](CLA.md). When a pull request is opened, CLA Assistant Lite will comment with signing instructions if your signature is not yet recorded.
+
+- Signatures are stored automatically by the workflow.
+- Do not create or edit the signatures file manually.
+- Bot users may be allowlisted in the workflow configuration.
+
+---
+
+## 9. Submitting Changes
 
 1. **Branch** off `main` with a descriptive name: `feat/hybrid-search-tuning`, `fix/chroma-timeout`.
 2. **Keep changes focused** — one logical concern per pull request.
@@ -238,10 +266,12 @@ Key rules enforced:
    ```
 4. **Update documentation** if your change affects the indexing pipeline, RAG query mechanics, or any public configuration setting. Relevant docs are in `ARCHITECTURE.md` and `INDEXING_PROCESS.md`.
 5. **Do not force-push** to shared branches.
+6. **Sign your commits** with DCO attestation: `git commit -s`.
+7. **Complete the CLA signature flow** if the PR bot requests it.
 
 ---
 
-## 9. Key Documentation
+## 10. Key Documentation
 
 | Document | Contents |
 |---|---|
@@ -249,3 +279,7 @@ Key rules enforced:
 | [INDEXING_PROCESS.md](INDEXING_PROCESS.md) | Full workspace indexing pipeline — chunking parameters, embedding model, ChromaDB schema |
 | [resources/PROMPT_TEMPLATES.md](resources/PROMPT_TEMPLATES.md) | Prompt template variables and customisation guide |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
+
+## Notes
+
+Add any reviewer context, migration notes, or follow-up work here.
