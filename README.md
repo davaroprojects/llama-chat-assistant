@@ -6,6 +6,16 @@
 
 Chat with your codebase, explore execution flows, and retrieve semantically relevant context using [llama.cpp](https://github.com/ggerganov/llama.cpp) as the LLM backend and [ChromaDB](https://www.trychroma.com/) as the vector store.
 
+Repository: [github.com/davaroprojects/llama-chat-assistant](https://github.com/davaroprojects/llama-chat-assistant)
+
+## Project Links
+
+- Repository: [github.com/davaroprojects/llama-chat-assistant](https://github.com/davaroprojects/llama-chat-assistant)
+- Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Indexing Pipeline: [INDEXING_PROCESS.md](INDEXING_PROCESS.md)
+- Contributing Guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Contributor Agreement: [CLA.md](CLA.md)
+
 ---
 
 ## ✨ Features
