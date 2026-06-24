@@ -809,6 +809,8 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             isIndexing: this.isRagIndexing || ragState.status === 'indexing',
             chromaAvailable: this.isChromaAvailable,
             status: ragState.status,
+            indexedAt: ragState.indexedAt,
+            indexedFiles: ragState.indexedFiles,
             chromaUrl: chromaConfig.url,
             chromaPort: chromaConfig.port,
             chromaCollectionId: ragState.collectionId,

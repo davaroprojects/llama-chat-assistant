@@ -451,8 +451,10 @@ async function createSyntaxChunks(fileName: string, fileContent: string, config:
         return manualFallbackChunks(fileContent, config);
     }
 
-    const parser = new Parser();
+    let parser: Parser | null = null;
     try {
+        await ensureParserRuntime();
+        parser = new Parser();
         parser.setLanguage(await loadGrammar(grammar));
         const tree = parser.parse(fileContent);
         if (!tree) {
@@ -464,7 +466,7 @@ async function createSyntaxChunks(fileName: string, fileContent: string, config:
     } catch {
         return manualFallbackChunks(fileContent, config);
     } finally {
-        parser.delete();
+        parser?.delete();
     }
 }
 

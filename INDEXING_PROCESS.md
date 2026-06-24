@@ -79,6 +79,51 @@ await client.heartbeat();           // HTTP GET /api/v1/heartbeat
 
 On failure → `IndexWorkspaceUseCase` returns `{ availability: false }` and aborts silently.
 
+**Logging:** All indexing phases now emit structured DEBUG and INFO logs:
+
+```
+[INFO]  [rag] Starting workspace indexing | {"collectionName": "...", "workspaceRoot": "..."}
+[DEBUG] [rag] ChromaDB index.config | {"maxIndexedFiles": 2000, "maxFileSizeKb": 512, ...}
+[INFO]  [rag] File scan finished for indexing | {"visitedDirectories": 108, "readErrors": 0, "errorSamples": []}
+[INFO]  [rag] Prepared chunks for indexing | {"collectionName": "...", "uniqueFiles": 181, "totalChunks": 365}
+[DEBUG] [rag] Indexing batch started | {"batchNumber": 1, "totalBatches": 6, ...}
+[DEBUG] [rag] Indexing batch completed | {"batchNumber": 1, ...}
+[INFO]  [rag] Workspace indexing complete | {"indexedFiles": 365, "indexingDurationMs": 41868}
+```
+
+These logs help diagnose indexing performance and failures.
+
+---
+
+## 2b. Parser Initialization & Error Handling
+
+File: `src/adapters/chroma/utils/text/textSplitter.ts` → `createSyntaxChunks()`
+
+**Recent fix (2026-06-24):** 
+The parser is now initialized with `await ensureParserRuntime()` before construction to prevent the error `"cannot construct a Parser before calling init()"`. This ensures that tree-sitter WASM runtime is loaded before attempting to create a Parser instance.
+
+```typescript
+await ensureParserRuntime();  // ← Load WASM runtime first
+const parser = new Parser();   // ← Now safe to construct
+parser.setLanguage(await loadGrammar(grammar));
+```
+
+When a file fails to parse (e.g., encoding issues, unsupported syntax), the chunker automatically falls back to `manualFallbackChunks()`, which uses token-based splitting instead of syntax-aware chunking. This ensures no files are dropped from the index.
+
+**Error diagnostics:** Failed file reads are now logged with samples:
+
+```json
+{
+  "readErrors": 175,
+  "errorSamples": [
+    { "path": "bin/generated-sources/.../FileTagMapperImpl.java", "reason": "cannot construct a Parser before calling `init()`" },
+    ...
+  ]
+}
+```
+
+This allows indexing diagnostics to identify exact failure patterns.
+
 ---
 
 ## 3. Project Type Detection

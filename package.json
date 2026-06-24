@@ -245,6 +245,23 @@
             "minimum": 0,
             "maximum": 1,
             "description": "%config.rag.minCosineSimilarity.description%"
+          },
+          "laLlamaChat.chromaDb.rerankEnabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.rag.rerankEnabled.description%"
+          },
+          "laLlamaChat.chromaDb.rerankTimeoutMs": {
+            "type": "number",
+            "default": 5000,
+            "minimum": 1000,
+            "maximum": 30000,
+            "description": "%config.rag.rerankTimeoutMs.description%"
+          },
+          "laLlamaChat.chromaDb.rerankFallbackToHybrid": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.rag.rerankFallbackToHybrid.description%"
           }
         }
       },
@@ -351,6 +368,7 @@
     "typescript-eslint": "^8.56.1"
   },
   "dependencies": {
+    "@eidentic/transformers": "^0.1.4",
     "@hey-api/client-fetch": "^0.13.1",
     "@huggingface/transformers": "^4.2.0",
     "@langchain/core": "^1.2.1",

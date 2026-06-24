@@ -479,12 +479,15 @@ RunReactAgentConversationUseCase.execute(input)
   │   │     → force next iteration                              │
   │   │                                                         │
   │   │  6. extractActionQuery(text)                            │
-  │   │     → regex: /Action:\s*[a-z_]*(?:agent_search|search)  │
-  │   │              \s*\(\s*["']?([^"'\)]+)["']?\s*\)/i        │
+  │   │     → per-line parsing (improved robustness)            │
+  │   │     → regex: /^Action:\s*[a-z_]*(?:agent_search|search) │
+  │   │              \s*\((.*)\)\s*$/i on each line             │
+  │   │     → strip outer quotes only, preserve inner quotes    │
   │   │     → accepts: agent_search, lalamachat_agent_search,    │
   │   │                search, etc.                             │
   │   │                                                         │
   │   │  7. if no action found:                                 │
+  │   │     → [DEBUG] log: extractActionQuery failed            │
   │   │     → append format correction prompt                   │
   │   │     → continue                                          │
   │   │                                                         │
@@ -919,24 +922,48 @@ Sessions are created on the first user message and persist across VS Code restar
 
 ### 9.1 Logging
 
-`OutputLogger` wraps a VS Code `OutputChannel`. Specialized methods are provided and used at the adapter level:
+`OutputLogger` wraps a VS Code `OutputChannel`. Structured logging is emitted across all RAG phases: indexation, query dispatch, and reranking.
 
-```typescript
-logger.logHttpRequest('POST', url, 'llama.http');
-logger.logHttpResponse('POST', url, 200, durationMs, 'llama.http');
-logger.logChromaDbOperation('query.dispatch', { collectionId, maxResults });
+**Indexation logs (from `chromaAdapter.indexAllWithChromaDb()`):**
+
+```
+[INFO]  [rag] Starting workspace indexing | {"collectionName": "myapp_1719187200000", "workspaceRoot": "/path/to/app"}
+[DEBUG] [rag] ChromaDB index.config | {"maxIndexedFiles": 2000, "maxFileSizeKb": 512, ...}
+[INFO]  [rag] File scan finished for indexing | {"visitedDirectories": 108, "readErrors": 0, "errorSamples": []}
+[INFO]  [rag] Prepared chunks for indexing | {"collectionName": "...", "uniqueFiles": 181, "totalChunks": 365}
+[DEBUG] [rag] Indexing batch started | {"batchNumber": 1, "totalBatches": 6, "batchSize": 64}
+[DEBUG] [rag] Indexing batch completed | {"batchNumber": 1, "embeddingDurationMs": 2341, ...}
+[INFO]  [rag] Workspace indexing complete | {"indexedFiles": 365, "indexingDurationMs": 41868}
+```
+
+**Query logs (from `chromaAdapter.queryRelevantContextFromChromaDbSemantic()`):**
+
+```
+[DEBUG] [rag] query.dispatch | {"query": "find files with tag handler", "collectionId": "...", "maxResults": 12}
+[DEBUG] [rag] query.ranking_phase1 | {"candidates": 50, "vectorTopN": 12, "combinedScoreRange": [0.42, 0.89]}
+[DEBUG] [rag] query.reranking | {"crossEncoderModel": "ms-marco-MiniLM-L-6-v2", "rerankerTimeoutMs": 5000}
+[DEBUG] [rag] query.ranking_phase2 | {"rerankScores": [0.91, 0.87, 0.81, ...], "scoreDelta": [-0.02, -0.06, ...]}
+[INFO]  [rag] query.results | {"count": 12, "avgDistance": 0.18, "avgScore": 0.76}
+```
+
+**ReAct loop logs:**
+
+```
+[DEBUG] [rag] action.extract | {"step": 1, "modelOutput": "Action: lalamachat_agent_search(...)", "success": true}
+[DEBUG] [rag] action.query | {"step": 1, "query": "files with tag handler", "previouslyExecuted": false}
+[INFO]  [rag] action.observation | {"step": 1, "matches": 5, "files": ["TagHandler.java", ...]}
 ```
 
 Standard levels:
 
 ```typescript
-logger.debug('rag', '...', details);   // only when debug = true
+logger.debug('rag', '...', details);   // only when laLlamaChat.chat.debug = true
 logger.info('rag', '...',  details);
 logger.warn('rag', '...',  details);
 logger.error('rag', '...', error);
 ```
 
-Debug output is suppressed unless `laLlamaChat.chat.debug = true`.
+All logs are emitted to the **RAG** output channel in VS Code. Debug output is suppressed unless `laLlamaChat.chat.debug = true`.
 
 ### 9.2 Abort / Cancellation
 

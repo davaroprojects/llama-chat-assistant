@@ -61,21 +61,28 @@ function isPlaceholderFinalAnswer(text: string): boolean {
 }
 
 function extractActionQuery(text: string): string | null {
-    const match = text.match(/Action:\s*[a-z_]*(?:agent_search|search)\s*\(\s*["']?([^"'\)]+)["']?\s*\)/i);
-    if (!match) {
-        return null;
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+        const trimmed = line.trim();
+        const match = trimmed.match(/^Action:\s*[a-z_]*(?:agent_search|search)\s*\((.*)\)\s*$/i);
+        if (!match) {
+            continue;
+        }
+
+        const rawValue = match[1]?.trim() || '';
+        if (!rawValue) {
+            return null;
+        }
+
+        // Strip surrounding quote pair only; preserve inner quotes.
+        if ((rawValue.startsWith('"') && rawValue.endsWith('"')) || (rawValue.startsWith("'") && rawValue.endsWith("'"))) {
+            return rawValue.slice(1, -1).trim();
+        }
+
+        return rawValue;
     }
 
-    const rawValue = match[1]?.trim() || '';
-    if (!rawValue) {
-        return null;
-    }
-
-    if ((rawValue.startsWith('"') && rawValue.endsWith('"')) || (rawValue.startsWith("'") && rawValue.endsWith("'"))) {
-        return rawValue.slice(1, -1).trim();
-    }
-
-    return rawValue;
+    return null;
 }
 
 function buildObservationPrompt(observationText: string): string {

@@ -74,6 +74,10 @@ export function readChromaDbConfig(
         fallbackChunkTokens: getConfigValue(config, 'chromaDb.fallbackChunkTokens', 'rag.fallbackChunkTokens', 300),
         vectorCandidatePool: getConfigValue(config, 'chromaDb.vectorCandidatePool', 'rag.vectorCandidatePool', 50),
         maxQueryResults: getConfigValue(config, 'chromaDb.maxQueryResults', 'rag.maxQueryResults', 12),
-        minCosineSimilarity: getConfigValue(config, 'chromaDb.minCosineSimilarity', 'rag.minCosineSimilarity', 0.2)
+        minCosineSimilarity: getConfigValue(config, 'chromaDb.minCosineSimilarity', 'rag.minCosineSimilarity', 0.2),
+        // Reranking configuration (Phase 2 of RAG query pipeline)
+        rerankEnabled: getConfigValue(config, 'chromaDb.rerankEnabled', 'rag.rerankEnabled', true),
+        rerankTimeoutMs: getConfigValue(config, 'chromaDb.rerankTimeoutMs', 'rag.rerankTimeoutMs', 5000),
+        rerankFallbackToHybrid: getConfigValue(config, 'chromaDb.rerankFallbackToHybrid', 'rag.rerankFallbackToHybrid', true)
     };
 }

@@ -237,6 +237,36 @@ Click the **Attach** button (📎) to add individual files to the context:
 [config.yml attached] What environment variables does this service require?
 ```
 
+### Debugging & Logging
+
+When `laLlamaChat.chat.debug = true` is set in VS Code settings, the extension emits comprehensive logs to the **RAG** output channel. This includes:
+
+- **Indexing diagnostics:** File scan statistics, parser errors with samples, chunk counts, embedding duration
+- **Query analytics:** Retrieval candidates, Phase 1 (semantic) and Phase 2 (reranking) scores, metadata extraction
+- **ReAct agent steps:** Action parsing, query execution, observation formatting, duplicate detection
+
+To view logs:
+
+1. Open the **Output** panel (`Ctrl+Shift+U`)
+2. Select **RAG** from the dropdown
+
+Example log output:
+
+```
+[INFO]  [rag] Starting workspace indexing | {"collectionName": "myapp_1719187200000"}
+[DEBUG] [rag] File scan finished for indexing | {"readErrors": 0, "uniqueFiles": 181, "totalChunks": 365}
+[DEBUG] [rag] query.dispatch | {"query": "find tag handler", "maxResults": 12}
+[DEBUG] [rag] query.ranking_phase1 | {"candidates": 50, "avgScore": 0.74}
+[DEBUG] [rag] query.reranking | {"crossEncoderModel": "ms-marco-MiniLM-L-6-v2"}
+[INFO]  [rag] action.observation | {"step": 1, "matches": 5}
+```
+
+**Two-Phase Ranking Pipeline:**
+
+1. **Phase 1 (Semantic Retrieval):** Hybrid scoring combines vector similarity (0.7 weight) and lexical path matching (0.3 weight). Tree-sitter syntax trees extract structural metadata (class names, method names, keyword entities) for enhanced lexical scoring.
+
+2. **Phase 2 (Cross-Encoder Reranking):** The top candidates from Phase 1 are re-scored using a cross-encoder transformer model (`ms-marco-MiniLM-L-6-v2`) to refine relevance ranking based on query-candidate semantic similarity.
+
 ### Keyboard Shortcuts
 
 | Action | Shortcut |

@@ -24,7 +24,8 @@ import {
 
 import { getSplitterForFile } from './utils/text/textSplitter';
 import { cosineSimilarity } from './utils/search/vectorSimilarity';
-import { normalizeFilePathFilter } from './utils/search/lexicalSearch';
+import { lexicalPathScore, normalizeFilePathFilter } from './utils/search/lexicalSearch';
+import TransformersReranker, { type RerankCandidate, type RerankResult } from './utils/search/transformersReranker';
 import {
     looksBinaryContent,
     globToRegExp,
@@ -39,6 +40,54 @@ type ChromaWhereFilter = {
         $in: string[];
     };
 };
+
+type CandidateScoreSummary = {
+    path: string;
+    combinedScore?: number;
+    vectorScore?: number;
+    lexicalScore?: number;
+    cosineScore?: number;
+    rerankScore?: number;
+    distance?: number;
+};
+
+type FileScanStats = {
+    visitedDirectories: number;
+    visitedEntries: number;
+    consideredFiles: number;
+    indexedChunks: number;
+    skippedBySize: number;
+    skippedEmpty: number;
+    skippedBinary: number;
+    skippedByGlob: number;
+    readErrors: number;
+};
+
+type FileScanErrorSample = {
+    path: string;
+    reason: string;
+};
+
+function buildQueryPreview(queryText: string, maxLength = 140): string {
+    const normalized = queryText.replace(/\s+/g, ' ').trim();
+    if (normalized.length <= maxLength) {
+        return normalized;
+    }
+
+    return `${normalized.slice(0, maxLength)}...`;
+}
+
+function buildTopCandidateSummary(candidates: CandidateScoreSummary[], limit = 5): CandidateScoreSummary[] {
+    return candidates.slice(0, limit).map((candidate) => ({
+        path: candidate.path,
+        combinedScore: candidate.combinedScore,
+        vectorScore: candidate.vectorScore,
+        lexicalScore: candidate.lexicalScore,
+        cosineScore: candidate.cosineScore,
+        rerankScore: candidate.rerankScore,
+        distance: candidate.distance
+    }));
+}
 
 function logChromaOperation(logger: ChromaQueryLogger | undefined, operation: string, details: unknown): void {
     const typedLogger = logger as Partial<Logger> | undefined;
@@ -63,9 +112,22 @@ function buildWhereFilter(filePaths?: string[]): ChromaWhereFilter | undefined {
 async function listTextFiles(
     workspaceRoot: string,
     config: ChromaDbConnectionConfig,
-    projectType: string
+    projectType: string,
+    logger?: ChromaQueryLogger
 ): Promise<IndexedChunk[]> {
     const indexed: IndexedChunk[] = [];
+    const errorSamples: FileScanErrorSample[] = [];
+    const stats: FileScanStats = {
+        visitedDirectories: 0,
+        visitedEntries: 0,
+        consideredFiles: 0,
+        indexedChunks: 0,
+        skippedBySize: 0,
+        skippedEmpty: 0,
+        skippedBinary: 0,
+        skippedByGlob: 0,
+        readErrors: 0
+    };
     const ignoredDirs = new Set((config.excludeDirs || []).map((dir) => dir.trim()).filter(Boolean));
     const excludeRegexes = (config.excludeFileGlobs || [])
         .map((pattern) => pattern.trim())
@@ -79,6 +141,8 @@ async function listTextFiles(
             return;
         }
 
+        stats.visitedDirectories += 1;
+
         let entries;
         try {
             entries = await fs.readdir(currentDir, { withFileTypes: true });
@@ -87,6 +151,7 @@ async function listTextFiles(
         }
 
         for (const entry of entries) {
+            stats.visitedEntries += 1;
             if (indexed.length >= maxIndexedFiles) {
                 return;
             }
@@ -103,23 +168,29 @@ async function listTextFiles(
                 continue;
             }
 
+            stats.consideredFiles += 1;
+
             try {
                 const stat = await fs.stat(absolutePath);
                 if (stat.size > maxFileSizeBytes) {
+                    stats.skippedBySize += 1;
                     continue;
                 }
 
                 const content = await fs.readFile(absolutePath, 'utf8');
                 if (!content.trim()) {
+                    stats.skippedEmpty += 1;
                     continue;
                 }
 
                 if (looksBinaryContent(content)) {
+                    stats.skippedBinary += 1;
                     continue;
                 }
 
                 const relativePath = path.relative(workspaceRoot, absolutePath).split(path.sep).join('/');
                 if (shouldExcludeFile(relativePath, excludeRegexes)) {
+                    stats.skippedByGlob += 1;
                     continue;
                 }
                 const fileName = path.basename(relativePath);
@@ -158,13 +229,39 @@ async function listTextFiles(
                         content: chunk.text,
                         keywordEntities: chunk.keywordEntities.join('|')
                     });
+                    stats.indexedChunks += 1;
                 });
             } catch (error) {
+                stats.readErrors += 1;
+                if (errorSamples.length < 12) {
+                    const relativePath = path.relative(workspaceRoot, absolutePath).split(path.sep).join('/');
+                    const reason = error instanceof Error ? error.message : String(error);
+                    errorSamples.push({
+                        path: relativePath,
+                        reason
+                    });
+                }
             }
         }
     }
 
     await walk(workspaceRoot);
+    logger?.info('rag', 'File scan finished for indexing', {
+        ...stats,
+        maxIndexedFiles,
+        maxFileSizeKb: config.maxFileSizeKb,
+        excludedDirs: ignoredDirs.size,
+        excludedGlobs: excludeRegexes.length,
+        indexedChunks: indexed.length,
+        errorSamples
+    });
+    logChromaOperation(logger, 'index.scan.complete', {
+        ...stats,
+        maxIndexedFiles,
+        indexedChunks: indexed.length,
+        errorSamples
+    });
+
     return indexed;
 }
 
@@ -193,6 +290,28 @@ export async function indexAllWithChromaDb(
 
     logger?.info('rag', 'Starting workspace indexing', { collectionName, workspaceRoot });
     logChromaOperation(logger, 'index.start', { collectionName, workspaceRoot });
+    const startedAt = Date.now();
+
+    logger?.debug('rag', 'Indexing config snapshot', {
+        maxIndexedFiles: config.maxIndexedFiles,
+        maxFileSizeKb: config.maxFileSizeKb,
+        targetChunkTokens: config.targetChunkTokens,
+        maxChunkTokens: config.maxChunkTokens,
+        minChunkTokens: config.minChunkTokens,
+        fallbackChunkTokens: config.fallbackChunkTokens,
+        excludeDirs: config.excludeDirs,
+        excludeFileGlobs: config.excludeFileGlobs
+    });
+    logChromaOperation(logger, 'index.config', {
+        maxIndexedFiles: config.maxIndexedFiles,
+        maxFileSizeKb: config.maxFileSizeKb,
+        targetChunkTokens: config.targetChunkTokens,
+        maxChunkTokens: config.maxChunkTokens,
+        minChunkTokens: config.minChunkTokens,
+        fallbackChunkTokens: config.fallbackChunkTokens,
+        excludeDirs: config.excludeDirs,
+        excludeFileGlobs: config.excludeFileGlobs
+    });
 
     if (config.previousCollectionId && config.previousCollectionId !== collectionName && await collectionExists(client, config.previousCollectionId)) {
         await clearCollection(client, config.previousCollectionId, logger);
@@ -208,11 +327,43 @@ export async function indexAllWithChromaDb(
     } as any);
 
     const projectType = await detectProjectType(workspaceRoot);
-    const files = await listTextFiles(workspaceRoot, config, projectType);
+    logger?.info('rag', 'Project type detected for indexing', { projectType });
+    logChromaOperation(logger, 'index.project-type', { projectType });
+
+    const files = await listTextFiles(workspaceRoot, config, projectType, logger);
+    const uniqueFileCount = new Set(files.map((file) => file.relativePath)).size;
+    logger?.info('rag', 'Prepared chunks for indexing', {
+        collectionName,
+        uniqueFiles: uniqueFileCount,
+        totalChunks: files.length
+    });
+    logChromaOperation(logger, 'index.prepared', {
+        collectionName,
+        uniqueFiles: uniqueFileCount,
+        totalChunks: files.length
+    });
+
     const batchSize = 64;
+    const totalBatches = Math.ceil(files.length / batchSize);
 
     for (let i = 0; i < files.length; i += batchSize) {
         const chunk = files.slice(i, i + batchSize);
+        const batchNumber = Math.floor(i / batchSize) + 1;
+        logger?.debug('rag', 'Indexing batch started', {
+            batchNumber,
+            totalBatches,
+            batchSize: chunk.length,
+            firstChunkId: chunk[0]?.id,
+            lastChunkId: chunk[chunk.length - 1]?.id
+        });
+        logChromaOperation(logger, 'index.batch.start', {
+            batchNumber,
+            totalBatches,
+            batchSize: chunk.length,
+            firstChunkId: chunk[0]?.id,
+            lastChunkId: chunk[chunk.length - 1]?.id
+        });
+
         const embeddings = await Promise.all(
             chunk.map((item) => computeEmbedding(buildEmbeddingInput(item)))
         );
@@ -238,10 +389,36 @@ export async function indexAllWithChromaDb(
                 keyword_entities: item.keywordEntities
             }))
         });
+
+        logger?.debug('rag', 'Indexing batch finished', {
+            batchNumber,
+            totalBatches,
+            indexedSoFar: Math.min(i + chunk.length, files.length),
+            totalChunks: files.length
+        });
+        logChromaOperation(logger, 'index.batch.complete', {
+            batchNumber,
+            totalBatches,
+            indexedSoFar: Math.min(i + chunk.length, files.length),
+            totalChunks: files.length
+        });
     }
 
-    logger?.info('rag', 'Workspace indexing complete', { collectionName, indexedFiles: files.length });
-    logChromaOperation(logger, 'index.complete', { collectionName, indexedFiles: files.length });
+    const indexingDurationMs = Date.now() - startedAt;
+    logger?.info('rag', 'Workspace indexing complete', {
+        collectionName,
+        indexedFiles: files.length,
+        uniqueFiles: uniqueFileCount,
+        totalBatches,
+        indexingDurationMs
+    });
+    logChromaOperation(logger, 'index.complete', {
+        collectionName,
+        indexedFiles: files.length,
+        uniqueFiles: uniqueFileCount,
+        totalBatches,
+        indexingDurationMs
+    });
 
     return {
         status: 'indexed',
@@ -260,19 +437,143 @@ export async function queryRelevantContextFromChromaDb(
     logger?: ChromaQueryLogger
 ): Promise<ChromaSearchResult[]> {
     const collectionName = config.collectionId;
+    const queryPreview = buildQueryPreview(queryText);
     logger?.debug('rag', 'Chroma semantic query dispatch', {
         maxResults,
         queryLength: queryText.length,
+        queryPreview,
         filterPaths: filePathFilter?.length ?? 0
     });
     logChromaOperation(logger, 'query.dispatch', {
         collectionName,
         maxResults,
         queryLength: queryText.length,
+        queryPreview,
         filterPaths: filePathFilter?.length ?? 0
     });
 
     return queryRelevantContextFromChromaDbSemantic(queryText, config, maxResults, signal, filePathFilter, logger);
+}
+
+/**
+ * Apply cross-encoder reranking to candidates if enabled.
+ * Falls back to hybrid ranking if reranking fails or is disabled.
+ *
+ * @param queryText The original query text
+ * @param candidates Candidates with vector/lexical scores
+ * @param config ChromaDB config with reranking settings
+ * @param logger Optional logger for debugging
+ * @returns Reranked candidates sorted by reranker score, or original candidates on fallback
+ */
+async function applyReranking(
+    queryText: string,
+    candidates: Array<{
+        path: string;
+        content: string;
+        metadata?: Record<string, unknown>;
+        distance?: number;
+        vectorScore?: number;
+        lexicalScore?: number;
+        combinedScore?: number;
+        cosineScore?: number;
+    }>,
+    config: ChromaDbConnectionConfig,
+    logger?: ChromaQueryLogger
+): Promise<typeof candidates> {
+    // Check if reranking is enabled
+    if (!config.rerankEnabled) {
+        logger?.debug('rag', 'Reranking disabled, using hybrid ranking');
+        return candidates;
+    }
+
+    if (candidates.length === 0) {
+        return candidates;
+    }
+
+    const rerankTimeoutMs = config.rerankTimeoutMs ?? 5000;
+    const queryPreview = buildQueryPreview(queryText);
+
+    try {
+        logger?.debug('rag', 'Starting reranking phase', {
+            candidateCount: candidates.length,
+            rerankTimeoutMs,
+            queryPreview,
+            topBeforeRerank: buildTopCandidateSummary(candidates)
+        });
+        logChromaOperation(logger, 'query.rerank.start', {
+            candidateCount: candidates.length,
+            rerankTimeoutMs,
+            queryPreview,
+            topBeforeRerank: buildTopCandidateSummary(candidates)
+        });
+
+        // Build rich candidate text with structural metadata to improve symbol-level reranking.
+        const rankCandidates: RerankCandidate[] = candidates.map((cand, idx) => ({
+            id: `candidate-${idx}`,
+            text: [
+                getMetadataString(cand.metadata, 'path', cand.path),
+                getMetadataString(cand.metadata, 'fileName'),
+                getMetadataString(cand.metadata, 'language'),
+                getMetadataString(cand.metadata, 'class_name'),
+                getMetadataString(cand.metadata, 'method_name'),
+                getMetadataString(cand.metadata, 'keyword_entities'),
+                cand.content
+            ]
+                .filter((value): value is string => !!value && value.trim().length > 0)
+                .join('\n'),
+            score: cand.combinedScore ?? cand.cosineScore ?? 0
+        }));
+
+        // Call reranker with timeout
+        const reranked = await TransformersReranker.rerank(
+            queryText,
+            rankCandidates,
+            rerankTimeoutMs
+        );
+
+        // Map reranker results back to original candidates
+        const rerankedMap = new Map(reranked.map((r: RerankResult) => [r.id, r.rerankScore ?? r.score]));
+        const rerankedCandidates = candidates.map((cand, idx) => ({
+            ...cand,
+            rerankScore: rerankedMap.get(`candidate-${idx}`) ?? 0
+        }));
+
+        // Sort by reranker score
+        rerankedCandidates.sort((a, b) => (b.rerankScore ?? 0) - (a.rerankScore ?? 0));
+
+        logger?.info('rag', 'Reranking phase completed', {
+            candidateCount: candidates.length,
+            appliedReranking: true,
+            topAfterRerank: buildTopCandidateSummary(rerankedCandidates)
+        });
+        logChromaOperation(logger, 'query.rerank.complete', {
+            candidateCount: candidates.length,
+            appliedReranking: true,
+            topAfterRerank: buildTopCandidateSummary(rerankedCandidates)
+        });
+
+        return rerankedCandidates;
+    } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        logger?.warn('rag', 'Reranking failed, falling back to hybrid ranking', {
+            error: errorMsg,
+            queryPreview,
+            candidateCount: candidates.length
+        });
+        logChromaOperation(logger, 'query.rerank.failed', {
+            error: errorMsg,
+            queryPreview,
+            candidateCount: candidates.length
+        });
+
+        if (!config.rerankFallbackToHybrid) {
+            logger?.error('rag', 'Reranking fallback disabled, returning empty results');
+            return [];
+        }
+
+        // Fallback: return candidates sorted by hybrid score
+        return candidates.sort((a, b) => (b.combinedScore ?? b.cosineScore ?? 0) - (a.combinedScore ?? a.cosineScore ?? 0));
+    }
 }
 
 export async function queryRelevantContextFromChromaDbSemantic(
@@ -293,9 +594,18 @@ export async function queryRelevantContextFromChromaDbSemantic(
         throw new DOMException('Aborted', 'AbortError');
     }
 
+    const queryPreview = buildQueryPreview(queryText);
+
     logger?.debug('rag', 'Starting semantic Chroma query', {
         maxResults,
         vectorCandidatePool: config.vectorCandidatePool,
+        queryPreview,
+        filterPaths: filePathFilter?.length ?? 0
+    });
+    logChromaOperation(logger, 'query.semantic.start', {
+        maxResults,
+        vectorCandidatePool: config.vectorCandidatePool,
+        queryPreview,
         filterPaths: filePathFilter?.length ?? 0
     });
 
@@ -337,8 +647,22 @@ export async function queryRelevantContextFromChromaDbSemantic(
         const documents = queryResult.documents?.[0] ?? [];
         const metadatas = queryResult.metadatas?.[0] ?? [];
         const distances = queryResult.distances?.[0] ?? [];
+        logger?.debug('rag', 'Semantic Chroma raw results received', {
+            queryPreview,
+            documents: documents.length,
+            metadatas: metadatas.length,
+            distances: distances.length,
+            whereFilterApplied: !!where
+        });
+        logChromaOperation(logger, 'query.semantic.raw-results', {
+            queryPreview,
+            documents: documents.length,
+            metadatas: metadatas.length,
+            distances: distances.length,
+            whereFilterApplied: !!where
+        });
 
-        const ranked: Array<ChromaSearchResult & { vectorScore: number }> = [];
+        const ranked: Array<ChromaSearchResult & { metadata?: Record<string, unknown>; vectorScore: number; lexicalScore: number; combinedScore: number }> = [];
         documents.forEach((content, index) => {
             if (typeof content !== 'string') {
                 return;
@@ -348,6 +672,8 @@ export async function queryRelevantContextFromChromaDbSemantic(
             const pathValue = getMetadataString(metadata, 'path', `document-${index + 1}`);
             const distance = typeof distances[index] === 'number' ? distances[index] : undefined;
             const vectorScore = distance === undefined ? 0 : 1 / (1 + Math.max(0, distance));
+            const lexicalScore = lexicalPathScore(queryText, metadata);
+            const combinedScore = (vectorScore * 0.7) + (lexicalScore * 0.3);
 
             const chunkIndex = getMetadataString(metadata, 'chunkIndex');
             const chunkCount = getMetadataString(metadata, 'chunkCount');
@@ -358,13 +684,30 @@ export async function queryRelevantContextFromChromaDbSemantic(
             ranked.push({
                 path: `${pathValue}${chunkSuffix}`,
                 content,
+                metadata,
                 distance,
-                vectorScore
+                vectorScore,
+                lexicalScore,
+                combinedScore
             });
         });
 
-        ranked.sort((a, b) => b.vectorScore - a.vectorScore);
-        const results = ranked.slice(0, maxResults).map((item) => ({
+        ranked.sort((a, b) => b.combinedScore - a.combinedScore);
+        logger?.debug('rag', 'Semantic ranking completed', {
+            queryPreview,
+            rankedCount: ranked.length,
+            topBeforeRerank: buildTopCandidateSummary(ranked)
+        });
+        logChromaOperation(logger, 'query.semantic.rank.complete', {
+            queryPreview,
+            rankedCount: ranked.length,
+            topBeforeRerank: buildTopCandidateSummary(ranked)
+        });
+
+        // Apply reranking if enabled (Phase 2)
+        const rerankCandidates = await applyReranking(queryText, ranked, config, logger);
+
+        const results = rerankCandidates.slice(0, maxResults).map((item) => ({
             path: item.path,
             content: item.content,
             distance: item.distance
@@ -404,6 +747,7 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
     const topK = Math.max(1, options?.topK ?? config.maxQueryResults);
     const minCosineSimilarity = options?.minCosineSimilarity ?? 0.2;
     const signal = options?.signal;
+    const queryPreview = buildQueryPreview(queryText);
 
     if (signal?.aborted) {
         (options as { logger?: ChromaQueryLogger } | undefined)?.logger?.warn('rag', 'Aborted conceptual KNN query before execution');
@@ -413,11 +757,13 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
     const logger = (options as { logger?: ChromaQueryLogger } | undefined)?.logger;
     logger?.debug('rag', 'Starting conceptual KNN Chroma query', {
         topK,
-        minCosineSimilarity
+        minCosineSimilarity,
+        queryPreview
     });
     logChromaOperation(logger, 'query.conceptual.start', {
         topK,
-        minCosineSimilarity
+        minCosineSimilarity,
+        queryPreview
     });
 
     const collectionName = config.collectionId;
@@ -446,7 +792,7 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
         const pageSize = 500;
         let offset = 0;
         let scannedDocuments = 0;
-        const ranked: Array<ChromaSearchResult & { cosineScore: number }> = [];
+        const ranked: Array<ChromaSearchResult & { metadata?: Record<string, unknown>; cosineScore: number; lexicalScore: number; combinedScore: number }> = [];
 
         while (true) {
             if (signal?.aborted) {
@@ -464,6 +810,18 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
             const documents = page.documents ?? [];
             const metadatas = page.metadatas ?? [];
             scannedDocuments += ids.length;
+            logger?.debug('rag', 'Conceptual KNN page scanned', {
+                queryPreview,
+                offset,
+                pageSize: ids.length,
+                scannedDocuments
+            });
+            logChromaOperation(logger, 'query.conceptual.page', {
+                queryPreview,
+                offset,
+                pageSize: ids.length,
+                scannedDocuments
+            });
             if (ids.length === 0) {
                 break;
             }
@@ -477,6 +835,8 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
                 const metadata = metadatas[i] as Record<string, unknown> | undefined;
                 const docEmbedding = await computeEmbedding(buildEmbeddingInputFromDocument(content, metadata));
                 const cosineScore = cosineSimilarity(queryEmbedding, docEmbedding);
+                const lexicalScore = lexicalPathScore(queryText, metadata);
+                const combinedScore = (cosineScore * 0.75) + (lexicalScore * 0.25);
                 if (cosineScore < minCosineSimilarity) {
                     continue;
                 }
@@ -491,8 +851,11 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
                 ranked.push({
                     path: `${pathValue}${chunkSuffix}`,
                     content,
+                    metadata,
                     distance: 1 - cosineScore,
-                    cosineScore
+                    cosineScore,
+                    lexicalScore,
+                    combinedScore
                 });
             }
 
@@ -503,8 +866,22 @@ export async function queryRelevantContextFromChromaDbConceptualKnn(
             offset += pageSize;
         }
 
-        ranked.sort((a, b) => b.cosineScore - a.cosineScore);
-        const results = ranked.slice(0, topK).map((item) => ({
+        ranked.sort((a, b) => b.combinedScore - a.combinedScore);
+        logger?.debug('rag', 'Conceptual KNN ranking completed', {
+            queryPreview,
+            rankedCount: ranked.length,
+            topBeforeRerank: buildTopCandidateSummary(ranked)
+        });
+        logChromaOperation(logger, 'query.conceptual.rank.complete', {
+            queryPreview,
+            rankedCount: ranked.length,
+            topBeforeRerank: buildTopCandidateSummary(ranked)
+        });
+
+        // Apply reranking if enabled (Phase 2)
+        const rerankCandidates = await applyReranking(queryText, ranked, config, logger);
+
+        const results = rerankCandidates.slice(0, topK).map((item) => ({
             path: item.path,
             content: item.content,
             distance: item.distance

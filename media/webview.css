@@ -672,6 +672,35 @@ textarea {
     gap: 8px;
 }
 
+.rag-context-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 20px;
+}
+
+.rag-no-data-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 4px;
+    font: inherit;
+    text-transform: lowercase;
+}
+
+.rag-no-data-btn:hover:not(:disabled) {
+    opacity: 0.9;
+    color: var(--vscode-button-background);
+}
+
+.rag-no-data-label {
+    color: var(--vscode-descriptionForeground);
+    font-size: 1em;
+    opacity: 0.8;
+}
+
 /* RAG switch label */
 .rag-switch-label {
     display: flex;
@@ -1554,6 +1583,7 @@ textarea:disabled {
 
 .action-text {
     flex: 1;
+    white-space: pre-line;
 }
 
 .action-buttons {

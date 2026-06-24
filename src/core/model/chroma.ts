@@ -21,6 +21,10 @@ export interface ChromaDbConnectionConfig {
     vectorCandidatePool: number;
     maxQueryResults: number;
     minCosineSimilarity: number;
+    // Reranking configuration (Phase 2 of query pipeline)
+    rerankEnabled?: boolean;
+    rerankTimeoutMs?: number;
+    rerankFallbackToHybrid?: boolean;
 }
 
 export interface ChromaSearchResult {
