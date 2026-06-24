@@ -30,38 +30,6 @@ export interface SpecificFilesModeTemplate {
     };
 }
 
-interface LegacyRagModeTemplate {
-    modoEjecucion?: {
-        header?: string;
-        alcance?: string;
-        instruccion?: string;
-    };
-    contextoRecuperado?: {
-        header?: string;
-        footer?: string;
-        fragmentoFormat?: string;
-    };
-    consulta?: {
-        label?: string;
-    };
-}
-
-interface LegacySpecificFilesModeTemplate {
-    modoEjecucion?: {
-        header?: string;
-        alcance?: string;
-        instruccion?: string;
-    };
-    archivosObjetivo?: {
-        header?: string;
-        footer?: string;
-        archivoFormat?: string;
-    };
-    consulta?: {
-        label?: string;
-    };
-}
-
 export const DEFAULT_RAG_MODE_TEMPLATE: RagModeTemplate = {
     executionMode: {
         header: '<execution_mode>',
@@ -95,7 +63,7 @@ export const DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE: SpecificFilesModeTemplate = {
 };
 
 export function normalizeRagModeTemplate(
-    template: Partial<RagModeTemplate & LegacyRagModeTemplate> | undefined,
+    template: Partial<RagModeTemplate> | undefined,
     defaults: RagModeTemplate = DEFAULT_RAG_MODE_TEMPLATE
 ): RagModeTemplate {
     if (!template) {
@@ -104,32 +72,17 @@ export function normalizeRagModeTemplate(
 
     const executionMode = {
         ...defaults.executionMode,
-        ...(template.executionMode || {}),
-        ...(template.modoEjecucion
-            ? {
-                header: template.modoEjecucion.header,
-                scope: template.modoEjecucion.alcance,
-                instruction: template.modoEjecucion.instruccion
-            }
-            : {})
+        ...(template.executionMode || {})
     };
 
     const retrievedContext = {
         ...defaults.retrievedContext,
-        ...(template.retrievedContext || {}),
-        ...(template.contextoRecuperado
-            ? {
-                header: template.contextoRecuperado.header,
-                footer: template.contextoRecuperado.footer,
-                fragmentFormat: template.contextoRecuperado.fragmentoFormat
-            }
-            : {})
+        ...(template.retrievedContext || {})
     };
 
     const query = {
         ...defaults.query,
-        ...(template.query || {}),
-        ...(template.consulta || {})
+        ...(template.query || {})
     };
 
     return {
@@ -140,7 +93,7 @@ export function normalizeRagModeTemplate(
 }
 
 export function normalizeSpecificFilesModeTemplate(
-    template: Partial<SpecificFilesModeTemplate & LegacySpecificFilesModeTemplate> | undefined,
+    template: Partial<SpecificFilesModeTemplate> | undefined,
     defaults: SpecificFilesModeTemplate = DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE
 ): SpecificFilesModeTemplate {
     if (!template) {
@@ -149,32 +102,17 @@ export function normalizeSpecificFilesModeTemplate(
 
     const executionMode = {
         ...defaults.executionMode,
-        ...(template.executionMode || {}),
-        ...(template.modoEjecucion
-            ? {
-                header: template.modoEjecucion.header,
-                scope: template.modoEjecucion.alcance,
-                instruction: template.modoEjecucion.instruccion
-            }
-            : {})
+        ...(template.executionMode || {})
     };
 
     const targetFiles = {
         ...defaults.targetFiles,
-        ...(template.targetFiles || {}),
-        ...(template.archivosObjetivo
-            ? {
-                header: template.archivosObjetivo.header,
-                footer: template.archivosObjetivo.footer,
-                fileFormat: template.archivosObjetivo.archivoFormat
-            }
-            : {})
+        ...(template.targetFiles || {})
     };
 
     const query = {
         ...defaults.query,
-        ...(template.query || {}),
-        ...(template.consulta || {})
+        ...(template.query || {})
     };
 
     return {
@@ -212,12 +150,8 @@ export function interpolateSpecificFile(
         .replace('{content}', content);
 }
 
-export function interpolateConsulta(template: string, prompt: string): string {
-    return template.replace('{prompt}', prompt);
-}
-
 export function interpolateQueryLabel(template: string, prompt: string): string {
-    return interpolateConsulta(template, prompt);
+    return template.replace('{prompt}', prompt);
 }
 
 export class PromptTemplateBuilder {

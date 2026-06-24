@@ -338,9 +338,9 @@ These templates control the formatting of retrieved context and target files dis
 
 For detailed information about the **default system prompts** used in each conversation flow (Principal Software Engineer roles, ReAct format requirements, etc.), see [ARCHITECTURE.md §6.3bis](ARCHITECTURE.md#63bis-prompt-templates-for-each-conversation-flow) and [§6.7](ARCHITECTURE.md#67-react-loop-continuation-prompts).
 
-### Legacy Spanish Keys
+### Prompt Template Key Policy
 
-Legacy Spanish keys (`modoEjecucion`, `archivosObjetivo`, `contextoRecuperado`, `consulta`) are accepted for backward compatibility in RAG mode and specific files mode templates.
+Prompt template keys and values are English-only. Use `executionMode`, `retrievedContext`, `targetFiles`, `query`, `scope`, `instruction`, `fragmentFormat`, and `fileFormat`.
 
 ---
 

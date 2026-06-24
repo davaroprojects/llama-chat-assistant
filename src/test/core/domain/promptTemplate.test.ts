@@ -7,7 +7,6 @@ import {
     interpolateRagFragment,
     interpolateSpecificFile,
     interpolateQueryLabel,
-    interpolateConsulta,
     PromptTemplateBuilder,
 } from '../../../core/model/promptTemplate';
 
@@ -24,32 +23,6 @@ suite('promptTemplate - normalizeRagModeTemplate', () => {
         assert.strictEqual(result.executionMode.header, '<custom_header>');
         assert.strictEqual(result.executionMode.scope, DEFAULT_RAG_MODE_TEMPLATE.executionMode.scope);
         assert.strictEqual(result.executionMode.instruction, DEFAULT_RAG_MODE_TEMPLATE.executionMode.instruction);
-    });
-
-    test('Maps legacy modoEjecucion keys to executionMode', () => {
-        const result = normalizeRagModeTemplate({
-            modoEjecucion: {
-                header: '<legacy_header>',
-                alcance: 'legacy scope',
-                instruccion: 'legacy instruction'
-            }
-        });
-        assert.strictEqual(result.executionMode.header, '<legacy_header>');
-        assert.strictEqual(result.executionMode.scope, 'legacy scope');
-        assert.strictEqual(result.executionMode.instruction, 'legacy instruction');
-    });
-
-    test('Maps legacy contextoRecuperado keys', () => {
-        const result = normalizeRagModeTemplate({
-            contextoRecuperado: {
-                header: '<ctx>',
-                footer: '</ctx>',
-                fragmentoFormat: 'frag {index}'
-            }
-        });
-        assert.strictEqual(result.retrievedContext.header, '<ctx>');
-        assert.strictEqual(result.retrievedContext.footer, '</ctx>');
-        assert.strictEqual(result.retrievedContext.fragmentFormat, 'frag {index}');
     });
 
     test('Merges query.label override', () => {
@@ -84,25 +57,12 @@ suite('promptTemplate - normalizeSpecificFilesModeTemplate', () => {
         assert.strictEqual(result.targetFiles.fileFormat, DEFAULT_SPECIFIC_FILES_MODE_TEMPLATE.targetFiles.fileFormat);
     });
 
-    test('Maps legacy archivosObjetivo keys', () => {
+    test('Merges executionMode override', () => {
         const result = normalizeSpecificFilesModeTemplate({
-            archivosObjetivo: {
-                header: '<arch>',
-                footer: '</arch>',
-                archivoFormat: 'File: {name}'
-            }
-        });
-        assert.strictEqual(result.targetFiles.header, '<arch>');
-        assert.strictEqual(result.targetFiles.footer, '</arch>');
-        assert.strictEqual(result.targetFiles.fileFormat, 'File: {name}');
-    });
-
-    test('Maps legacy modoEjecucion keys', () => {
-        const result = normalizeSpecificFilesModeTemplate({
-            modoEjecucion: {
+            executionMode: {
                 header: '<exec>',
-                alcance: 'specific scope',
-                instruccion: 'specific instruction'
+                scope: 'specific scope',
+                instruction: 'specific instruction'
             }
         });
         assert.strictEqual(result.executionMode.header, '<exec>');
@@ -133,15 +93,10 @@ suite('promptTemplate - interpolateSpecificFile', () => {
     });
 });
 
-suite('promptTemplate - interpolateQueryLabel / interpolateConsulta', () => {
+suite('promptTemplate - interpolateQueryLabel', () => {
     test('Replaces {prompt} placeholder', () => {
         const result = interpolateQueryLabel('User Query: {prompt}', 'How does X work?');
         assert.strictEqual(result, 'User Query: How does X work?');
-    });
-
-    test('interpolateConsulta replaces {prompt}', () => {
-        const result = interpolateConsulta('Query: {prompt}', 'what does foo do?');
-        assert.strictEqual(result, 'Query: what does foo do?');
     });
 
     test('Returns template unchanged when no placeholder', () => {

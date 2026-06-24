@@ -76,9 +76,6 @@ function setServerButtonContent(button, label, kind, isPending) {
 
 const elements = {
     vscode: acquireVsCodeApi(),
-    chatTabBtn: document.getElementById('chat-tab-btn'),
-    settingsTabBtn: document.getElementById('settings-tab-btn'),
-    aboutTabBtn: document.getElementById('about-tab-btn'),
     chatTabPanel: document.getElementById('chat-tab-panel'),
     settingsTabPanel: document.getElementById('settings-tab-panel'),
     aboutTabPanel: document.getElementById('about-tab-panel'),
@@ -114,7 +111,10 @@ const elements = {
     tokenUsageChart: document.getElementById('token-usage-chart'),
     tokenUsagePercentage: document.getElementById('token-usage-percentage'),
     tokenUsageContainer: document.getElementById('token-usage-container'),
-    modelNameDisplay: document.getElementById('model-name-display'),
+    modelMenuTrigger: document.getElementById('model-menu-trigger'),
+    messagesIconTrigger: document.getElementById('messages-icon-trigger'),
+    settingsIconTrigger: document.getElementById('settings-icon-trigger'),
+    aboutIconTrigger: document.getElementById('about-icon-trigger'),
     contextWindow: document.getElementById('context-window'),
     contextWindowContent: document.getElementById('context-window-content'),
     attachedFilesContainer: null
@@ -631,6 +631,48 @@ window.addEventListener('message', handleExtensionMessage);
 elements.tokenUsageContainer?.addEventListener('click', (event) => {
     event.stopPropagation();
     toggleTokenUsageMenu();
+});
+elements.modelMenuTrigger?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleModelMenu();
+});
+elements.modelMenuTrigger?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    toggleModelMenu();
+});
+elements.messagesIconTrigger?.addEventListener('click', () => {
+    switchTab('chat');
+});
+elements.messagesIconTrigger?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+    }
+    event.preventDefault();
+    switchTab('chat');
+});
+elements.settingsIconTrigger?.addEventListener('click', () => {
+    switchTab('settings');
+});
+elements.settingsIconTrigger?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+    }
+    event.preventDefault();
+    switchTab('settings');
+});
+elements.aboutIconTrigger?.addEventListener('click', () => {
+    switchTab('about');
+});
+elements.aboutIconTrigger?.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+    }
+    event.preventDefault();
+    switchTab('about');
 });
 elements.contextWindow?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -1496,12 +1538,12 @@ function switchTab(tabName, shouldPersist = true) {
     const isSettingsTab = tabName === 'settings';
     const isAboutTab = tabName === 'about';
 
-    elements.chatTabBtn?.classList.toggle('is-active', isChatTab);
-    elements.settingsTabBtn?.classList.toggle('is-active', isSettingsTab);
-    elements.aboutTabBtn?.classList.toggle('is-active', isAboutTab);
-    elements.chatTabBtn?.setAttribute('aria-selected', String(isChatTab));
-    elements.settingsTabBtn?.setAttribute('aria-selected', String(isSettingsTab));
-    elements.aboutTabBtn?.setAttribute('aria-selected', String(isAboutTab));
+    elements.messagesIconTrigger?.classList.toggle('is-active', isChatTab);
+    elements.settingsIconTrigger?.classList.toggle('is-active', isSettingsTab);
+    elements.aboutIconTrigger?.classList.toggle('is-active', isAboutTab);
+    elements.messagesIconTrigger?.setAttribute('aria-pressed', String(isChatTab));
+    elements.settingsIconTrigger?.setAttribute('aria-pressed', String(isSettingsTab));
+    elements.aboutIconTrigger?.setAttribute('aria-pressed', String(isAboutTab));
 
     if (elements.chatTabPanel) {
         elements.chatTabPanel.style.display = isChatTab ? 'flex' : 'none';
@@ -1551,8 +1593,6 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
         : '';
     elements.tokenCounter.className = 'token-counter' + warnClass;
 
-    const totalLabel = hasTotal ? contextWindow.toLocaleString() : '?';
-
     if (elements.tokenUsagePercentage) {
         elements.tokenUsagePercentage.textContent = `${pct}%`;
     }
@@ -1568,8 +1608,9 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
         pct
     };
 
-    if (elements.modelNameDisplay) {
-        elements.modelNameDisplay.textContent = modelName || 'local';
+    if (elements.modelMenuTrigger) {
+        const resolvedModelName = modelName || 'local';
+        elements.modelMenuTrigger.title = `Model: ${resolvedModelName}`;
     }
 
 }
@@ -1704,6 +1745,16 @@ function renderContextWindowContent(menuType) {
         return;
     }
 
+    if (menuType === 'model') {
+        const resolvedModelName = currentModelName || 'local';
+        elements.contextWindowContent.innerHTML = '';
+        const modelItem = document.createElement('div');
+        modelItem.className = 'quick-context-item';
+        modelItem.textContent = `Model: ${resolvedModelName}`;
+        elements.contextWindowContent.appendChild(modelItem);
+        return;
+    }
+
     const totalLabel = tokenUsageState.total > 0 ? tokenUsageState.total.toLocaleString() : '?';
     const usedLabel = tokenUsageState.used.toLocaleString();
     const pct = tokenUsageState.pct;
@@ -1752,6 +1803,20 @@ function toggleTokenUsageMenu() {
     }
 
     showContextWindow('token', elements.tokenUsageContainer);
+}
+
+function toggleModelMenu() {
+    if (!elements.modelMenuTrigger) {
+        return;
+    }
+
+    const shouldClose = activeContextMenu === 'model' && elements.contextWindow?.style.display === 'block';
+    if (shouldClose) {
+        hideContextWindow();
+        return;
+    }
+
+    showContextWindow('model', elements.modelMenuTrigger);
 }
 
 function closeTokenUsageMenu() {

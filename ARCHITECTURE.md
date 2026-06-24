@@ -556,6 +556,8 @@ The **system prompt** (set in `DEFAULT_GLOBAL_REACT_TEMPLATE` or `DEFAULT_DEEP_R
 
 Four distinct conversation modes exist, each with its own `systemPrompt` and `userPrompt` template. The templates are defined in `src/core/model/conversationPromptTemplate.ts` and loaded by `PromptTemplateManager`. Placeholders like `{{user_query}}` and `{{target_files}}` are interpolated by `interpolateConversationPrompt()`.
 
+Prompt template keys and values follow an English-only policy across configuration and runtime examples.
+
 #### `DEFAULT_DIRECT_LLM_TEMPLATE`
 
 **Use case:** General development questions, no RAG, plain chat.

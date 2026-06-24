@@ -22,7 +22,7 @@ Prompt templates are configurable through VS Code settings. Two modes are availa
 ### Specific Files Mode Variables
 
 - `{name}`: File name (e.g., `AuthController.java`)
-- `{type}`: File classification: `configuracion` or `codigo_fuente`
+- `{type}`: File classification: `configuration` or `source_code`
 - `{extension}`: File extension (e.g., `.java`, `.xml`)
 - `{content}`: File text content
 - `{prompt}`: User query
@@ -34,17 +34,17 @@ Prompt templates are configurable through VS Code settings. Two modes are availa
 ```json
 {
   "laLlamaChat.chat.ragModeTemplate": {
-    "modoEjecucion": {
+    "executionMode": {
       "header": "---RAG MODE---",
-      "alcance": "Multi-file analysis",
-      "instruccion": "Synthesize the provided code fragments to answer the question."
+      "scope": "Multi-file analysis",
+      "instruction": "Synthesize the provided code fragments to answer the question."
     },
-    "contextoRecuperado": {
+    "retrievedContext": {
       "header": "---RETRIEVED CONTEXT---",
       "footer": "---END CONTEXT---",
-      "fragmentoFormat": "[Fragment {index}] {path}\n{content}"
+      "fragmentFormat": "[Fragment {index}] {path}\n{content}"
     },
-    "consulta": {
+    "query": {
       "label": "Question: {prompt}"
     }
   }
@@ -56,8 +56,8 @@ Prompt templates are configurable through VS Code settings. Two modes are availa
 ```json
 {
   "laLlamaChat.chat.specificFilesModeTemplate": {
-    "archivosObjetivo": {
-      "archivoFormat": "=== {name} ({type}) ===\n```\n{content}\n```"
+    "targetFiles": {
+      "fileFormat": "=== {name} ({type}) ===\n```\n{content}\n```"
     }
   }
 }
@@ -74,9 +74,9 @@ Or edit `.vscode/settings.json`:
 ```json
 {
   "laLlamaChat.chat.ragModeTemplate": {
-    "modoEjecucion": { ... },
-    "contextoRecuperado": { ... },
-    "consulta": { ... }
+    "executionMode": { ... },
+    "retrievedContext": { ... },
+    "query": { ... }
   }
 }
 ```
@@ -90,65 +90,65 @@ Example - Change only the fragment format:
 ```json
 {
   "laLlamaChat.chat.ragModeTemplate": {
-    "contextoRecuperado": {
-      "fragmentoFormat": "### Segment {index} ({path})\n```\n{content}\n```"
+    "retrievedContext": {
+      "fragmentFormat": "### Segment {index} ({path})\n```\n{content}\n```"
     }
   }
 }
 ```
 
-This will use your custom `fragmentoFormat` while keeping all other default values.
+This will use your custom `fragmentFormat` while keeping all other default values.
 
 ## Default Templates
 
 ### Default RAG Mode
 
 ```
-<modo_ejecucion>
-ALCANCE: Análisis Global del Proyecto (RAG).
-Instrucción: Se te proveen múltiples fragmentos independientes recuperados de la base de datos del proyecto. Tu tarea es sintetizar esta información para explicar el concepto solicitado. Identifica las relaciones entre los fragmentos citando las rutas de los archivos.
-</modo_ejecucion>
+<execution_mode>
+SCOPE: Global Project Analysis (RAG).
+Instruction: You are provided with multiple independent fragments retrieved from the project database. Your task is to synthesize this information to explain the requested concept and cite file paths when describing relationships.
+</execution_mode>
 
-<contexto_recuperado>
-Fragmento 1 | Origen: src/path/file.java
+<retrieved_context>
+Fragment 1 | Source: src/path/file.java
 ```
 [content]
 ```
 
-Fragmento 2 | Origen: src/other/service.java
+Fragment 2 | Source: src/other/service.java
 ```
 [content]
 ```
-</contexto_recuperado>
+</retrieved_context>
 
-Consulta General del Usuario: [user prompt]
+User Query: [user prompt]
 ```
 
 ### Default Specific Files Mode
 
 ```
-<modo_ejecucion>
-ALCANCE: Archivos Específicos Seleccionados.
-Instrucción: Analiza detalladamente el código provisto en las etiquetas <archivos_objetivo> para responder la consulta del usuario. Ignora cualquier suposición externa al código visible.
-</modo_ejecucion>
+<execution_mode>
+SCOPE: Selected Specific Files.
+Instruction: Analyze the code inside the <target_files> tags to answer the user query. Ignore assumptions not grounded in the visible code.
+</execution_mode>
 
-<archivos_objetivo>
-Archivo: src/main/java/AuthController.java
-Tipo: codigo_fuente
-Extensión: .java
+<target_files>
+File: src/main/java/AuthController.java
+Type: source_code
+Extension: .java
 ```
 [content]
 ```
 
-Archivo: src/main/resources/application.yml
-Tipo: configuracion
-Extensión: .yml
+File: src/main/resources/application.yml
+Type: configuration
+Extension: .yml
 ```
 [content]
 ```
-</archivos_objetivo>
+</target_files>
 
-Consulta del Usuario: [user prompt]
+User Query: [user prompt]
 ```
 
 ## Type Definitions
@@ -157,33 +157,33 @@ For TypeScript developers working with custom templates:
 
 ```typescript
 interface RagModeTemplate {
-  modoEjecucion: {
+  executionMode: {
     header: string;
-    alcance: string;
-    instruccion: string;
+    scope: string;
+    instruction: string;
   };
-  contextoRecuperado: {
+  retrievedContext: {
     header: string;
     footer: string;
-    fragmentoFormat: string; // Use {index}, {path}, {distance}, {content}
+    fragmentFormat: string; // Use {index}, {path}, {distance}, {content}
   };
-  consulta: {
+  query: {
     label: string; // Use {prompt}
   };
 }
 
 interface SpecificFilesModeTemplate {
-  modoEjecucion: {
+  executionMode: {
     header: string;
-    alcance: string;
-    instruccion: string;
+    scope: string;
+    instruction: string;
   };
-  archivosObjetivo: {
+  targetFiles: {
     header: string;
     footer: string;
-    archivoFormat: string; // Use {name}, {type}, {extension}, {content}
+    fileFormat: string; // Use {name}, {type}, {extension}, {content}
   };
-  consulta: {
+  query: {
     label: string; // Use {prompt}
   };
 }
@@ -191,9 +191,9 @@ interface SpecificFilesModeTemplate {
 
 ## Implementation Details
 
-- **File Location**: `src/chat/promptTemplates.ts`
-- **Manager**: `src/chat/promptTemplateManager.ts`
-- **Builder**: `src/chat/promptContextBuilder.ts`
+- **File Location**: `src/core/model/promptTemplate.ts`
+- **Manager**: `src/adapters/vscode/promptTemplateManager.ts`
+- **Builder**: `src/core/model/promptTemplate.ts` (`PromptTemplateBuilder`)
 - **Configuration Loading**: Via VS Code API (`vscode.workspace.getConfiguration`)
 - **Merging Strategy**: Deep merge with defaults (partial overrides supported)
 
