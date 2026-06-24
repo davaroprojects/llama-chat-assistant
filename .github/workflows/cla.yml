@@ -31,7 +31,7 @@ jobs:
           path-to-signatures: 'signatures/version1/cla.json'
           path-to-document: 'https://github.com/davaroprojects/llama-chat-assistant/blob/main/CLA.md'
           branch: 'main'
-          allowlist: 'dependabot[bot],github-actions[bot],bot*'
+          allowlist: 'davaro,dependabot[bot],github-actions[bot],bot*'
           custom-notsigned-prcomment: 'Thanks for your contribution. Please review and sign our CLA: $pathToCLADocument'
           custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'
           custom-allsigned-prcomment: 'All contributors have signed the CLA.'
