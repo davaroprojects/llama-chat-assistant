@@ -11,6 +11,19 @@ export interface LlamaServerLaunchConfig {
     tools: string;
 }
 
+export interface LlamaEmbeddingsServerLaunchConfig {
+    executablePath: string;
+    modelPath: string;
+    gpuLayers: number;
+    contextSize: number;
+    flashAttention: boolean;
+    host: string;
+    port: number;
+    embeddingsPath: string;
+    jinja: boolean;
+    tools: string;
+}
+
 export interface ServerParameterRow {
     property: string;
     value: string;

@@ -22,6 +22,7 @@ export class SessionAdapter implements SesionGateway {
         activeScreens: ['chat'],
         settingsAccordionState: {
             llamaOpen: true,
+            embeddingsOpen: false,
             chromadbOpen: false
         },
         currentSessionId: null,
@@ -62,17 +63,23 @@ export class SessionAdapter implements SesionGateway {
             this.uiState.activeScreens = [this.uiState.activeTab];
         }
 
-        const accordionState = this.uiState.settingsAccordionState || { llamaOpen: true, chromadbOpen: false };
+        const accordionState = this.uiState.settingsAccordionState || { llamaOpen: true, embeddingsOpen: false, chromadbOpen: false };
         const normalizedAccordionState: SettingsAccordionState = {
             llamaOpen: !!accordionState.llamaOpen,
+            embeddingsOpen: !!accordionState.embeddingsOpen,
             chromadbOpen: !!accordionState.chromadbOpen
         };
 
-        if (normalizedAccordionState.llamaOpen && normalizedAccordionState.chromadbOpen) {
+        const openCount = Number(normalizedAccordionState.llamaOpen)
+            + Number(normalizedAccordionState.embeddingsOpen)
+            + Number(normalizedAccordionState.chromadbOpen);
+
+        if (openCount > 1) {
             normalizedAccordionState.chromadbOpen = false;
+            normalizedAccordionState.embeddingsOpen = false;
         }
 
-        if (!normalizedAccordionState.llamaOpen && !normalizedAccordionState.chromadbOpen) {
+        if (!normalizedAccordionState.llamaOpen && !normalizedAccordionState.embeddingsOpen && !normalizedAccordionState.chromadbOpen) {
             normalizedAccordionState.llamaOpen = true;
         }
 
@@ -147,14 +154,20 @@ export class SessionAdapter implements SesionGateway {
     public setSettingsAccordionState(state: SettingsAccordionState): void {
         const nextState: SettingsAccordionState = {
             llamaOpen: !!state.llamaOpen,
+            embeddingsOpen: !!state.embeddingsOpen,
             chromadbOpen: !!state.chromadbOpen
         };
 
-        if (nextState.llamaOpen && nextState.chromadbOpen) {
+        const openCount = Number(nextState.llamaOpen)
+            + Number(nextState.embeddingsOpen)
+            + Number(nextState.chromadbOpen);
+
+        if (openCount > 1) {
             nextState.chromadbOpen = false;
+            nextState.embeddingsOpen = false;
         }
 
-        if (!nextState.llamaOpen && !nextState.chromadbOpen) {
+        if (!nextState.llamaOpen && !nextState.embeddingsOpen && !nextState.chromadbOpen) {
             nextState.llamaOpen = true;
         }
 

@@ -11,6 +11,12 @@ export interface LlamaConfig {
     debug: boolean;
 }
 
+export interface LlamaEmbeddingsRuntimeConfig {
+    apiUrl: string;
+    model: string;
+    timeoutMs: number;
+}
+
 export interface LlamaServerProps {
     default_generation_settings?: {
         n_ctx?: number;
