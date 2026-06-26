@@ -863,6 +863,8 @@ textarea {
     border-radius: 4px;
     font: inherit;
     text-transform: lowercase;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .rag-no-data-btn:hover:not(:disabled) {

@@ -33,6 +33,8 @@ import {
     readStartupRetries
 } from './adapters/llama/llamaConfig';
 import { createWorkspaceCollectionId, readChromaDbConfig } from './adapters/chroma/chromaConfig';
+import { getClient } from './adapters/chroma/utils/chroma/chromaClient';
+import { clearCollection } from './adapters/chroma/utils/chroma/chromaCollections';
 import { IndexWorkspaceUseCase } from './core/usecases/indexWorkspaceUseCase';
 import { ChunkProviderGateway } from './core/gateways/chunkProviderGateway';
 import { VectorIndexGateway } from './core/gateways/vectorIndexGateway';
@@ -72,7 +74,7 @@ interface ApplyCodeMessage extends BaseWebviewMessage {
 
 interface SetActiveTabMessage extends BaseWebviewMessage {
     type: 'setActiveTab';
-    tab: 'chat' | 'settings' | 'about';
+    tab: 'chat' | 'settings';
 }
 
 interface SetSettingsAccordionStateMessage extends BaseWebviewMessage {
@@ -84,6 +86,11 @@ interface SetSettingsAccordionStateMessage extends BaseWebviewMessage {
     };
 }
 
+interface SetRagEnabledMessage extends BaseWebviewMessage {
+    type: 'setRagEnabled';
+    ragEnabled: boolean;
+}
+
 type IncomingWebviewMessage =
     | AskLlamaMessage
     | SelectSessionMessage
@@ -91,6 +98,7 @@ type IncomingWebviewMessage =
     | ApplyCodeMessage
     | SetActiveTabMessage
     | SetSettingsAccordionStateMessage
+    | SetRagEnabledMessage
     | { type: 'webviewReady' }
     | { type: 'stopGeneration' }
     | { type: 'startServer' }
@@ -100,7 +108,9 @@ type IncomingWebviewMessage =
     | { type: 'openFilePicker' }
     | { type: 'requestSessionsUpdate' }
     | { type: 'requestActiveEditorRefresh' }
-    | { type: 'indexAll' };
+    | { type: 'indexAll' }
+    | { type: 'clearChromaCollection' }
+    | { type: 'stopIndexing' };
 
 interface RuntimeMetrics {
     totalRequests: number;
@@ -156,12 +166,14 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
         case 'indexAll':
             return true;
         case 'setActiveTab':
-            return data.tab === 'chat' || data.tab === 'settings' || data.tab === 'about';
+            return data.tab === 'chat' || data.tab === 'settings';
         case 'setSettingsAccordionState':
             return isRecord(data.state)
                 && typeof data.state.llamaOpen === 'boolean'
                 && typeof data.state.embeddingsOpen === 'boolean'
                 && typeof data.state.chromadbOpen === 'boolean';
+        case 'setRagEnabled':
+            return typeof data.ragEnabled === 'boolean';
         case 'selectSession':
             return data.sessionId === null || typeof data.sessionId === 'string';
         case 'deleteSession':
@@ -327,6 +339,9 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             case 'setSettingsAccordionState':
                 this.sessionManager.setSettingsAccordionState(data.state);
                 break;
+            case 'setRagEnabled':
+                this.sessionManager.setRagEnabled(data.ragEnabled);
+                break;
             case 'askLlama':
                 await this.handleAskLlama(data, webviewView);
                 break;
@@ -345,11 +360,34 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             case 'indexAll':
                 await this.handleIndexAll(webviewView);
                 break;
+            case 'clearChromaCollection':
+                await this.handleClearChromaCollection(webviewView);
+                break;
+            case 'stopIndexing':
+                await this.handleStopIndexing(webviewView);
+                break;
         }
     }
 
     private async handleWebviewReady(webviewView: vscode.WebviewView): Promise<void> {
         this._view = webviewView;
+        
+        // Reset any stale indexing state from previous sessions
+        const ragState = this.sessionManager.getRagIndexState();
+        if (ragState.status === 'indexing') {
+            this.logger.info('rag', 'Resetting stale indexing state on plugin reload', {
+                previousStatus: ragState.status
+            });
+            const workspaceRoot = this.getWorkspaceRoot() || this.context.globalStorageUri.fsPath;
+            const collectionId = createWorkspaceCollectionId(workspaceRoot);
+            this.sessionManager.setRagIndexState({
+                status: 'idle',
+                indexedAt: ragState.indexedAt,
+                indexedFiles: ragState.indexedFiles,
+                collectionId
+            });
+        }
+        
         await this.ensureInitialServerStatusLoaded();
         await this.refreshChromaAvailability();
         const initialSessions = this.sessionManager.getAllSessions();
@@ -375,7 +413,8 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             activeTab: uiState.activeTab,
             activeScreens: uiState.activeScreens,
             settingsAccordionState: uiState.settingsAccordionState,
-            hasActiveSession: !!uiState.currentSessionId
+            hasActiveSession: !!uiState.currentSessionId,
+            ragEnabled: this.sessionManager.getRagEnabled()
         });
 
         this.postServerState(webviewView);
@@ -571,7 +610,7 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             const generationStart = performance.now();
             try {
                 const userPrompt = data.value;
-                const ragEnabled = !!data.ragEnabled;
+                const ragEnabled = data.ragEnabled ?? this.sessionManager.getRagEnabled();
                 const filesMetadata = this.collectFilesMetadata(data.attachedFiles || []);
 
                 const userPayload = SessionPayloadBuilder.createUserMessagePayload(userPrompt, filesMetadata);
@@ -723,6 +762,79 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             });
         } finally {
             this.isRagIndexing = false;
+            this.postRagState(webviewView);
+        }
+    }
+
+    private async handleClearChromaCollection(webviewView: vscode.WebviewView): Promise<void> {
+        try {
+            const previousState = this.sessionManager.getRagIndexState();
+            if (!previousState.collectionId) {
+                vscode.window.showWarningMessage('No collection to clear');
+                return;
+            }
+            
+            const chromaConfig = this.getChromaDbConfig(previousState.collectionId, previousState.collectionId);
+            
+            const client = getClient(chromaConfig);
+            await clearCollection(client, previousState.collectionId, this.logger);
+            
+            const workspaceRoot = this.getWorkspaceRoot() || this.context.globalStorageUri.fsPath;
+            const collectionId = createWorkspaceCollectionId(workspaceRoot);
+            this.sessionManager.setRagIndexState({
+                status: 'idle',
+                indexedAt: null,
+                indexedFiles: 0,
+                collectionId
+            });
+            
+            this.logger.info('rag', 'ChromaDB collection cleared', {
+                collectionId: previousState.collectionId
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.logger.error('rag', 'Failed to clear ChromaDB collection', {
+                error: message
+            });
+            vscode.window.showErrorMessage(`Failed to clear collection: ${message}`);
+        } finally {
+            this.postRagState(webviewView);
+        }
+    }
+
+    private async handleStopIndexing(webviewView: vscode.WebviewView): Promise<void> {
+        try {
+            this.isRagIndexing = false;
+            const previousState = this.sessionManager.getRagIndexState();
+            if (!previousState.collectionId) {
+                vscode.window.showWarningMessage('No collection to stop');
+                return;
+            }
+            
+            const chromaConfig = this.getChromaDbConfig(previousState.collectionId, previousState.collectionId);
+            
+            const client = getClient(chromaConfig);
+            await clearCollection(client, previousState.collectionId, this.logger);
+            
+            const workspaceRoot = this.getWorkspaceRoot() || this.context.globalStorageUri.fsPath;
+            const collectionId = createWorkspaceCollectionId(workspaceRoot);
+            this.sessionManager.setRagIndexState({
+                status: 'idle',
+                indexedAt: null,
+                indexedFiles: 0,
+                collectionId
+            });
+            
+            this.logger.info('rag', 'Indexing stopped and collection deleted', {
+                collectionId: previousState.collectionId
+            });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            this.logger.error('rag', 'Failed to stop indexing', {
+                error: message
+            });
+            vscode.window.showErrorMessage(`Failed to stop indexing: ${message}`);
+        } finally {
             this.postRagState(webviewView);
         }
     }
@@ -1006,7 +1118,8 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             chromaUrl: chromaConfig.url,
             chromaPort: chromaConfig.port,
             chromaCollectionId: ragState.collectionId,
-            chromaMinCosineSimilarity: chromaConfig.minCosineSimilarity
+            chromaMinCosineSimilarity: chromaConfig.minCosineSimilarity,
+            ragEnabled: this.sessionManager.getRagEnabled()
         });
     }
 

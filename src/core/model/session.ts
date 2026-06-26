@@ -21,9 +21,10 @@ export interface RagIndexState {
 }
 
 export interface ChatUiState {
-    activeTab: 'chat' | 'settings' | 'about';
-    activeScreens: Array<'chat' | 'settings' | 'about'>;
+    activeTab: 'chat' | 'settings';
+    activeScreens: Array<'chat' | 'settings'>;
     settingsAccordionState: SettingsAccordionState;
     currentSessionId: string | null;
+    ragEnabled: boolean;
     ragIndexState: RagIndexState;
 }

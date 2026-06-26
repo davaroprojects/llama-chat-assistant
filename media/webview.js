@@ -133,8 +133,16 @@ const elements = {
     treeStatusEmbeddings: document.getElementById('tree-status-embeddings'),
     treeLlamaChevron: document.getElementById('tree-llama-chevron'),
     treeLlamaChildren: document.getElementById('tree-llama-children'),
-    serverNodeCtxMenu: document.getElementById('server-node-ctx-menu'),
+    treeChromadbChevron: document.getElementById('tree-chromadb-chevron'),
+    treeChromadbChildren: document.getElementById('tree-chromadb-children'),
+    treeChromadbStatusNode: document.getElementById('tree-node-chromadb-status'),
+    treeStatusChromadb: document.getElementById('tree-status-chromadb'),
+    treeChromadbLabel: document.getElementById('tree-chromadb-label'),
+    nodeCtxMenu: document.getElementById('node-ctx-menu'),
     ctxMenuActionBtn: document.getElementById('ctx-menu-action-btn'),
+    ctxMenuIndexBtn: document.getElementById('ctx-menu-index-btn'),
+    ctxMenuClearBtn: document.getElementById('ctx-menu-clear-btn'),
+    ctxMenuStopBtn: document.getElementById('ctx-menu-stop-btn'),
     ctxMenuCancelBtn: document.getElementById('ctx-menu-cancel-btn')
 };
 
@@ -146,10 +154,11 @@ const ragConnectionSnapshot = {
 
 /* ── Server Tree ──────────────────────────────────────────────────── */
 
-let serverNodeCtxMenuTarget = null; // 'chat' | 'embeddings'
+let nodeCtxMenuTarget = null; // null | 'chat' | 'embeddings' | 'chromadb'
 let isTreeLlamaExpanded = true;
-let isServerNodeCtxMenuVisible = false;
-let allowServerNodeCtxMenuOpen = false;
+let isTreeChromadbExpanded = true;
+let isNodeCtxMenuVisible = false;
+let allowNodeCtxMenuOpen = false;
 
 function getTreeStatusIconSvg(state) {
     if (state === 'running') {
@@ -192,37 +201,129 @@ function toggleTreeLlamaChildren() {
     }
 }
 
-function showServerNodeCtxMenu(serverType, clientX, clientY) {
-    const menu = elements.serverNodeCtxMenu;
-    const actionBtn = elements.ctxMenuActionBtn;
-    if (!menu || !actionBtn) { return; }
+function getChromadbIndexStatusIcon(state) {
+    if (state === 'indexing') {
+        return `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="tree-status-pending spin-anim" xmlns="http://www.w3.org/2000/svg"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36M20.49 15a9 9 0 0 1-14.85 3.36"></path></svg>`;
+    }
+    if (state === 'indexed') {
+        return `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" class="tree-status-running" xmlns="http://www.w3.org/2000/svg"><polygon points="5 3 19 12 5 21"></polygon></svg>`;
+    }
+    return `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" class="tree-status-stopped" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>`;
+}
 
-    // Gate menu opening so it only appears after explicit user action.
-    if (!allowServerNodeCtxMenuOpen) {
+function updateChromadbTreeStatus() {
+    const state = ragIndexState.status;
+    if (elements.treeStatusChromadb) {
+        elements.treeStatusChromadb.innerHTML = getChromadbIndexStatusIcon(state);
+    }
+    
+    if (elements.treeChromadbLabel) {
+        if (state === 'indexing') {
+            elements.treeChromadbLabel.textContent = 'indexing...';
+        } else if (state === 'indexed' && ragIndexState.indexedAt) {
+            const indexedAtFormatted = formatRagIndexedAt(ragIndexState.indexedAt);
+            const indexedFilesCount = Number(ragIndexState.indexedFiles) || 0;
+            elements.treeChromadbLabel.textContent = `indexed at ${indexedAtFormatted} - ${indexedFilesCount} files`;
+        } else {
+            elements.treeChromadbLabel.textContent = 'not indexed';
+        }
+    }
+}
+
+function toggleTreeChromadbChildren() {
+    isTreeChromadbExpanded = !isTreeChromadbExpanded;
+    if (elements.treeChromadbChildren) {
+        elements.treeChromadbChildren.classList.toggle('is-collapsed', !isTreeChromadbExpanded);
+    }
+    if (elements.treeChromadbChevron) {
+        elements.treeChromadbChevron.setAttribute('aria-expanded', String(isTreeChromadbExpanded));
+    }
+}
+
+function showChromadbNodeCtxMenu(clientX, clientY) {
+    showNodeCtxMenu('chromadb', clientX, clientY);
+}
+
+function toggleTreeChromadbChildren() {
+    isTreeChromadbExpanded = !isTreeChromadbExpanded;
+    if (elements.treeChromadbChildren) {
+        elements.treeChromadbChildren.classList.toggle('is-collapsed', !isTreeChromadbExpanded);
+    }
+    if (elements.treeChromadbChevron) {
+        elements.treeChromadbChevron.setAttribute('aria-expanded', String(isTreeChromadbExpanded));
+    }
+}
+
+function updateChromadbTreeStatus() {
+    const state = ragIndexState.status;
+    if (elements.treeStatusChromadb) {
+        elements.treeStatusChromadb.innerHTML = getChromadbIndexStatusIcon(state);
+    }
+    
+    if (elements.treeChromadbLabel) {
+        if (state === 'indexing') {
+            elements.treeChromadbLabel.textContent = 'indexing...';
+        } else if (state === 'indexed' && ragIndexState.indexedAt) {
+            const indexedAtFormatted = formatRagIndexedAt(ragIndexState.indexedAt);
+            const indexedFilesCount = Number(ragIndexState.indexedFiles) || 0;
+            elements.treeChromadbLabel.textContent = `indexed at ${indexedAtFormatted} - ${indexedFilesCount} files`;
+        } else {
+            elements.treeChromadbLabel.textContent = 'not indexed';
+        }
+    }
+}
+
+function showNodeCtxMenu(nodeType, clientX, clientY) {
+    const menu = elements.nodeCtxMenu;
+    if (!menu) { return; }
+
+    if (!allowNodeCtxMenuOpen) {
         return;
     }
 
-    allowServerNodeCtxMenuOpen = false;
+    allowNodeCtxMenuOpen = false;
+    nodeCtxMenuTarget = nodeType;
 
-    serverNodeCtxMenuTarget = serverType;
-    const isChatNode = serverType === 'chat';
-    const node = getNode(serverType);
-    const isRunning = node.running;
-    const isPending = node.pendingAction !== null;
+    // Hide all buttons first
+    if (elements.ctxMenuActionBtn) elements.ctxMenuActionBtn.style.display = 'none';
+    if (elements.ctxMenuIndexBtn) elements.ctxMenuIndexBtn.style.display = 'none';
+    if (elements.ctxMenuClearBtn) elements.ctxMenuClearBtn.style.display = 'none';
+    if (elements.ctxMenuStopBtn) elements.ctxMenuStopBtn.style.display = 'none';
 
-    if (isPending) {
-        actionBtn.style.display = 'none';
+    if (nodeType === 'chromadb') {
+        const ragState = getRagControlState();
+        
+        // Show Index button only when not indexing
+        if (elements.ctxMenuIndexBtn && !ragState.isIndexing) {
+            elements.ctxMenuIndexBtn.style.display = '';
+        }
+
+        // Show Clear button only when already indexed
+        if (elements.ctxMenuClearBtn && isProjectIndexed()) {
+            elements.ctxMenuClearBtn.style.display = '';
+        }
+
+        // Show Stop button only when indexing
+        if (elements.ctxMenuStopBtn && ragState.isIndexing) {
+            elements.ctxMenuStopBtn.style.display = '';
+        }
     } else {
-        actionBtn.style.display = '';
-        actionBtn.textContent = isRunning ? labels.panelButtonStop : labels.panelButtonStart;
+        // Chat or embeddings
+        const node = getNode(nodeType);
+        const isRunning = node.running;
+        const isPending = node.pendingAction !== null;
+
+        if (!isPending && elements.ctxMenuActionBtn) {
+            elements.ctxMenuActionBtn.style.display = '';
+            elements.ctxMenuActionBtn.textContent = isRunning ? labels.panelButtonStop : labels.panelButtonStart;
+        }
     }
 
     menu.style.display = 'block';
-    isServerNodeCtxMenuVisible = true;
+    isNodeCtxMenuVisible = true;
     menu.style.left = `${clientX}px`;
     menu.style.top = `${clientY}px`;
 
-    // Reposition if the menu overflows the viewport
     requestAnimationFrame(() => {
         const rect = menu.getBoundingClientRect();
         if (rect.right > window.innerWidth) {
@@ -234,33 +335,62 @@ function showServerNodeCtxMenu(serverType, clientX, clientY) {
     });
 }
 
-function hideServerNodeCtxMenu() {
-    if (elements.serverNodeCtxMenu) {
-        elements.serverNodeCtxMenu.style.display = 'none';
+function hideNodeCtxMenu() {
+    if (elements.nodeCtxMenu) {
+        elements.nodeCtxMenu.style.display = 'none';
     }
-    serverNodeCtxMenuTarget = null;
-    isServerNodeCtxMenuVisible = false;
-    allowServerNodeCtxMenuOpen = false;
+    nodeCtxMenuTarget = null;
+    isNodeCtxMenuVisible = false;
+    allowNodeCtxMenuOpen = false;
 }
 
-function handleServerNodeCtxAction() {
-    const target = serverNodeCtxMenuTarget;
-    hideServerNodeCtxMenu();
+function handleNodeCtxAction() {
+    const target = nodeCtxMenuTarget;
     if (!target) { return; }
 
+    if (target === 'chromadb') {
+        return; // ChromaDB actions handled separately
+    }
+
+    // Handle chat/embeddings
     if (target === 'chat') {
         if (getNode('chat').running) {
             requestServerStop(null);
         } else {
             requestServerStart(null);
         }
-    } else {
+    } else if (target === 'embeddings') {
         if (getNode('embeddings').running) {
             requestEmbeddingsServerStop(null);
         } else {
             requestEmbeddingsServerStart(null);
         }
     }
+
+    hideNodeCtxMenu();
+}
+
+function handleNodeCtxIndex() {
+    if (nodeCtxMenuTarget === 'chromadb') {
+        requestRagIndex(null);
+    }
+    hideNodeCtxMenu();
+}
+
+function handleNodeCtxClear() {
+    if (nodeCtxMenuTarget === 'chromadb') {
+        // Trigger clear collection (only delete, not re-index)
+        elements.vscode.postMessage({ type: 'clearChromaCollection' });
+    }
+    hideNodeCtxMenu();
+}
+
+function handleNodeCtxStop() {
+    if (nodeCtxMenuTarget === 'chromadb') {
+        // Stop indexing and delete collection
+        elements.vscode.postMessage({ type: 'stopIndexing' });
+    }
+    hideNodeCtxMenu();
 }
 
 // Tree event listeners
@@ -269,26 +399,38 @@ elements.treeLlamaChevron?.addEventListener('click', (event) => {
     toggleTreeLlamaChildren();
 });
 
+elements.treeChromadbChevron?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleTreeChromadbChildren();
+});
+
 elements.treeNodeChat?.addEventListener('contextmenu', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    allowServerNodeCtxMenuOpen = true;
-    showServerNodeCtxMenu('chat', event.clientX, event.clientY);
+    allowNodeCtxMenuOpen = true;
+    showNodeCtxMenu('chat', event.clientX, event.clientY);
 });
 
 elements.treeNodeEmbeddings?.addEventListener('contextmenu', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    allowServerNodeCtxMenuOpen = true;
-    showServerNodeCtxMenu('embeddings', event.clientX, event.clientY);
+    allowNodeCtxMenuOpen = true;
+    showNodeCtxMenu('embeddings', event.clientX, event.clientY);
+});
+
+elements.treeChromadbStatusNode?.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    allowNodeCtxMenuOpen = true;
+    showNodeCtxMenu('chromadb', event.clientX, event.clientY);
 });
 
 elements.treeNodeChat?.addEventListener('keydown', (event) => {
     if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
         event.preventDefault();
         const rect = elements.treeNodeChat.getBoundingClientRect();
-        allowServerNodeCtxMenuOpen = true;
-        showServerNodeCtxMenu('chat', rect.left, rect.bottom);
+        allowNodeCtxMenuOpen = true;
+        showNodeCtxMenu('chat', rect.left, rect.bottom);
     }
 });
 
@@ -296,22 +438,50 @@ elements.treeNodeEmbeddings?.addEventListener('keydown', (event) => {
     if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
         event.preventDefault();
         const rect = elements.treeNodeEmbeddings.getBoundingClientRect();
-        allowServerNodeCtxMenuOpen = true;
-        showServerNodeCtxMenu('embeddings', rect.left, rect.bottom);
+        allowNodeCtxMenuOpen = true;
+        showNodeCtxMenu('embeddings', rect.left, rect.bottom);
+    }
+});
+
+elements.treeChromadbStatusNode?.addEventListener('keydown', (event) => {
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+        event.preventDefault();
+        const rect = elements.treeChromadbStatusNode.getBoundingClientRect();
+        allowNodeCtxMenuOpen = true;
+        showNodeCtxMenu('chromadb', rect.left, rect.bottom);
     }
 });
 
 elements.ctxMenuActionBtn?.addEventListener('click', (event) => {
     event.stopPropagation();
-    handleServerNodeCtxAction();
+    handleNodeCtxAction();
+});
+
+elements.ctxMenuIndexBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    handleNodeCtxIndex();
+});
+
+elements.ctxMenuClearBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    handleNodeCtxClear();
+});
+
+elements.ctxMenuStopBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    handleNodeCtxStop();
 });
 
 elements.ctxMenuCancelBtn?.addEventListener('click', (event) => {
     event.stopPropagation();
-    hideServerNodeCtxMenu();
+    hideNodeCtxMenu();
 });
 
 elements.serverNodeCtxMenu?.addEventListener('click', (event) => {
+    event.stopPropagation();
+});
+
+elements.nodeCtxMenu?.addEventListener('click', (event) => {
     event.stopPropagation();
 });
 
@@ -538,6 +708,7 @@ let ragIndexState = {
     indexedFiles: 0,
     collectionId: null
 };
+let ragEnabled = false;
 
 function readPersistedWebviewUiState() {
     try {
@@ -557,7 +728,8 @@ function persistWebviewUiState() {
         elements.vscode.setState?.({
             ...previous,
             activeTab,
-            activeScreens: uiState.activeScreens
+            activeScreens: uiState.activeScreens,
+            ragEnabled
         });
     } catch {
         // Ignore state persistence failures in webview runtime.
@@ -647,6 +819,34 @@ function buildRagStatusText() {
 
 function buildRagNoDataWindowText() {
     return labels.panelStateNotRunning;
+}
+
+function isTabSwitchBlocked() {
+    return isInTransaction
+        || isRagIndexing
+        || getNode('chat').pendingAction === 'starting'
+        || getNode('embeddings').pendingAction === 'starting';
+}
+
+function updateTabNavigationState() {
+    const blocked = isTabSwitchBlocked();
+    const controls = [
+        elements.chatTabBtn,
+        elements.settingsTabBtn,
+        elements.aboutTabBtn,
+        elements.messagesIconTrigger,
+        elements.settingsIconTrigger,
+        elements.aboutIconTrigger
+    ];
+
+    controls.forEach((control) => {
+        if (!control) {
+            return;
+        }
+
+        control.classList.toggle('is-disabled', blocked);
+        control.setAttribute('aria-disabled', String(blocked));
+    });
 }
 
 function updateLlamaStatusBadge() {
@@ -918,6 +1118,7 @@ function setRagIndexingState(value) {
     updateRagActionButton();
     updateRagActionPanel();
     updateRagInputVisibility();
+    updateChromadbTreeStatus();
 }
 
 function updateRagInputVisibility() {
@@ -933,9 +1134,6 @@ function updateRagInputVisibility() {
 
     if (elements.ragEnabledCheckbox) {
         elements.ragEnabledCheckbox.disabled = !isIndexed || !canUseInputActions();
-        if (!isIndexed) {
-            elements.ragEnabledCheckbox.checked = false;
-        }
     }
 
     if (elements.ragNoDataBtn) {
@@ -1023,7 +1221,23 @@ function applyControlState() {
         elements.tokenUsageContainer.setAttribute('aria-disabled', String(!allowMainActions));
     }
 
+    updateTabNavigationState();
     renderAllBadges();
+}
+
+function setRagEnabledState(value, shouldPersist = true) {
+    ragEnabled = !!value;
+    uiState.ragEnabled = ragEnabled;
+
+    if (elements.ragEnabledCheckbox) {
+        elements.ragEnabledCheckbox.checked = ragEnabled;
+    }
+
+    persistWebviewUiState();
+
+    if (shouldPersist) {
+        elements.vscode.postMessage({ type: 'setRagEnabled', ragEnabled });
+    }
 }
 
 function setHasActiveSession(value) {
@@ -1083,6 +1297,9 @@ elements.ragActionRefreshIcon?.addEventListener('click', () => {
 });
 elements.ragActionCopyIcon?.addEventListener('click', () => {
     copyActionText(elements.ragActionCopyIcon, buildChromaPanelCopyText());
+});
+elements.ragEnabledCheckbox?.addEventListener('change', () => {
+    setRagEnabledState(!!elements.ragEnabledCheckbox?.checked);
 });
 elements.ragNoDataBtn?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -1165,7 +1382,7 @@ elements.contextWindow?.addEventListener('click', (event) => {
 });
 document.addEventListener('click', () => {
     hideContextWindow();
-    hideServerNodeCtxMenu();
+    hideNodeCtxMenu();
 });
 window.addEventListener('resize', () => {
     if (activeContextMenu && activeContextAnchor) {
@@ -1174,7 +1391,7 @@ window.addEventListener('resize', () => {
 });
 window.addEventListener('blur', () => {
     hideContextWindow();
-    hideServerNodeCtxMenu();
+    hideNodeCtxMenu();
 });
 
 function handleExtensionMessage(event) {
@@ -1240,11 +1457,11 @@ function handleExtensionMessage(event) {
             });
 
             if (message.activeTab) {
-                switchTab(message.activeTab, false);
+                switchTab(message.activeTab === 'about' ? 'settings' : message.activeTab, false, true);
             }
             if (Array.isArray(message.activeScreens)) {
                 uiState.activeScreens = message.activeScreens.filter((screen) =>
-                    screen === 'chat' || screen === 'settings' || screen === 'about'
+                    screen === 'chat' || screen === 'settings'
                 );
                 if (uiState.activeScreens.length === 0) {
                     uiState.activeScreens = [uiState.activeTab];
@@ -1253,7 +1470,11 @@ function handleExtensionMessage(event) {
             if (typeof message.hasActiveSession === 'boolean') {
                 setHasActiveSession(message.hasActiveSession);
             }
+            if (typeof message.ragEnabled === 'boolean') {
+                setRagEnabledState(message.ragEnabled, false);
+            }
             persistWebviewUiState();
+            elements.vscode.postMessage({ type: 'setRagEnabled', ragEnabled });
             break;
         case 'updateServerState':
             renderServerState(message);
@@ -1301,9 +1522,14 @@ function renderRagState(message) {
     isChromaAvailable = !!message.chromaAvailable;
     uiState.isChromaAvailable = isChromaAvailable;
 
+    if (typeof message.ragEnabled === 'boolean') {
+        setRagEnabledState(message.ragEnabled, false);
+    }
+
     updateRagActionButton();
     updateRagActionPanel();
     updateRagInputVisibility();
+    updateChromadbTreeStatus();
 
     ragConnectionSnapshot.url = typeof message.chromaUrl === 'string' && message.chromaUrl
         ? message.chromaUrl
@@ -2054,7 +2280,12 @@ function syncServerStoppedNotice() {
     elements.chat.scrollTop = elements.chat.scrollHeight;
 }
 
-function switchTab(tabName, shouldPersist = true) {
+function switchTab(tabName, shouldPersist = true, forceSwitch = false) {
+    if (!forceSwitch && tabName !== activeTab && isTabSwitchBlocked()) {
+        updateTabNavigationState();
+        return;
+    }
+
     activeTab = tabName;
     uiState.activeTab = tabName;
     if (!uiState.activeScreens.includes(tabName)) {
@@ -2082,8 +2313,8 @@ function switchTab(tabName, shouldPersist = true) {
     }
 
     // Context menu is only valid inside settings and under explicit user action.
-    if (!isSettingsTab || isServerNodeCtxMenuVisible) {
-        hideServerNodeCtxMenu();
+    if (!isSettingsTab || isNodeCtxMenuVisible) {
+        hideNodeCtxMenu();
     }
 
     persistWebviewUiState();
@@ -2091,6 +2322,8 @@ function switchTab(tabName, shouldPersist = true) {
     if (shouldPersist) {
         elements.vscode.postMessage({ type: 'setActiveTab', tab: activeTab });
     }
+
+    updateTabNavigationState();
 }
 
 function handleBackToSessions() {
@@ -2479,7 +2712,7 @@ function sendMessage() {
             type: 'askLlama',
             value: text,
             attachedFiles: currentAttachedFiles,
-            ragEnabled: !!elements.ragEnabledCheckbox?.checked
+            ragEnabled: ragEnabled
         });
         elements.prompt.value = '';
         autoResizePrompt();
@@ -2530,12 +2763,16 @@ renderAboutMarkdown();
 updateTokenCounter(0, 0, currentModelName);
 updateServerActionButtons();
 updateRagActionButton();
-hideServerNodeCtxMenu();
+hideNodeCtxMenu();
 const persistedUiState = readPersistedWebviewUiState();
 if (persistedUiState?.activeTab === 'chat' || persistedUiState?.activeTab === 'settings' || persistedUiState?.activeTab === 'about') {
-    activeTab = persistedUiState.activeTab;
+    activeTab = persistedUiState.activeTab === 'about' ? 'settings' : persistedUiState.activeTab;
 }
-switchTab(activeTab, false);
+if (typeof persistedUiState?.ragEnabled === 'boolean') {
+    ragEnabled = persistedUiState.ragEnabled;
+    uiState.ragEnabled = ragEnabled;
+}
+switchTab(activeTab, false, true);
 autoResizePrompt();
 applyControlState();
 updateServerTreeIcons();
