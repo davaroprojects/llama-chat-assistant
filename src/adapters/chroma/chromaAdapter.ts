@@ -24,7 +24,7 @@ import {
 
 import { getSplitterForFile } from './utils/text/textSplitter';
 import { cosineSimilarity } from './utils/search/vectorSimilarity';
-import { lexicalPathScore, normalizeFilePathFilter } from './utils/search/lexicalSearch';
+import { lexicalPathScore, normalizeFilePathFilter, tokenizeText } from './utils/search/lexicalSearch';
 import {
     looksBinaryContent,
     globToRegExp,
@@ -573,6 +573,114 @@ export async function queryRelevantContextFromChromaDbSemantic(
         return results;
     } catch (error) {
         logger?.error('rag', 'Semantic Chroma query failed', error);
+        throw error;
+    }
+}
+
+export async function queryRelevantContextFromChromaDbLexical(
+    queryText: string,
+    config: ChromaDbConnectionConfig,
+    maxResults = config.maxQueryResults,
+    signal?: AbortSignal,
+    filePathFilter?: string[],
+    logger?: ChromaQueryLogger
+): Promise<ChromaSearchResult[]> {
+    if (!queryText.trim()) {
+        logger?.debug('rag', 'Skipped lexical query: empty query text');
+        return [];
+    }
+
+    if (signal?.aborted) {
+        logger?.warn('rag', 'Aborted lexical query before execution');
+        throw new DOMException('Aborted', 'AbortError');
+    }
+
+    const collectionName = config.collectionId;
+    if (!collectionName) {
+        logger?.warn('rag', 'Lexical query skipped: no collection ID stored for this workspace session');
+        return [];
+    }
+
+    const queryPreview = buildQueryPreview(queryText);
+    const where = buildWhereFilter(filePathFilter);
+    const client = getClient(config, signal);
+    if (!(await collectionExists(client, collectionName))) {
+        logger?.warn('rag', 'Lexical query skipped: stored Chroma collection was not found', {
+            collectionName
+        });
+        return [];
+    }
+
+    logger?.debug('rag', 'Starting lexical-only Chroma query (no embeddings endpoint call)', {
+        queryPreview,
+        maxResults,
+        whereFilterApplied: !!where
+    });
+
+    const lexicalTokens = tokenizeText(queryText);
+
+    try {
+        const collection = await client.getCollection({ name: collectionName } as any);
+        const fetchLimit = Math.max(config.vectorCandidatePool, maxResults * 20, 200);
+        const response = await collection.get({
+            include: ['documents', 'metadatas'],
+            where,
+            limit: fetchLimit
+        } as any);
+
+        const documents = response.documents ?? [];
+        const metadatas = response.metadatas ?? [];
+
+        const ranked = documents
+            .map((content: unknown, index: number) => {
+                if (typeof content !== 'string') {
+                    return null;
+                }
+
+                const metadata = metadatas[index] as Record<string, unknown> | undefined;
+                const lexicalMetadataScore = lexicalPathScore(queryText, metadata);
+                const lowerContent = content.toLowerCase();
+                const lexicalContentHits = lexicalTokens.reduce((hits, token) => (
+                    lowerContent.includes(token) ? hits + 1 : hits
+                ), 0);
+                const lexicalContentScore = lexicalTokens.length > 0 ? lexicalContentHits / lexicalTokens.length : 0;
+                const combinedScore = (lexicalMetadataScore * 0.7) + (lexicalContentScore * 0.3);
+
+                if (combinedScore <= 0) {
+                    return null;
+                }
+
+                const pathValue = getMetadataString(metadata, 'path', `document-${index + 1}`);
+                const chunkIndex = getMetadataString(metadata, 'chunkIndex');
+                const chunkCount = getMetadataString(metadata, 'chunkCount');
+                const chunkSuffix = chunkIndex && chunkCount
+                    ? ` [chunk ${Number(chunkIndex) + 1}/${chunkCount}]`
+                    : '';
+
+                return {
+                    path: `${pathValue}${chunkSuffix}`,
+                    content,
+                    combinedScore
+                };
+            })
+            .filter((item): item is { path: string; content: string; combinedScore: number } => item !== null)
+            .sort((a, b) => b.combinedScore - a.combinedScore)
+            .slice(0, maxResults)
+            .map((item) => ({
+                path: item.path,
+                content: item.content
+            }));
+
+        logger?.info('rag', 'Lexical-only Chroma query finished', {
+            queryPreview,
+            collectionName,
+            fetchedDocuments: documents.length,
+            returnedResults: ranked.length
+        });
+
+        return ranked;
+    } catch (error) {
+        logger?.error('rag', 'Lexical-only Chroma query failed', error);
         throw error;
     }
 }

@@ -203,7 +203,7 @@ To debug indexation and query performance, enable debug logging in the test/dev 
 Then open the **RAG** output channel (`Ctrl+Shift+U` → select **RAG**) to view structured logs during:
 
 - **Indexing:** File walk results, parser initialization, chunk assembly, embedding computation
-- **Querying:** Phase 1 semantic retrieval scores, Phase 2 cross-encoder reranking scores
+- **Querying:** Semantic retrieval scores, file-path filtering, observation assembly
 - **ReAct loop:** Action parsing, query execution, observation formatting
 
 **Common debugging scenarios:**
@@ -212,7 +212,7 @@ Then open the **RAG** output channel (`Ctrl+Shift+U` → select **RAG**) to view
 |---|---|---|
 | Many files skipped during indexing | `readErrors`, `errorSamples` | Check if tree-sitter parser initialization failed; see `INDEXING_PROCESS.md` § 2b |
 | Queries return no results | `query.results` shows `count: 0` | Verify ChromaDB collection exists; run manual index first |
-| Poor retrieval quality | `query.ranking_phase1`, `query.ranking_phase2` | Check if lexical score includes metadata (path, class_name, method_name); verify reranker model loaded |
+| Poor retrieval quality | `query.results`, `query.semantic` | Check if the workspace was indexed successfully; verify the query mentions the target file or concept clearly |
 | ReAct loop stuck in format correction | `action.extract` shows `success: false` | Check if model output contains valid `Action:` line; see `runReactAgentConversationUseCase.ts` line ~100 |
 
 ---

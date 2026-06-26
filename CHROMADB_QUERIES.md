@@ -4,7 +4,7 @@ This document explains what the ChromaDB queries in this extension are for, how 
 
 ## Objective
 
-The ChromaDB query layer exists to retrieve the most relevant indexed code fragments so the assistant can answer questions with project-specific context instead of relying only on the language model's general knowledge.
+The ChromaDB query layer exists to retrieve the most relevant indexed code fragments so the assistant can answer questions with project-specific context instead of relying only on the language model's general knowledge. Those retrieval paths use embeddings, including the chat/RAG flow and the indexing pipeline.
 
 In practice, the query layer is used to:
 
@@ -60,7 +60,7 @@ This path is available in the adapter and scans stored documents in pages, compu
 
 It is useful when a caller wants a full conceptual pass over the collection, with an explicit similarity threshold.
 
-Current main flow does not call it directly, but the gateway exposes it.
+Current main flow does not call it directly, but the gateway exposes it for alternative retrieval strategies.
 
 ## What gets queried
 

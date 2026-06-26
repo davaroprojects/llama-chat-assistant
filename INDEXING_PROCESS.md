@@ -275,6 +275,8 @@ This lets semantic similarity account for the structural context of the fragment
 ### Request and response contract
 
 - Inputs are sent in batches (`computeEmbeddings`) to reduce round trips, controlled by `laLlamaChat.chromaDb.embeddingBatchSize`.
+
+The same embeddings server also supports chat/RAG retrieval paths that need vector search over the indexed repository.
 - The adapter validates that response size equals input size.
 - Any non-OK HTTP response fails indexing/query immediately.
 

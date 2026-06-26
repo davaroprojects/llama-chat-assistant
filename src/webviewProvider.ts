@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import { spawn, ChildProcess } from 'node:child_process';
-import * as fs from 'node:fs';
 import { SesionGateway } from './core/gateways/sesionGateway';
 import {
     SessionPayloadBuilder,
@@ -30,13 +28,21 @@ import {
     readLlamaEmbeddingsRuntimeConfig,
     readLlamaEmbeddingsServerLaunchConfig,
     readLlamaRuntimeConfig,
-    readLlamaServerLaunchConfig
+    readLlamaServerLaunchConfig,
+    readStartupDelayMs,
+    readStartupRetries
 } from './adapters/llama/llamaConfig';
 import { createWorkspaceCollectionId, readChromaDbConfig } from './adapters/chroma/chromaConfig';
 import { IndexWorkspaceUseCase } from './core/usecases/indexWorkspaceUseCase';
 import { ChunkProviderGateway } from './core/gateways/chunkProviderGateway';
 import { VectorIndexGateway } from './core/gateways/vectorIndexGateway';
 import { LlamaEmbeddingsAdapter } from './adapters/llama/llamaEmbeddingsAdapter';
+import {
+    ManagedServerType,
+    StartedServerProcess
+} from './core/gateways/serverLifecycleGateway';
+import { StartLlamaServerUseCase } from './core/usecases/startLlamaServerUseCase';
+import { LlamaServerLifecycleAdapter } from './adapters/llama/llamaServerLifecycleAdapter';
 
 interface BaseWebviewMessage {
     type: string;
@@ -100,6 +106,12 @@ interface RuntimeMetrics {
     totalRequests: number;
     totalErrors: number;
     totalDurationMs: number;
+}
+
+interface ServerNode {
+    process: StartedServerProcess | null;
+    props: LlamaServerProps | null;
+    startedByPlugin: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -173,12 +185,11 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
     private _view?: vscode.WebviewView;
     private isPickerOpen = false;
     private isGenerationActive = false;
-    private serverProcess: ChildProcess | null = null;
-    private embeddingsServerProcess: ChildProcess | null = null;
-    private serverProps: LlamaServerProps | null = null;
-    private embeddingsServerProps: LlamaServerProps | null = null;
-    private wasServerStartedByPlugin = false;
-    private wasEmbeddingsServerStartedByPlugin = false;
+    private serverNodes: Record<ManagedServerType, ServerNode> = {
+        chat: { process: null, props: null, startedByPlugin: false },
+        embeddings: { process: null, props: null, startedByPlugin: false }
+    };
+    private hasLoadedInitialServerStatus = false;
     private isRagIndexing = false;
     private isChromaAvailable = false;
     private readonly metrics: RuntimeMetrics = {
@@ -192,6 +203,7 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
     private readonly llamaGateway: LlamaGateway;
     private readonly generateAssistantReplyUseCase: GenerateAssistantReplyUseCase;
     private readonly indexWorkspaceUseCase: IndexWorkspaceUseCase;
+    private readonly startLlamaServerUseCase: StartLlamaServerUseCase;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -217,6 +229,35 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             this.ragGateway,
             this.logger
         );
+
+        this.startLlamaServerUseCase = new StartLlamaServerUseCase(
+            new LlamaServerLifecycleAdapter(this.logger)
+        );
+    }
+
+    private getNode(name: ManagedServerType): ServerNode {
+        return this.serverNodes[name];
+    }
+
+    private getNodeEntries(): Array<[ManagedServerType, ServerNode]> {
+        return [
+            ['chat', this.serverNodes.chat],
+            ['embeddings', this.serverNodes.embeddings]
+        ];
+    }
+
+    private setNode(name: ManagedServerType, nextNode: ServerNode): void {
+        this.serverNodes = {
+            ...this.serverNodes,
+            [name]: nextNode
+        };
+    }
+
+    private patchNode(name: ManagedServerType, patch: Partial<ServerNode>): void {
+        this.setNode(name, {
+            ...this.getNode(name),
+            ...patch
+        });
     }
 
     public resolveWebviewView(
@@ -251,24 +292,6 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         });
     }
 
-    private attachProcessLogging(process: ChildProcess, scope: string): void {
-        process.stdout?.on('data', (chunk: Buffer | string) => {
-            const text = String(chunk).trim();
-            if (!text) {
-                return;
-            }
-            this.logger.debug(scope, 'process.stdout', text);
-        });
-
-        process.stderr?.on('data', (chunk: Buffer | string) => {
-            const text = String(chunk).trim();
-            if (!text) {
-                return;
-            }
-            this.logger.warn(scope, 'process.stderr', text);
-        });
-    }
-
     private async routeMessage(data: IncomingWebviewMessage, webviewView: vscode.WebviewView): Promise<void> {
         switch (data.type) {
             case 'webviewReady':
@@ -296,6 +319,9 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
                 this.handleSelectSession(data, webviewView);
                 break;
             case 'setActiveTab':
+                this.logger.info('webview', 'Persisting active tab from webview', {
+                    activeTab: data.tab
+                });
                 this.sessionManager.setActiveTab(data.tab);
                 break;
             case 'setSettingsAccordionState':
@@ -324,11 +350,18 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
 
     private async handleWebviewReady(webviewView: vscode.WebviewView): Promise<void> {
         this._view = webviewView;
-        await this.refreshServerProps();
+        await this.ensureInitialServerStatusLoaded();
         await this.refreshChromaAvailability();
         const initialSessions = this.sessionManager.getAllSessions();
         const uiState = this.sessionManager.getUiState();
         const activeSession = this.sessionManager.getCurrentSession();
+
+        this.logger.info('webview', 'Restoring webview state', {
+            activeTab: uiState.activeTab,
+            activeScreens: uiState.activeScreens,
+            hasActiveSession: !!uiState.currentSessionId,
+            sessionCount: initialSessions.length
+        });
 
         webviewView.webview.postMessage({
             type: 'renderSessionsList',
@@ -370,141 +403,126 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
     }
 
     private async handleStartServer(webviewView: vscode.WebviewView): Promise<void> {
-        if (this.serverProcess) {
-            return;
-        }
-
-        const serverConfig = this.getServerLaunchConfig();
-        const workspaceRoot = this.getWorkspaceRoot();
-        const { command, args } = buildServerLaunchCommand(serverConfig, workspaceRoot);
-
-        if (!fs.existsSync(command)) {
-            vscode.window.showErrorMessage(`llama-server not found: ${command}`);
-            this.postRuntimeState(webviewView);
-            return;
-        }
-
-        if (!fs.existsSync(args[1])) {
-            vscode.window.showErrorMessage(`Model not found: ${args[1]}`);
-            this.postRuntimeState(webviewView);
-            return;
-        }
-
-        try {
-            const serverProcess = spawn(command, args, {
-                cwd: workspaceRoot,
-                stdio: ['ignore', 'pipe', 'pipe']
-            });
-            this.attachProcessLogging(serverProcess, 'llama.server');
-            this.serverProcess = serverProcess;
-            serverProcess.on('exit', () => {
-                this.serverProcess = null;
-                this.serverProps = null;
-                this.wasServerStartedByPlugin = false;
-                this.postRuntimeState();
-            });
-            serverProcess.on('error', (error) => {
-                this.serverProcess = null;
-                this.serverProps = null;
-                this.wasServerStartedByPlugin = false;
-                vscode.window.showErrorMessage(`Failed to start llama-server: ${error.message}`);
-                this.postRuntimeState();
-            });
-            await this.refreshServerProps(8, 500);
-            await this.refreshEmbeddingsServerProps(8, 500);
-            this.wasServerStartedByPlugin = true;
-            this.postRuntimeState();
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            vscode.window.showErrorMessage(`Failed to start llama-server: ${errorMessage}`);
-            this.serverProcess = null;
-            this.serverProps = null;
-            this.wasServerStartedByPlugin = false;
-            this.postRuntimeState(webviewView);
-        }
+        await this.handleStartManagedServer('chat', webviewView);
     }
 
     private handleStopServer(): void {
-        if (!this.serverProcess) {
-            this.serverProps = null;
-            this.wasServerStartedByPlugin = false;
-            this.postRuntimeState();
-            return;
-        }
-
-        this.serverProcess.kill();
-        this.serverProcess = null;
-        this.serverProps = null;
-        this.wasServerStartedByPlugin = false;
-        this.postRuntimeState();
+        this.handleStopManagedServer('chat');
     }
 
     private async handleStartEmbeddingsServer(webviewView: vscode.WebviewView): Promise<void> {
-        if (this.embeddingsServerProcess) {
+        await this.handleStartManagedServer('embeddings', webviewView);
+    }
+
+    private handleStopEmbeddingsServer(): void {
+        this.handleStopManagedServer('embeddings');
+    }
+
+    private async handleStartManagedServer(serverType: ManagedServerType, webviewView: vscode.WebviewView): Promise<void> {
+        const node = this.getNode(serverType);
+        if (node.process) {
+            this.logger.info('server', 'Start request ignored because process is already running', {
+                serverType
+            });
             return;
         }
 
-        const serverConfig = this.getEmbeddingsServerLaunchConfig();
-        const workspaceRoot = this.getWorkspaceRoot();
-        const { command, args } = buildEmbeddingsServerLaunchCommand(serverConfig, workspaceRoot);
+        this.logger.info('server', 'Start request received', {
+            serverType,
+            workspaceRoot: this.getWorkspaceRoot(),
+            chatApiUrl: this.getLlamaConfig().apiUrl,
+            embeddingsApiUrl: this.getLlamaEmbeddingsConfig().apiUrl
+        });
 
-        if (!fs.existsSync(command)) {
-            vscode.window.showErrorMessage(`llama-server not found: ${command}`);
+        try {
+            const startResult = await this.startLlamaServerUseCase.execute({
+                serverType,
+                workspaceRoot: this.getWorkspaceRoot(),
+                chatLaunchConfig: this.getServerLaunchConfig(),
+                embeddingsLaunchConfig: this.getEmbeddingsServerLaunchConfig(),
+                chatApiUrl: this.getLlamaConfig().apiUrl,
+                embeddingsApiUrl: this.getLlamaEmbeddingsConfig().apiUrl,
+                startupDelayMs: readStartupDelayMs(),
+                startupRetries: readStartupRetries(),
+                startupRetryDelayMs: 1000
+            });
+
+            this.patchNode(serverType, {
+                process: startResult.process,
+                props: startResult.props,
+                startedByPlugin: startResult.startedByPlugin
+            });
+
+            this.logger.info('server', 'Server start flow completed', {
+                serverType,
+                propsAvailable: startResult.props !== null,
+                startedByPlugin: startResult.startedByPlugin
+            });
+
+            startResult.process.onExit(() => {
+                this.patchNode(serverType, {
+                    process: null,
+                    props: null,
+                    startedByPlugin: false
+                });
+                this.postRuntimeState();
+            });
+
+            startResult.process.onError((error) => {
+                this.patchNode(serverType, {
+                    process: null,
+                    props: null,
+                    startedByPlugin: false
+                });
+                const serverLabel = serverType === 'chat' ? 'llama-server' : 'llama embeddings server';
+                vscode.window.showErrorMessage(`Failed to start ${serverLabel}: ${error.message}`);
+                this.postRuntimeState();
+            });
+
+            this.postRuntimeState();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const serverLabel = serverType === 'chat' ? 'llama-server' : 'llama embeddings server';
+            this.logger.error('server', 'Server start flow failed', {
+                serverType,
+                errorMessage
+            });
+            vscode.window.showErrorMessage(`Failed to start ${serverLabel}: ${errorMessage}`);
+            this.patchNode(serverType, {
+                process: null,
+                props: null,
+                startedByPlugin: false
+            });
             this.postRuntimeState(webviewView);
-            return;
         }
+    }
 
-        if (!fs.existsSync(args[1])) {
-            vscode.window.showErrorMessage(`Embeddings model not found: ${args[1]}`);
-            this.postRuntimeState(webviewView);
+    private handleStopManagedServer(serverType: ManagedServerType): void {
+        const node = this.getNode(serverType);
+        if (!node.process) {
+            this.logger.info('server', 'Stop request received without active process', {
+                serverType
+            });
+            this.patchNode(serverType, {
+                props: null,
+                startedByPlugin: false
+            });
+            this.postRuntimeState();
             return;
         }
 
         try {
-            const serverProcess = spawn(command, args, {
-                cwd: workspaceRoot,
-                stdio: ['ignore', 'pipe', 'pipe']
-            });
-            this.attachProcessLogging(serverProcess, 'llama.embeddings');
-            this.embeddingsServerProcess = serverProcess;
-            serverProcess.on('exit', () => {
-                this.embeddingsServerProcess = null;
-                this.embeddingsServerProps = null;
-                this.wasEmbeddingsServerStartedByPlugin = false;
-                this.postRuntimeState();
-            });
-            serverProcess.on('error', (error) => {
-                this.embeddingsServerProcess = null;
-                this.embeddingsServerProps = null;
-                this.wasEmbeddingsServerStartedByPlugin = false;
-                vscode.window.showErrorMessage(`Failed to start llama embeddings server: ${error.message}`);
-                this.postRuntimeState();
-            });
-            await this.refreshEmbeddingsServerProps(8, 500);
-            this.wasEmbeddingsServerStartedByPlugin = true;
-            this.postRuntimeState();
+            node.process.stop();
+            this.logger.info('server', 'Stop signal sent to process', { serverType });
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            vscode.window.showErrorMessage(`Failed to start llama embeddings server: ${errorMessage}`);
-            this.embeddingsServerProcess = null;
-            this.embeddingsServerProps = null;
-            this.wasEmbeddingsServerStartedByPlugin = false;
-            this.postRuntimeState(webviewView);
-        }
-    }
-
-    private handleStopEmbeddingsServer(): void {
-        if (!this.embeddingsServerProcess) {
-            this.embeddingsServerProps = null;
-            this.wasEmbeddingsServerStartedByPlugin = false;
-            this.postRuntimeState();
-            return;
+            this.logger.error('server', `Error stopping ${serverType} server`, error);
         }
 
-        this.embeddingsServerProcess.kill();
-        this.embeddingsServerProcess = null;
-        this.embeddingsServerProps = null;
-        this.wasEmbeddingsServerStartedByPlugin = false;
+        this.patchNode(serverType, {
+            process: null,
+            props: null,
+            startedByPlugin: false
+        });
         this.postRuntimeState();
     }
 
@@ -521,7 +539,7 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
     }
 
     private handleSelectSession(data: SelectSessionMessage, webviewView: vscode.WebviewView): void {
-        if (!this.serverProps) {
+        if (!this.getNode('chat').props) {
             return;
         }
 
@@ -612,7 +630,7 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
     }
 
     private handleDeleteSession(data: DeleteSessionMessage, webviewView: vscode.WebviewView): void {
-        if (!this.serverProps) {
+        if (!this.getNode('chat').props) {
             return;
         }
 
@@ -814,8 +832,6 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
                 return;
             }
 
-            await this.refreshServerProps();
-            await this.refreshEmbeddingsServerProps();
             await this.refreshChromaAvailability();
             this.postRuntimeState();
         });
@@ -839,11 +855,11 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
     }
 
     private getContextWindow(): number {
-        return LlamaAdapter.extractContextWindow(this.serverProps);
+        return LlamaAdapter.extractContextWindow(this.getNode('chat').props);
     }
 
     private getModelName(): string {
-        return LlamaAdapter.extractModelName(this.serverProps);
+        return LlamaAdapter.extractModelName(this.getNode('chat').props);
     }
 
     private saveUserMessageToSession(payload: UserMessagePayload): void {
@@ -884,30 +900,29 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         );
     }
 
-    private async refreshServerProps(retries = 1, delayMs = 0): Promise<void> {
-        const config = this.getLlamaConfig();
-
-        for (let attempt = 0; attempt < retries; attempt++) {
-            this.serverProps = await LlamaAdapter.fetchServerProps(config.apiUrl);
-            if (this.serverProps) {
-                return;
-            }
-
-            if (attempt < retries - 1 && delayMs > 0) {
-                await new Promise(resolve => setTimeout(resolve, delayMs));
-            }
+    private async ensureInitialServerStatusLoaded(): Promise<void> {
+        if (this.hasLoadedInitialServerStatus) {
+            return;
         }
+
+        await Promise.all([
+            this.refreshNodeProps('chat'),
+            this.refreshNodeProps('embeddings')
+        ]);
+        this.hasLoadedInitialServerStatus = true;
     }
 
-    private async refreshEmbeddingsServerProps(retries = 1, delayMs = 0): Promise<void> {
-        const config = this.getLlamaEmbeddingsConfig();
+    private async refreshNodeProps(serverType: ManagedServerType, retries = 1, delayMs = 0): Promise<void> {
+        const apiUrl = serverType === 'chat'
+            ? this.getLlamaConfig().apiUrl
+            : this.getLlamaEmbeddingsConfig().apiUrl;
 
         for (let attempt = 0; attempt < retries; attempt++) {
-            this.embeddingsServerProps = await LlamaAdapter.fetchServerProps(config.apiUrl);
-            if (this.embeddingsServerProps) {
+            const props = await LlamaAdapter.fetchServerProps(apiUrl);
+            this.patchNode(serverType, { props });
+            if (props) {
                 return;
             }
-
             if (attempt < retries - 1 && delayMs > 0) {
                 await new Promise(resolve => setTimeout(resolve, delayMs));
             }
@@ -935,26 +950,44 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
     }
 
     private postServerState(webviewView: vscode.WebviewView): void {
+        const chatNode = this.getNode('chat');
         const launchConfig = this.getServerLaunchConfig();
         const launchCommand = buildServerLaunchCommand(launchConfig, this.getWorkspaceRoot());
         const commandLine = [launchCommand.command, ...launchCommand.args].join(' ');
 
+        this.logger.info('server.webview', 'Posting chat server state to webview', {
+            isRunning: chatNode.process !== null || chatNode.props !== null,
+            hasProcess: chatNode.process !== null,
+            hasProps: chatNode.props !== null,
+            startedByPlugin: chatNode.startedByPlugin,
+            commandLine
+        });
+
         webviewView.webview.postMessage({
             type: 'updateServerState',
-            isRunning: this.serverProps !== null,
-            wasServerStartedByPlugin: this.wasServerStartedByPlugin,
+            isRunning: chatNode.process !== null || chatNode.props !== null,
+            wasServerStartedByPlugin: chatNode.startedByPlugin,
             parameterRows: buildServerParameterRows(launchConfig),
             commandLine
         });
 
+        const embeddingsNode = this.getNode('embeddings');
         const embeddingsLaunchConfig = this.getEmbeddingsServerLaunchConfig();
         const embeddingsCommand = buildEmbeddingsServerLaunchCommand(embeddingsLaunchConfig, this.getWorkspaceRoot());
         const embeddingsCommandLine = [embeddingsCommand.command, ...embeddingsCommand.args].join(' ');
 
+        this.logger.info('server.webview', 'Posting embeddings server state to webview', {
+            isRunning: embeddingsNode.process !== null || embeddingsNode.props !== null,
+            hasProcess: embeddingsNode.process !== null,
+            hasProps: embeddingsNode.props !== null,
+            startedByPlugin: embeddingsNode.startedByPlugin,
+            commandLine: embeddingsCommandLine
+        });
+
         webviewView.webview.postMessage({
             type: 'updateEmbeddingsServerState',
-            isRunning: this.embeddingsServerProps !== null,
-            wasServerStartedByPlugin: this.wasEmbeddingsServerStartedByPlugin,
+            isRunning: embeddingsNode.process !== null || embeddingsNode.props !== null,
+            wasServerStartedByPlugin: embeddingsNode.startedByPlugin,
             parameterRows: buildEmbeddingsServerParameterRows(embeddingsLaunchConfig),
             commandLine: embeddingsCommandLine
         });
@@ -1003,26 +1036,20 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             this.currentAbortController = null;
         }
 
-        if (this.wasServerStartedByPlugin && this.serverProcess) {
-            try {
-                this.serverProcess.kill();
-            } catch (error) {
-                this.logger.error('server', 'Error killing server process', error);
+        for (const [serverType, node] of this.getNodeEntries()) {
+            if (node.startedByPlugin && node.process) {
+                try {
+                    node.process.stop();
+                } catch (error) {
+                    this.logger.error('server', `Error stopping ${serverType} server process`, error);
+                }
             }
-            this.serverProcess = null;
+            this.patchNode(serverType, {
+                process: null,
+                props: null,
+                startedByPlugin: false
+            });
         }
-
-        if (this.wasEmbeddingsServerStartedByPlugin && this.embeddingsServerProcess) {
-            try {
-                this.embeddingsServerProcess.kill();
-            } catch (error) {
-                this.logger.error('server', 'Error killing embeddings server process', error);
-            }
-            this.embeddingsServerProcess = null;
-        }
-
-        this.serverProps = null;
-        this.embeddingsServerProps = null;
     }
 
 }

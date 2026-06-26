@@ -150,11 +150,36 @@
             "default": "/v1/embeddings",
             "description": "%config.server.embeddingsPath.description%"
           },
+          "laLlamaChat.llamaCpp.embeddingsBatchSize": {
+            "type": "number",
+            "default": 16384,
+            "minimum": 1,
+            "description": "%config.server.embeddingsBatchSize.description%"
+          },
+          "laLlamaChat.llamaCpp.embeddingsUbatchSize": {
+            "type": "number",
+            "default": 16384,
+            "minimum": 1,
+            "description": "%config.server.embeddingsUbatchSize.description%"
+          },
           "laLlamaChat.llamaCpp.embeddingsTimeoutMs": {
             "type": "number",
             "default": 180000,
             "minimum": 1000,
             "description": "%config.server.embeddingsTimeoutMs.description%"
+          },
+          "laLlamaChat.llamaCpp.startupDelayMs": {
+            "type": "number",
+            "default": 5000,
+            "minimum": 0,
+            "description": "Milliseconds to wait after spawning a llama.cpp server before querying /props. Increase if your hardware needs more time to load the model."
+          },
+          "laLlamaChat.llamaCpp.startupRetries": {
+            "type": "number",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 30,
+            "description": "Number of times to retry the /props health check after the startup delay. Each retry waits 1 second."
           },
           "laLlamaChat.llamaCpp.jinja": {
             "type": "boolean",

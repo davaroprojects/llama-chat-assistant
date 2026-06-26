@@ -126,7 +126,16 @@ const elements = {
     aboutIconTrigger: document.getElementById('about-icon-trigger'),
     contextWindow: document.getElementById('context-window'),
     contextWindowContent: document.getElementById('context-window-content'),
-    attachedFilesContainer: null
+    attachedFilesContainer: null,
+    treeNodeChat: document.getElementById('tree-node-chat'),
+    treeNodeEmbeddings: document.getElementById('tree-node-embeddings'),
+    treeStatusChat: document.getElementById('tree-status-chat'),
+    treeStatusEmbeddings: document.getElementById('tree-status-embeddings'),
+    treeLlamaChevron: document.getElementById('tree-llama-chevron'),
+    treeLlamaChildren: document.getElementById('tree-llama-children'),
+    serverNodeCtxMenu: document.getElementById('server-node-ctx-menu'),
+    ctxMenuActionBtn: document.getElementById('ctx-menu-action-btn'),
+    ctxMenuCancelBtn: document.getElementById('ctx-menu-cancel-btn')
 };
 
 const ragConnectionSnapshot = {
@@ -134,6 +143,179 @@ const ragConnectionSnapshot = {
     port: '8000',
     collectionId: '-'
 };
+
+/* ── Server Tree ──────────────────────────────────────────────────── */
+
+let serverNodeCtxMenuTarget = null; // 'chat' | 'embeddings'
+let isTreeLlamaExpanded = true;
+let isServerNodeCtxMenuVisible = false;
+let allowServerNodeCtxMenuOpen = false;
+
+function getTreeStatusIconSvg(state) {
+    if (state === 'running') {
+        return `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" class="tree-status-running" xmlns="http://www.w3.org/2000/svg"><polygon points="5 3 19 12 5 21"></polygon></svg>`;
+    }
+    if (state === 'pending') {
+        return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="tree-status-pending spin-anim" xmlns="http://www.w3.org/2000/svg"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36M20.49 15a9 9 0 0 1-14.85 3.36"></path></svg>`;
+    }
+    return `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" class="tree-status-stopped" xmlns="http://www.w3.org/2000/svg"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg>`;
+}
+
+function getChatNodeState() {
+    const node = getNode('chat');
+    if (node.pendingAction !== null) { return 'pending'; }
+    return node.running ? 'running' : 'stopped';
+}
+
+function getEmbeddingsNodeState() {
+    const node = getNode('embeddings');
+    if (node.pendingAction !== null) { return 'pending'; }
+    return node.running ? 'running' : 'stopped';
+}
+
+function updateServerTreeIcons() {
+    if (elements.treeStatusChat) {
+        elements.treeStatusChat.innerHTML = getTreeStatusIconSvg(getChatNodeState());
+    }
+    if (elements.treeStatusEmbeddings) {
+        elements.treeStatusEmbeddings.innerHTML = getTreeStatusIconSvg(getEmbeddingsNodeState());
+    }
+}
+
+function toggleTreeLlamaChildren() {
+    isTreeLlamaExpanded = !isTreeLlamaExpanded;
+    if (elements.treeLlamaChildren) {
+        elements.treeLlamaChildren.classList.toggle('is-collapsed', !isTreeLlamaExpanded);
+    }
+    if (elements.treeLlamaChevron) {
+        elements.treeLlamaChevron.setAttribute('aria-expanded', String(isTreeLlamaExpanded));
+    }
+}
+
+function showServerNodeCtxMenu(serverType, clientX, clientY) {
+    const menu = elements.serverNodeCtxMenu;
+    const actionBtn = elements.ctxMenuActionBtn;
+    if (!menu || !actionBtn) { return; }
+
+    // Gate menu opening so it only appears after explicit user action.
+    if (!allowServerNodeCtxMenuOpen) {
+        return;
+    }
+
+    allowServerNodeCtxMenuOpen = false;
+
+    serverNodeCtxMenuTarget = serverType;
+    const isChatNode = serverType === 'chat';
+    const node = getNode(serverType);
+    const isRunning = node.running;
+    const isPending = node.pendingAction !== null;
+
+    if (isPending) {
+        actionBtn.style.display = 'none';
+    } else {
+        actionBtn.style.display = '';
+        actionBtn.textContent = isRunning ? labels.panelButtonStop : labels.panelButtonStart;
+    }
+
+    menu.style.display = 'block';
+    isServerNodeCtxMenuVisible = true;
+    menu.style.left = `${clientX}px`;
+    menu.style.top = `${clientY}px`;
+
+    // Reposition if the menu overflows the viewport
+    requestAnimationFrame(() => {
+        const rect = menu.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+            menu.style.left = `${clientX - rect.width}px`;
+        }
+        if (rect.bottom > window.innerHeight) {
+            menu.style.top = `${clientY - rect.height}px`;
+        }
+    });
+}
+
+function hideServerNodeCtxMenu() {
+    if (elements.serverNodeCtxMenu) {
+        elements.serverNodeCtxMenu.style.display = 'none';
+    }
+    serverNodeCtxMenuTarget = null;
+    isServerNodeCtxMenuVisible = false;
+    allowServerNodeCtxMenuOpen = false;
+}
+
+function handleServerNodeCtxAction() {
+    const target = serverNodeCtxMenuTarget;
+    hideServerNodeCtxMenu();
+    if (!target) { return; }
+
+    if (target === 'chat') {
+        if (getNode('chat').running) {
+            requestServerStop(null);
+        } else {
+            requestServerStart(null);
+        }
+    } else {
+        if (getNode('embeddings').running) {
+            requestEmbeddingsServerStop(null);
+        } else {
+            requestEmbeddingsServerStart(null);
+        }
+    }
+}
+
+// Tree event listeners
+elements.treeLlamaChevron?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleTreeLlamaChildren();
+});
+
+elements.treeNodeChat?.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    allowServerNodeCtxMenuOpen = true;
+    showServerNodeCtxMenu('chat', event.clientX, event.clientY);
+});
+
+elements.treeNodeEmbeddings?.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    allowServerNodeCtxMenuOpen = true;
+    showServerNodeCtxMenu('embeddings', event.clientX, event.clientY);
+});
+
+elements.treeNodeChat?.addEventListener('keydown', (event) => {
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+        event.preventDefault();
+        const rect = elements.treeNodeChat.getBoundingClientRect();
+        allowServerNodeCtxMenuOpen = true;
+        showServerNodeCtxMenu('chat', rect.left, rect.bottom);
+    }
+});
+
+elements.treeNodeEmbeddings?.addEventListener('keydown', (event) => {
+    if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+        event.preventDefault();
+        const rect = elements.treeNodeEmbeddings.getBoundingClientRect();
+        allowServerNodeCtxMenuOpen = true;
+        showServerNodeCtxMenu('embeddings', rect.left, rect.bottom);
+    }
+});
+
+elements.ctxMenuActionBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    handleServerNodeCtxAction();
+});
+
+elements.ctxMenuCancelBtn?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    hideServerNodeCtxMenu();
+});
+
+elements.serverNodeCtxMenu?.addEventListener('click', (event) => {
+    event.stopPropagation();
+});
+
+/* ──────────────────────────────────────────────────────────────────── */
 
 function copyActionText(button, text) {
     const content = String(text || '').trim();
@@ -336,13 +518,12 @@ const removedAutoContextKeys = new Set();
 let currentContextWindow = 0;
 let currentModelName = 'local';
 let activeTab = 'chat';
-let isServerRunning = false;
-let wasServerStartedByPlugin = false;
-let isEmbeddingsServerRunning = false;
-let wasEmbeddingsServerStartedByPlugin = false;
 let currentSessions = [];
-let pendingServerAction = null;
-let pendingEmbeddingsServerAction = null;
+const serverNodes = [
+    { name: 'chat',       running: false, pendingAction: null, startedByPlugin: false },
+    { name: 'embeddings', running: false, pendingAction: null, startedByPlugin: false }
+];
+function getNode(name) { return serverNodes.find(n => n.name === name); }
 let isRagIndexing = false;
 let isChromaAvailable = false;
 let hasActiveSession = false;
@@ -358,35 +539,62 @@ let ragIndexState = {
     collectionId: null
 };
 
+function readPersistedWebviewUiState() {
+    try {
+        const state = elements.vscode.getState?.();
+        if (!state || typeof state !== 'object') {
+            return null;
+        }
+        return state;
+    } catch {
+        return null;
+    }
+}
+
+function persistWebviewUiState() {
+    try {
+        const previous = readPersistedWebviewUiState() || {};
+        elements.vscode.setState?.({
+            ...previous,
+            activeTab,
+            activeScreens: uiState.activeScreens
+        });
+    } catch {
+        // Ignore state persistence failures in webview runtime.
+    }
+}
+
 const serverActionStartIconMarkup = elements.serverActionStartIcon?.innerHTML || '';
 const serverActionStopIconMarkup = elements.serverActionStopIcon?.innerHTML || '';
 const ragActionRefreshIconMarkup = elements.ragActionRefreshIcon?.innerHTML || '';
 
 function getServerControlState() {
-    const isPendingStart = pendingServerAction === 'starting';
-    const isPendingStop = pendingServerAction === 'stopping';
-    const isStopBlocked = isServerRunning && !wasServerStartedByPlugin;
+    const node = getNode('chat');
+    const isPendingStart = node.pendingAction === 'starting';
+    const isPendingStop = node.pendingAction === 'stopping';
+    const isStopBlocked = node.running && !node.startedByPlugin;
 
     return {
         isPendingStart,
         isPendingStop,
         isStopBlocked,
-        canStart: !pendingServerAction && !isServerRunning,
-        canStop: !pendingServerAction && isServerRunning && !isStopBlocked
+        canStart: !node.pendingAction && !node.running,
+        canStop: !node.pendingAction && node.running && !isStopBlocked
     };
 }
 
 function getEmbeddingsServerControlState() {
-    const isPendingStart = pendingEmbeddingsServerAction === 'starting';
-    const isPendingStop = pendingEmbeddingsServerAction === 'stopping';
-    const isStopBlocked = isEmbeddingsServerRunning && !wasEmbeddingsServerStartedByPlugin;
+    const node = getNode('embeddings');
+    const isPendingStart = node.pendingAction === 'starting';
+    const isPendingStop = node.pendingAction === 'stopping';
+    const isStopBlocked = node.running && !node.startedByPlugin;
 
     return {
         isPendingStart,
         isPendingStop,
         isStopBlocked,
-        canStart: !pendingEmbeddingsServerAction && !isEmbeddingsServerRunning,
-        canStop: !pendingEmbeddingsServerAction && isEmbeddingsServerRunning && !isStopBlocked
+        canStart: !node.pendingAction && !node.running,
+        canStop: !node.pendingAction && node.running && !isStopBlocked
     };
 }
 
@@ -447,13 +655,14 @@ function updateLlamaStatusBadge() {
     }
 
     const state = getServerControlState();
+    const node = getNode('chat');
     let text = labels.statusStoppedLabel;
     let statusClass = 'is-stopped';
 
     if (state.isPendingStart) {
         text = labels.statusStartedLabel;
         statusClass = 'is-started';
-    } else if (isServerRunning) {
+    } else if (node.running) {
         text = labels.statusRunningLabel;
         statusClass = 'is-running';
     }
@@ -469,13 +678,14 @@ function updateEmbeddingsStatusBadge() {
     }
 
     const state = getEmbeddingsServerControlState();
+    const node = getNode('embeddings');
     let text = labels.statusStoppedLabel;
     let statusClass = 'is-stopped';
 
     if (state.isPendingStart) {
         text = labels.statusStartedLabel;
         statusClass = 'is-started';
-    } else if (isEmbeddingsServerRunning) {
+    } else if (node.running) {
         text = labels.statusRunningLabel;
         statusClass = 'is-running';
     }
@@ -547,7 +757,7 @@ function getSequentialDotsText() {
 function refreshSequentialIndicators() {
     const dots = getSequentialDotsText();
 
-    if (pendingServerAction === 'starting' && elements.serverActionStartIcon) {
+    if (getNode('chat').pendingAction === 'starting' && elements.serverActionStartIcon) {
         elements.serverActionStartIcon.textContent = dots;
     }
 
@@ -555,14 +765,14 @@ function refreshSequentialIndicators() {
         elements.ragActionRefreshIcon.textContent = dots;
     }
 
-    if (pendingEmbeddingsServerAction === 'starting' && elements.embeddingsActionStartIcon) {
+    if (getNode('embeddings').pendingAction === 'starting' && elements.embeddingsActionStartIcon) {
         elements.embeddingsActionStartIcon.textContent = dots;
     }
 }
 
 function updateSequentialDotTimer() {
-    const shouldAnimate = pendingServerAction === 'starting'
-        || pendingEmbeddingsServerAction === 'starting'
+    const shouldAnimate = getNode('chat').pendingAction === 'starting'
+        || getNode('embeddings').pendingAction === 'starting'
         || isRagIndexing;
 
     if (shouldAnimate && !sequentialDotTimer) {
@@ -584,12 +794,12 @@ function updateSequentialDotTimer() {
 const uiState = {
     activeTab: 'chat',
     activeScreens: ['chat'],
-    isServerRunning: false,
-    wasServerStartedByPlugin: false,
-    isEmbeddingsServerRunning: false,
-    wasEmbeddingsServerStartedByPlugin: false,
-    pendingServerAction: null,
-    pendingEmbeddingsServerAction: null,
+    get isServerRunning() { return getNode('chat').running; },
+    get wasServerStartedByPlugin() { return getNode('chat').startedByPlugin; },
+    get isEmbeddingsServerRunning() { return getNode('embeddings').running; },
+    get wasEmbeddingsServerStartedByPlugin() { return getNode('embeddings').startedByPlugin; },
+    get pendingServerAction() { return getNode('chat').pendingAction; },
+    get pendingEmbeddingsServerAction() { return getNode('embeddings').pendingAction; },
     isRagIndexing: false,
     isChromaAvailable: false,
     hasActiveSession: false,
@@ -622,7 +832,7 @@ function updateServerActionPanel() {
     elements.serverActionStartIcon.title = labels.panelButtonStart;
     elements.serverActionLoader.style.display = 'none';
 
-    if (isServerRunning) {
+    if (getNode('chat').running) {
         elements.serverActionStartIcon.style.display = 'none';
         elements.serverActionStopIcon.style.display = 'flex';
         elements.serverActionStopIcon.disabled = !state.canStop;
@@ -663,7 +873,7 @@ function updateEmbeddingsServerActionPanel() {
     elements.embeddingsActionStartIcon.title = labels.panelButtonStart;
     elements.embeddingsActionLoader.style.display = 'none';
 
-    if (isEmbeddingsServerRunning) {
+    if (getNode('embeddings').running) {
         elements.embeddingsActionStartIcon.style.display = 'none';
         elements.embeddingsActionStopIcon.style.display = 'flex';
         elements.embeddingsActionStopIcon.disabled = !state.canStop;
@@ -743,11 +953,11 @@ function getBaseFileName(fileName) {
 }
 
 function canUseInputActions() {
-    return isServerRunning && !isInTransaction;
+    return getNode('chat').running && !isInTransaction;
 }
 
 function canStopGeneration() {
-    return isServerRunning && isInTransaction;
+    return getNode('chat').running && isInTransaction;
 }
 
 function autoResizePrompt() {
@@ -955,6 +1165,7 @@ elements.contextWindow?.addEventListener('click', (event) => {
 });
 document.addEventListener('click', () => {
     hideContextWindow();
+    hideServerNodeCtxMenu();
 });
 window.addEventListener('resize', () => {
     if (activeContextMenu && activeContextAnchor) {
@@ -963,16 +1174,18 @@ window.addEventListener('resize', () => {
 });
 window.addEventListener('blur', () => {
     hideContextWindow();
+    hideServerNodeCtxMenu();
 });
 
 function handleExtensionMessage(event) {
-    if (event.source !== window) {
-        return;
-    }
-
     const message = event.data;
 
     if (!isValidIncomingMessage(message)) {
+        if (message && typeof message === 'object' && typeof message.type === 'string') {
+            console.warn('[laLlamaChat] Ignored incoming message with invalid payload', {
+                type: message.type
+            });
+        }
         return;
     }
 
@@ -1020,6 +1233,12 @@ function handleExtensionMessage(event) {
             updateTokenCounter(currentSessionTokens, currentContextWindow, currentModelName);
             break;
         case 'restoreUiState':
+            console.info('[laLlamaChat] restoreUiState', {
+                activeTab: message.activeTab,
+                activeScreens: Array.isArray(message.activeScreens) ? message.activeScreens : [],
+                hasActiveSession: !!message.hasActiveSession
+            });
+
             if (message.activeTab) {
                 switchTab(message.activeTab, false);
             }
@@ -1034,6 +1253,7 @@ function handleExtensionMessage(event) {
             if (typeof message.hasActiveSession === 'boolean') {
                 setHasActiveSession(message.hasActiveSession);
             }
+            persistWebviewUiState();
             break;
         case 'updateServerState':
             renderServerState(message);
@@ -1687,7 +1907,7 @@ function createEmptySessionsCard() {
 
     const title = document.createElement('div');
     title.className = 'session-card-title';
-    title.textContent = isServerRunning ? labels.emptyChatReadyLabel : labels.emptyServerStoppedLabel;
+    title.textContent = getNode('chat').running ? labels.emptyChatReadyLabel : labels.emptyServerStoppedLabel;
 
     body.appendChild(title);
     emptyCard.appendChild(body);
@@ -1735,7 +1955,7 @@ function syncSessionsServerStoppedNotice() {
 
     elements.sessionsList.querySelector('.server-stopped-sessions-notice')?.remove();
 
-    if (isServerRunning || currentSessions.length === 0) {
+    if (getNode('chat').running || currentSessions.length === 0) {
         return;
     }
 
@@ -1763,29 +1983,29 @@ function syncSessionCardsAvailability() {
 }
 
 function setPendingServerAction(action) {
-    pendingServerAction = action;
-    uiState.pendingServerAction = pendingServerAction;
+    getNode('chat').pendingAction = action;
     updateServerActionButtons();
     updateServerActionPanel();
+    updateServerTreeIcons();
 }
 
 function setPendingEmbeddingsServerAction(action) {
-    pendingEmbeddingsServerAction = action;
-    uiState.pendingEmbeddingsServerAction = pendingEmbeddingsServerAction;
+    getNode('embeddings').pendingAction = action;
     updateEmbeddingsServerActionPanel();
+    updateServerTreeIcons();
 }
 
 function clearPendingServerAction() {
-    pendingServerAction = null;
-    uiState.pendingServerAction = pendingServerAction;
+    getNode('chat').pendingAction = null;
     updateServerActionButtons();
     updateServerActionPanel();
+    updateServerTreeIcons();
 }
 
 function clearPendingEmbeddingsServerAction() {
-    pendingEmbeddingsServerAction = null;
-    uiState.pendingEmbeddingsServerAction = pendingEmbeddingsServerAction;
+    getNode('embeddings').pendingAction = null;
     updateEmbeddingsServerActionPanel();
+    updateServerTreeIcons();
 }
 
 function updateServerActionButtons() {
@@ -1818,7 +2038,7 @@ function updateServerActionButtons() {
 function syncServerStoppedNotice() {
     removeServerStoppedNotice();
 
-    if (isServerRunning || !isActiveChatVisible()) {
+    if (getNode('chat').running || !isActiveChatVisible()) {
         return;
     }
 
@@ -1860,6 +2080,13 @@ function switchTab(tabName, shouldPersist = true) {
     if (elements.aboutTabPanel) {
         elements.aboutTabPanel.style.display = isAboutTab ? 'flex' : 'none';
     }
+
+    // Context menu is only valid inside settings and under explicit user action.
+    if (!isSettingsTab || isServerNodeCtxMenuVisible) {
+        hideServerNodeCtxMenu();
+    }
+
+    persistWebviewUiState();
 
     if (shouldPersist) {
         elements.vscode.postMessage({ type: 'setActiveTab', tab: activeTab });
@@ -1922,27 +2149,32 @@ function updateTokenCounter(sessionTokens, contextWindow, modelName = currentMod
 }
 
 function renderServerState(message) {
-    isServerRunning = !!message.isRunning;
-    wasServerStartedByPlugin = !!message.wasServerStartedByPlugin;
-    uiState.isServerRunning = isServerRunning;
-    uiState.wasServerStartedByPlugin = wasServerStartedByPlugin;
+    console.info('[laLlamaChat] updateServerState', {
+        isRunning: !!message.isRunning,
+        wasServerStartedByPlugin: !!message.wasServerStartedByPlugin,
+        commandLine: message.commandLine || ''
+    });
+
+    const node = getNode('chat');
+    node.running = !!message.isRunning;
+    node.startedByPlugin = !!message.wasServerStartedByPlugin;
 
     if (typeof message.commandLine === 'string' && message.commandLine.trim()) {
         serverLaunchCommandLine = message.commandLine.trim();
     }
 
-    if (pendingServerAction === 'starting' && isServerRunning) {
+    if (node.pendingAction === 'starting') {
         clearPendingServerAction();
-    } else if (pendingServerAction === 'stopping' && !isServerRunning) {
+    } else if (node.pendingAction === 'stopping' && !node.running) {
         clearPendingServerAction();
     }
 
     if (elements.serverStartBtn) {
-        elements.serverStartBtn.style.display = isServerRunning ? 'none' : 'inline-flex';
+        elements.serverStartBtn.style.display = node.running ? 'none' : 'inline-flex';
     }
 
     if (elements.serverStopBtn) {
-        elements.serverStopBtn.style.display = isServerRunning ? 'inline-flex' : 'none';
+        elements.serverStopBtn.style.display = node.running ? 'inline-flex' : 'none';
     }
 
     if (!serverLaunchCommandLine) {
@@ -1985,6 +2217,7 @@ function renderServerState(message) {
     syncSessionCardsAvailability();
     syncSessionsServerStoppedNotice();
     updateTokenCounter(currentSessionTokens, currentContextWindow, currentModelName);
+    updateServerTreeIcons();
 
     if (currentSessions.length === 0 && elements.sessionsList) {
         elements.sessionsList.innerHTML = '';
@@ -1993,24 +2226,30 @@ function renderServerState(message) {
 }
 
 function renderEmbeddingsServerState(message) {
-    isEmbeddingsServerRunning = !!message.isRunning;
-    wasEmbeddingsServerStartedByPlugin = !!message.wasServerStartedByPlugin;
-    uiState.isEmbeddingsServerRunning = isEmbeddingsServerRunning;
-    uiState.wasEmbeddingsServerStartedByPlugin = wasEmbeddingsServerStartedByPlugin;
+    console.info('[laLlamaChat] updateEmbeddingsServerState', {
+        isRunning: !!message.isRunning,
+        wasServerStartedByPlugin: !!message.wasServerStartedByPlugin,
+        commandLine: message.commandLine || ''
+    });
+
+    const node = getNode('embeddings');
+    node.running = !!message.isRunning;
+    node.startedByPlugin = !!message.wasServerStartedByPlugin;
 
     if (typeof message.commandLine === 'string' && message.commandLine.trim()) {
         embeddingsServerLaunchCommandLine = message.commandLine.trim();
     }
 
-    if (pendingEmbeddingsServerAction === 'starting' && isEmbeddingsServerRunning) {
+    if (node.pendingAction === 'starting') {
         clearPendingEmbeddingsServerAction();
-    } else if (pendingEmbeddingsServerAction === 'stopping' && !isEmbeddingsServerRunning) {
+    } else if (node.pendingAction === 'stopping' && !node.running) {
         clearPendingEmbeddingsServerAction();
     }
 
     updateEmbeddingsStatusBadge();
     updateEmbeddingsServerActionPanel();
     applyControlState();
+    updateServerTreeIcons();
 }
 
 function placeContextWindow(anchorElement) {
@@ -2140,7 +2379,7 @@ function hideContextWindow() {
 }
 
 function toggleTokenUsageMenu() {
-    if (!isServerRunning || !elements.tokenUsageContainer || elements.tokenUsageContainer.classList.contains('is-disabled')) {
+    if (!getNode('chat').running || !elements.tokenUsageContainer || elements.tokenUsageContainer.classList.contains('is-disabled')) {
         return;
     }
 
@@ -2291,7 +2530,13 @@ renderAboutMarkdown();
 updateTokenCounter(0, 0, currentModelName);
 updateServerActionButtons();
 updateRagActionButton();
+hideServerNodeCtxMenu();
+const persistedUiState = readPersistedWebviewUiState();
+if (persistedUiState?.activeTab === 'chat' || persistedUiState?.activeTab === 'settings' || persistedUiState?.activeTab === 'about') {
+    activeTab = persistedUiState.activeTab;
+}
 switchTab(activeTab, false);
 autoResizePrompt();
 applyControlState();
+updateServerTreeIcons();
 elements.vscode.postMessage({ type: 'webviewReady' });

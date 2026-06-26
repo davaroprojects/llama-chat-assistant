@@ -16,6 +16,8 @@ export interface LlamaEmbeddingsServerLaunchConfig {
     modelPath: string;
     gpuLayers: number;
     contextSize: number;
+    batchSize: number;
+    ubatchSize: number;
     flashAttention: boolean;
     host: string;
     port: number;

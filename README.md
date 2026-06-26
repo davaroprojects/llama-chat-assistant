@@ -97,7 +97,10 @@ code --install-extension llama-chat-0.0.1.vsix
   "laLlamaChat.llamaCpp.port": 8033,
   "laLlamaChat.llamaCpp.gpuLayers": 99,
   "laLlamaChat.llamaCpp.contextSize": 16384,
-  "laLlamaChat.llamaCpp.flashAttention": true
+    "laLlamaChat.llamaCpp.flashAttention": true,
+    "laLlamaChat.llamaCpp.embeddingsPort": 8044,
+    "laLlamaChat.llamaCpp.embeddingsBatchSize": 16384,
+    "laLlamaChat.llamaCpp.embeddingsUbatchSize": 16384
 }
 ```
 
@@ -153,12 +156,17 @@ code --install-extension llama-chat-0.0.1.vsix
 |---|---|---|
 | `laLlamaChat.llamaCpp.host` | `127.0.0.1` | llama.cpp server host |
 | `laLlamaChat.llamaCpp.port` | `8033` | llama.cpp server port |
+| `laLlamaChat.llamaCpp.embeddingsPort` | `8044` | llama.cpp embeddings server port |
 | `laLlamaChat.llamaCpp.executablePath` | `./build/bin/llama-server` | Path to llama-server binary |
 | `laLlamaChat.llamaCpp.modelPath` | `./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf` | Path to GGUF model |
 | `laLlamaChat.llamaCpp.gpuLayers` | `99` | GPU layers to offload |
 | `laLlamaChat.llamaCpp.contextSize` | `16384` | Context window in tokens |
+| `laLlamaChat.llamaCpp.embeddingsBatchSize` | `16384` | Physical batch size passed to embeddings server (`-b`) |
+| `laLlamaChat.llamaCpp.embeddingsUbatchSize` | `16384` | Physical micro-batch size passed to embeddings server (`-ub`) |
+| `laLlamaChat.llamaCpp.embeddingsModelPath` | `./models/jina-embeddings-v4-text-code-Q8_0.gguf` | Path to embeddings GGUF model |
 | `laLlamaChat.llamaCpp.flashAttention` | `true` | Enable flash attention |
 | `laLlamaChat.llamaCpp.chatCompletionsPath` | `/v1/chat/completions` | Chat endpoint path |
+| `laLlamaChat.llamaCpp.embeddingsPath` | `/v1/embeddings` | Embeddings endpoint path |
 | `laLlamaChat.llamaCpp.jinja` | `true` | Enable `--jinja` flag |
 | `laLlamaChat.llamaCpp.tools` | `all` | Value passed to `--tools` |
 | `laLlamaChat.chromaDb.url` | `http://127.0.0.1` | ChromaDB base URL |
@@ -210,9 +218,13 @@ For embeddings, start a dedicated llama.cpp instance (or use the new Embeddings 
   --model ./models/jina-embeddings-v4-text-code-Q8_0.gguf \
   --host 127.0.0.1 \
   --port 8044 \
+  -b 16384 \
+  -ub 16384 \
   --pooling mean \
   --embeddings
 ```
+
+Note: chat responses are generated through the chat endpoint (`/v1/chat/completions`), but RAG retrieval and workspace indexing both use the embeddings endpoint (`/v1/embeddings`).
 
 ### Step 2 — Index your workspace into ChromaDB
 

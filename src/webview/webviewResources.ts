@@ -63,6 +63,7 @@ export interface WebviewLabels {
     panelButtonStarting: string;
     panelButtonIndex: string;
     panelButtonCopyText: string;
+    panelCtxCancel: string;
     statusRunningLabel: string;
     statusStoppedLabel: string;
     statusStartedLabel: string;
@@ -92,6 +93,7 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
             '- Uses retrieval when enabled to bring relevant repository context into each answer.',
             '- Supports direct chat, isolated file analysis, and repository-wide ReAct flows for complex queries.',
             '- Uses dedicated libraries for chunking, embeddings generation, and token counting/validation before model calls.',
+            '- Chat generation always targets the chat server endpoint. The embeddings server is used only for indexing workflows.',
             '',
             'You can use the plugin as long as `llama.cpp` is reachable at the configured host and port, whether it is started externally or launched from this plugin.',
             '',
@@ -113,10 +115,15 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
             '### llama.cpp connection',
             '- `laLlamaChat.llamaCpp.executablePath`: Path used when launching the server from the plugin. Wrong path prevents local launch.',
             '- `laLlamaChat.llamaCpp.modelPath`: GGUF model path. Determines model capability, speed, and memory usage.',
+            '- `laLlamaChat.llamaCpp.embeddingsModelPath`: GGUF model path used by the embeddings server instance.',
             '- `laLlamaChat.llamaCpp.host`: Host used by the extension to connect. Must match the running server binding.',
             '- `laLlamaChat.llamaCpp.port`: Port used by the extension to connect. Must match the running server port (external or plugin-launched).',
+            '- `laLlamaChat.llamaCpp.embeddingsPort`: Port used only by the embeddings server endpoint.',
+            '- `laLlamaChat.llamaCpp.embeddingsPath`: HTTP path used only for embeddings calls.',
             '- `laLlamaChat.llamaCpp.contextSize`: Context window budget. Higher values allow more history/context but require more memory.',
             '- `laLlamaChat.llamaCpp.gpuLayers`: Number of layers offloaded to GPU. Higher values can speed inference if GPU memory allows it.',
+            '- `laLlamaChat.llamaCpp.embeddingsBatchSize`: Physical batch size for embeddings server launch (`-b`).',
+            '- `laLlamaChat.llamaCpp.embeddingsUbatchSize`: Physical micro-batch size for embeddings server launch (`-ub`).',
             '- `laLlamaChat.llamaCpp.flashAttention`: Enables optimized attention path when supported. Can improve throughput on compatible setups.',
             '',
             '### ChromaDB indexing and retrieval',
@@ -192,6 +199,7 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
         panelButtonStarting: 'Starting',
         panelButtonIndex: 'Index',
         panelButtonCopyText: 'Copy text',
+        panelCtxCancel: 'Cancel',
         statusRunningLabel: 'running',
         statusStoppedLabel: 'stopped',
         statusStartedLabel: 'started',
