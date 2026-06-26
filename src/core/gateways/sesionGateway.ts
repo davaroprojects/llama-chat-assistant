@@ -8,7 +8,9 @@ export interface SesionGateway {
     addMessageToCurrentSession(role: string, content: unknown): void;
     deleteSession(sessionId: string): void;
     getUiState(): ChatUiState;
-    setActiveTab(activeTab: 'chat' | 'settings' | 'about'): void;
+    setActiveTab(activeTab: 'chat' | 'settings'): void;
+    getRagEnabled(): boolean;
+    setRagEnabled(ragEnabled: boolean): void;
     setSettingsAccordionState(state: SettingsAccordionState): void;
     getRagIndexState(): RagIndexState;
     setRagIndexState(state: RagIndexState): void;

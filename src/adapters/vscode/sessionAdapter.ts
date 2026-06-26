@@ -26,6 +26,7 @@ export class SessionAdapter implements SesionGateway {
             chromadbOpen: false
         },
         currentSessionId: null,
+        ragEnabled: false,
         ragIndexState: {
             status: 'idle',
             indexedAt: null,
@@ -54,12 +55,16 @@ export class SessionAdapter implements SesionGateway {
             }
         };
 
-        if (this.uiState.activeTab !== 'chat' && this.uiState.activeTab !== 'settings' && this.uiState.activeTab !== 'about') {
+        this.uiState.ragEnabled = !!this.uiState.ragEnabled;
+
+        if (this.uiState.activeTab !== 'chat' && this.uiState.activeTab !== 'settings') {
             this.uiState.activeTab = 'chat';
         }
 
         this.uiState.activeScreens = (this.uiState.activeScreens || [])
-            .map((screen: string) => (screen === 'chat' || screen === 'settings' || screen === 'about' ? screen : 'settings'));
+            .map((screen: string) => (screen === 'chat' || screen === 'settings' ? screen : 'settings'));
+
+        this.uiState.activeScreens = this.uiState.activeScreens.filter((screen): screen is 'chat' | 'settings' => screen === 'chat' || screen === 'settings');
 
         if (this.uiState.activeScreens.length === 0) {
             this.uiState.activeScreens = [this.uiState.activeTab];
@@ -145,12 +150,21 @@ export class SessionAdapter implements SesionGateway {
         return { ...this.uiState };
     }
 
-    public setActiveTab(activeTab: 'chat' | 'settings' | 'about'): void {
+    public setActiveTab(activeTab: 'chat' | 'settings'): void {
         this.uiState.activeTab = activeTab;
         if (!this.uiState.activeScreens.includes(activeTab)) {
             this.uiState.activeScreens.push(activeTab);
         }
         this.saveToDisk();
+    }
+
+    public setRagEnabled(ragEnabled: boolean): void {
+        this.uiState.ragEnabled = !!ragEnabled;
+        this.saveToDisk();
+    }
+
+    public getRagEnabled(): boolean {
+        return !!this.uiState.ragEnabled;
     }
 
     public setSettingsAccordionState(state: SettingsAccordionState): void {
