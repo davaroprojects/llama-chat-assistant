@@ -35,6 +35,181 @@ body {
 .settings-components {
     display: flex;
     flex-direction: column;
+    gap: 8px;
+}
+
+/* ── Server Tree ──────────────────────────────── */
+.server-tree {
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 8px;
+    background: var(--vscode-editor-background, rgba(255, 255, 255, 0.02));
+    overflow: hidden;
+    user-select: none;
+}
+
+.tree-root-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 10px;
+    cursor: default;
+}
+
+.tree-chevron-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 1px;
+    cursor: pointer;
+    color: var(--vscode-foreground);
+    opacity: 0.55;
+    border-radius: 3px;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    flex-shrink: 0;
+}
+
+.tree-chevron-btn:hover {
+    opacity: 0.9;
+}
+
+.tree-chevron-btn[aria-expanded="false"] svg {
+    transform: rotate(-90deg);
+}
+
+.tree-root-icon {
+    opacity: 0.75;
+    flex-shrink: 0;
+}
+
+.tree-node-label {
+    font-size: 1em;
+    color: var(--vscode-foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tree-root-label {
+    font-weight: 600;
+}
+
+.tree-children {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid var(--vscode-panel-border);
+}
+
+.tree-children.is-collapsed {
+    display: none;
+}
+
+.tree-leaf-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 10px;
+    cursor: pointer;
+    border-top: 1px solid transparent;
+    transition: background 0.1s ease;
+    outline: none;
+}
+
+.tree-leaf-row:first-child {
+    border-top-color: transparent;
+}
+
+.tree-children .tree-leaf-row + .tree-leaf-row {
+    border-top-color: var(--vscode-panel-border);
+}
+
+.tree-leaf-row:hover {
+    background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.06));
+}
+
+.tree-leaf-row:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+.tree-leaf-indent {
+    width: 14px;
+    flex-shrink: 0;
+}
+
+.tree-status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.tree-status-running {
+    color: var(--vscode-testing-iconPassed, #4caf50);
+}
+
+.tree-status-stopped {
+    color: var(--vscode-editorError-foreground, #f44336);
+}
+
+.tree-status-pending {
+    color: var(--vscode-textLink-foreground, #4da3ff);
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.spin-anim {
+    animation: spin 1.1s linear infinite;
+    transform-origin: center;
+}
+
+/* ── Server Node Context Menu ─────────────────── */
+.server-node-ctx-menu {
+    position: fixed;
+    z-index: 2147483647;
+    min-width: 140px;
+    background: var(--vscode-quickInput-background, var(--vscode-sideBar-background));
+    border: 1px solid var(--vscode-quickInput-border, var(--vscode-panel-border));
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.38);
+    overflow: hidden;
+    padding: 3px 0;
+}
+
+.ctx-menu-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 6px 14px;
+    background: none;
+    border: none;
+    color: var(--vscode-quickInput-foreground, var(--vscode-foreground));
+    font: inherit;
+    font-size: 1em;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s ease;
+}
+
+.ctx-menu-item:hover {
+    background: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.08));
+}
+
+.ctx-menu-item:focus-visible {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -2px;
+}
+
+.ctx-menu-separator {
+    height: 1px;
+    background: var(--vscode-panel-border);
+    margin: 3px 0;
 }
 
 .settings-accordion {

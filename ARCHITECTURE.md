@@ -293,7 +293,7 @@ Chunks are batched using `laLlamaChat.chromaDb.indexWriteBatchSize`. Each `colle
 
 ### 5.1 Query Pipeline
 
-All ChromaDB queries are routed through `queryRelevantContextFromChromaDb()` → `queryRelevantContextFromChromaDbSemantic()`.
+All ChromaDB queries that power chat/RAG are routed through `queryRelevantContextFromChromaDb()` → `queryRelevantContextFromChromaDbSemantic()`.
 
 ```
 queryRelevantContextFromChromaDb(queryText, config, maxResults, signal, filePathFilter)
@@ -402,7 +402,7 @@ The `queryConceptual` method is an alternative retrieval path that:
 4. Applies `minCosineSimilarity` filter
 5. Returns top `topK` results
 
-This path is slower but more precise than approximate ANN because it uses exact embeddings derived from the enriched metadata representation rather than the original storage-time embedding. It is used by `generateAssistantReplyUseCase` when the `LOCAL_RAG` flow is active.
+This path is slower but more precise than approximate ANN because it uses exact embeddings derived from the enriched metadata representation rather than the original storage-time embedding. It is exposed as an alternative retrieval path and is not the default chat/RAG route.
 
 ---
 

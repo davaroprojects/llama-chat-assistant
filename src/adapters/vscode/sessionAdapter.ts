@@ -39,6 +39,8 @@ export class SessionAdapter implements SesionGateway {
 
         if (Array.isArray(storedState)) {
             this.sessions = new Map(storedState.map(s => [s.id, s]));
+            // Migrate legacy array-only storage to the structured state shape.
+            this.saveToDisk();
             return;
         }
 

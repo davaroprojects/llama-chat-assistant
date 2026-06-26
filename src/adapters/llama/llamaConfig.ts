@@ -56,6 +56,8 @@ export function readLlamaEmbeddingsServerLaunchConfig(): LlamaEmbeddingsServerLa
         modelPath: getConfigValue(config, 'llamaCpp.embeddingsModelPath', 'server.embeddingsModelPath', './models/jina-embeddings-v4-text-code-Q8_0.gguf'),
         gpuLayers: getConfigValue(config, 'llamaCpp.gpuLayers', 'server.gpuLayers', 99),
         contextSize: getConfigValue(config, 'llamaCpp.contextSize', 'server.contextSize', 8192),
+        batchSize: getConfigValue(config, 'llamaCpp.embeddingsBatchSize', 'server.embeddingsBatchSize', 16384),
+        ubatchSize: getConfigValue(config, 'llamaCpp.embeddingsUbatchSize', 'server.embeddingsUbatchSize', 16384),
         flashAttention: getConfigValue(config, 'llamaCpp.flashAttention', 'server.flashAttention', true),
         host: getConfigValue(config, 'llamaCpp.host', 'server.host', '127.0.0.1'),
         port: getConfigValue(config, 'llamaCpp.embeddingsPort', 'server.embeddingsPort', 8044),
@@ -72,4 +74,16 @@ export function readLlamaEmbeddingsRuntimeConfig(serverConfig: LlamaEmbeddingsSe
         model: getConfigValue(config, 'chat.model', 'model', 'local'),
         timeoutMs: getConfigValue(config, 'llamaCpp.embeddingsTimeoutMs', 'server.embeddingsTimeoutMs', 180000)
     };
+}
+
+export function readStartupDelayMs(): number {
+    const config = vscode.workspace.getConfiguration('laLlamaChat');
+    const value = config.get<number>('llamaCpp.startupDelayMs');
+    return typeof value === 'number' && value >= 0 ? value : 5000;
+}
+
+export function readStartupRetries(): number {
+    const config = vscode.workspace.getConfiguration('laLlamaChat');
+    const value = config.get<number>('llamaCpp.startupRetries');
+    return typeof value === 'number' && value >= 1 ? Math.min(value, 30) : 3;
 }

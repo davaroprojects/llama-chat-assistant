@@ -27,6 +27,8 @@
   "config.server.embeddingsPort.description": "Port used by llama-server embeddings endpoint.",
   "config.server.chatCompletionsPath.description": "HTTP path used for chat completions endpoint.",
   "config.server.embeddingsPath.description": "HTTP path used for embeddings endpoint.",
+  "config.server.embeddingsBatchSize.description": "Batch size passed to llama-server embeddings process (-b).",
+  "config.server.embeddingsUbatchSize.description": "Micro-batch size passed to llama-server embeddings process (-ub).",
   "config.server.embeddingsTimeoutMs.description": "Timeout in milliseconds for embeddings requests.",
   "config.server.jinja.description": "Whether to enable the --jinja flag.",
   "config.server.tools.description": "Value passed to --tools.",

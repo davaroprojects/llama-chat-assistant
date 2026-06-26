@@ -7,6 +7,23 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [Unreleased]
 
 ### Added
+- Server lifecycle abstraction for starting a selected llama.cpp server type through a gateway, use case, and adapter.
+- First-load server state probing so the UI reflects chat and embeddings status once without repeated polling.
+- Embeddings launch settings for physical batch and micro-batch sizes (`-b` and `-ub`) exposed through VS Code settings.
+- Webview state restoration fallback so the last active tab survives reloads and extension switches more reliably.
+- Diagnostic logs for server startup, server state publishing, and webview state updates.
+
+### Changed
+- Chat/RAG retrieval continues to use embeddings-backed semantic search, while indexing also uses the embeddings server.
+- The settings tree no longer shows hover tooltips on server nodes, and the settings context menu only opens on explicit user action.
+- Documentation now reflects the current chat, indexing, and embeddings behavior across the README and architecture notes.
+
+### Fixed
+- Prevented the webview from getting stuck in a loading state after server state changes.
+- Preserved previously collected server information when starting chat and embeddings servers separately.
+- Restored the active webview tab correctly after closing VS Code or switching extension views.
+
+### Added
 
 - Dedicated llama.cpp embeddings server integration via new `LlamaEmbeddingsAdapter` and `/v1/embeddings` endpoint.
 - New embeddings server settings: `laLlamaChat.llamaCpp.embeddingsModelPath`, `laLlamaChat.llamaCpp.embeddingsPort`, `laLlamaChat.llamaCpp.embeddingsPath`, and `laLlamaChat.llamaCpp.embeddingsTimeoutMs`.

@@ -47,4 +47,23 @@ suite('SessionAdapter', () => {
         assert.strictEqual(storedState.uiState.activeTab, 'settings');
         assert.strictEqual(storedState.uiState.currentSessionId, session.id);
     });
+
+    test('Migrates legacy array storage to structured ui state', () => {
+        const legacySessions = [{
+            id: 'legacy-1',
+            title: 'Legacy Session',
+            createdAt: Date.now(),
+            messages: []
+        }];
+        const context = createMockContext(legacySessions as unknown[]);
+
+        const manager = new SessionAdapter(context);
+        manager.setActiveTab('about');
+
+        const storedState = context.globalState.get<any>('laLlamaChatSessions');
+        assert.ok(storedState);
+        assert.ok(Array.isArray(storedState.sessions));
+        assert.strictEqual(storedState.sessions.length, 1);
+        assert.strictEqual(storedState.uiState.activeTab, 'about');
+    });
 });
