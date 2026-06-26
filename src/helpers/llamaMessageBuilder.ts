@@ -1,6 +1,21 @@
 import { ChatMessage } from '../core/model/llama';
 import { FileMetadata } from '../core/model/sessionPayload';
 
+function sanitizePromptContent(value: string): string {
+    return value
+        .replace(/\u0000/g, '')
+        .replace(/[\u0001-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '');
+}
+
+function escapeXml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
 function getBaseName(name: string): string {
     return name.replace(/:\d+(?:-\d+)?$/, '');
 }
@@ -46,7 +61,9 @@ function buildHistoryUserContent(
     }
 
     const attachments = activeFiles.map((file) => {
-        return `--- ATTACHED FILE: ${file.name} ---\n${file.content}\n--- END FILE ---`;
+        const safeName = escapeXml(file.name);
+        const safeContent = escapeXml(sanitizePromptContent(file.content));
+        return ['<attached_file>', `<name>${safeName}</name>`, '<content>', safeContent, '</content>', '</attached_file>'].join('\n');
     }).join('\n\n');
 
     return `${attachments}\n\nUser instruction:\n${text}`;

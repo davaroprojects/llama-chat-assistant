@@ -10,9 +10,11 @@ import { LlamaServerProps } from './core/model/llama';
 import { LlamaAdapter } from './adapters/llama/llamaAdapter';
 import {
     buildServerLaunchCommand,
+    buildEmbeddingsServerLaunchCommand,
+    buildEmbeddingsServerParameterRows,
     buildServerParameterRows,
 } from './adapters/llama/llamaServerConfig';
-import { LlamaServerLaunchConfig } from './core/model/llamaServer';
+import { LlamaEmbeddingsServerLaunchConfig, LlamaServerLaunchConfig } from './core/model/llamaServer';
 import { sendActiveEditorContext } from './webview/editorContext';
 import { openFilePicker } from './webview/filePicker';
 import { getHtmlForWebview } from './webview/webviewResources';
@@ -24,10 +26,17 @@ import { Logger } from './adapters/vscode/outputLogger';
 import { RagGateway } from './core/gateways/ragGateway';
 import { LlamaGateway } from './core/gateways/llamaGateway';
 import { GenerateAssistantReplyUseCase } from './core/usecases/generateAssistantReplyUseCase';
-import { readLlamaRuntimeConfig, readLlamaServerLaunchConfig } from './adapters/llama/llamaConfig';
+import {
+    readLlamaEmbeddingsRuntimeConfig,
+    readLlamaEmbeddingsServerLaunchConfig,
+    readLlamaRuntimeConfig,
+    readLlamaServerLaunchConfig
+} from './adapters/llama/llamaConfig';
 import { createWorkspaceCollectionId, readChromaDbConfig } from './adapters/chroma/chromaConfig';
-import { RepositoryIndexGateway } from './core/gateways/repositoryIndexGateway';
 import { IndexWorkspaceUseCase } from './core/usecases/indexWorkspaceUseCase';
+import { ChunkProviderGateway } from './core/gateways/chunkProviderGateway';
+import { VectorIndexGateway } from './core/gateways/vectorIndexGateway';
+import { LlamaEmbeddingsAdapter } from './adapters/llama/llamaEmbeddingsAdapter';
 
 interface BaseWebviewMessage {
     type: string;
@@ -64,6 +73,7 @@ interface SetSettingsAccordionStateMessage extends BaseWebviewMessage {
     type: 'setSettingsAccordionState';
     state: {
         llamaOpen: boolean;
+        embeddingsOpen: boolean;
         chromadbOpen: boolean;
     };
 }
@@ -79,6 +89,8 @@ type IncomingWebviewMessage =
     | { type: 'stopGeneration' }
     | { type: 'startServer' }
     | { type: 'stopServer' }
+    | { type: 'startEmbeddingsServer' }
+    | { type: 'stopEmbeddingsServer' }
     | { type: 'openFilePicker' }
     | { type: 'requestSessionsUpdate' }
     | { type: 'requestActiveEditorRefresh' }
@@ -124,6 +136,8 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
         case 'stopGeneration':
         case 'startServer':
         case 'stopServer':
+        case 'startEmbeddingsServer':
+        case 'stopEmbeddingsServer':
         case 'openFilePicker':
         case 'requestSessionsUpdate':
         case 'requestActiveEditorRefresh':
@@ -134,6 +148,7 @@ function isIncomingWebviewMessage(data: unknown): data is IncomingWebviewMessage
         case 'setSettingsAccordionState':
             return isRecord(data.state)
                 && typeof data.state.llamaOpen === 'boolean'
+                && typeof data.state.embeddingsOpen === 'boolean'
                 && typeof data.state.chromadbOpen === 'boolean';
         case 'selectSession':
             return data.sessionId === null || typeof data.sessionId === 'string';
@@ -159,8 +174,11 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
     private isPickerOpen = false;
     private isGenerationActive = false;
     private serverProcess: ChildProcess | null = null;
+    private embeddingsServerProcess: ChildProcess | null = null;
     private serverProps: LlamaServerProps | null = null;
+    private embeddingsServerProps: LlamaServerProps | null = null;
     private wasServerStartedByPlugin = false;
+    private wasEmbeddingsServerStartedByPlugin = false;
     private isRagIndexing = false;
     private isChromaAvailable = false;
     private readonly metrics: RuntimeMetrics = {
@@ -169,7 +187,8 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         totalDurationMs: 0
     };
     private readonly ragGateway: RagGateway;
-    private readonly repositoryIndexGateway: RepositoryIndexGateway;
+    private readonly chunkProviderGateway: ChunkProviderGateway;
+    private readonly vectorIndexGateway: VectorIndexGateway;
     private readonly llamaGateway: LlamaGateway;
     private readonly generateAssistantReplyUseCase: GenerateAssistantReplyUseCase;
     private readonly indexWorkspaceUseCase: IndexWorkspaceUseCase;
@@ -180,9 +199,11 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         private readonly sessionManager: SesionGateway,
         private readonly logger: Logger
     ) {
-        const chromaIndexer = new ChromaAdapter(this.logger);
+        const embeddingsAdapter = new LlamaEmbeddingsAdapter(() => this.getLlamaEmbeddingsConfig());
+        const chromaIndexer = new ChromaAdapter(embeddingsAdapter, this.logger);
         this.ragGateway = chromaIndexer;
-        this.repositoryIndexGateway = chromaIndexer;
+        this.chunkProviderGateway = chromaIndexer;
+        this.vectorIndexGateway = chromaIndexer;
         this.llamaGateway = new LlamaAdapter();
         this.generateAssistantReplyUseCase = new GenerateAssistantReplyUseCase(
             this.ragGateway,
@@ -190,7 +211,9 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             this.logger
         );
         this.indexWorkspaceUseCase = new IndexWorkspaceUseCase(
-            this.repositoryIndexGateway,
+            this.chunkProviderGateway,
+            embeddingsAdapter,
+            this.vectorIndexGateway,
             this.ragGateway,
             this.logger
         );
@@ -228,6 +251,24 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         });
     }
 
+    private attachProcessLogging(process: ChildProcess, scope: string): void {
+        process.stdout?.on('data', (chunk: Buffer | string) => {
+            const text = String(chunk).trim();
+            if (!text) {
+                return;
+            }
+            this.logger.debug(scope, 'process.stdout', text);
+        });
+
+        process.stderr?.on('data', (chunk: Buffer | string) => {
+            const text = String(chunk).trim();
+            if (!text) {
+                return;
+            }
+            this.logger.warn(scope, 'process.stderr', text);
+        });
+    }
+
     private async routeMessage(data: IncomingWebviewMessage, webviewView: vscode.WebviewView): Promise<void> {
         switch (data.type) {
             case 'webviewReady':
@@ -241,6 +282,12 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
                 break;
             case 'stopServer':
                 this.handleStopServer();
+                break;
+            case 'startEmbeddingsServer':
+                await this.handleStartEmbeddingsServer(webviewView);
+                break;
+            case 'stopEmbeddingsServer':
+                this.handleStopEmbeddingsServer();
                 break;
             case 'openFilePicker':
                 await this.handleOpenFilePicker(webviewView);
@@ -346,8 +393,9 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         try {
             const serverProcess = spawn(command, args, {
                 cwd: workspaceRoot,
-                stdio: 'ignore'
+                stdio: ['ignore', 'pipe', 'pipe']
             });
+            this.attachProcessLogging(serverProcess, 'llama.server');
             this.serverProcess = serverProcess;
             serverProcess.on('exit', () => {
                 this.serverProcess = null;
@@ -363,6 +411,7 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
                 this.postRuntimeState();
             });
             await this.refreshServerProps(8, 500);
+            await this.refreshEmbeddingsServerProps(8, 500);
             this.wasServerStartedByPlugin = true;
             this.postRuntimeState();
         } catch (error) {
@@ -387,6 +436,75 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         this.serverProcess = null;
         this.serverProps = null;
         this.wasServerStartedByPlugin = false;
+        this.postRuntimeState();
+    }
+
+    private async handleStartEmbeddingsServer(webviewView: vscode.WebviewView): Promise<void> {
+        if (this.embeddingsServerProcess) {
+            return;
+        }
+
+        const serverConfig = this.getEmbeddingsServerLaunchConfig();
+        const workspaceRoot = this.getWorkspaceRoot();
+        const { command, args } = buildEmbeddingsServerLaunchCommand(serverConfig, workspaceRoot);
+
+        if (!fs.existsSync(command)) {
+            vscode.window.showErrorMessage(`llama-server not found: ${command}`);
+            this.postRuntimeState(webviewView);
+            return;
+        }
+
+        if (!fs.existsSync(args[1])) {
+            vscode.window.showErrorMessage(`Embeddings model not found: ${args[1]}`);
+            this.postRuntimeState(webviewView);
+            return;
+        }
+
+        try {
+            const serverProcess = spawn(command, args, {
+                cwd: workspaceRoot,
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+            this.attachProcessLogging(serverProcess, 'llama.embeddings');
+            this.embeddingsServerProcess = serverProcess;
+            serverProcess.on('exit', () => {
+                this.embeddingsServerProcess = null;
+                this.embeddingsServerProps = null;
+                this.wasEmbeddingsServerStartedByPlugin = false;
+                this.postRuntimeState();
+            });
+            serverProcess.on('error', (error) => {
+                this.embeddingsServerProcess = null;
+                this.embeddingsServerProps = null;
+                this.wasEmbeddingsServerStartedByPlugin = false;
+                vscode.window.showErrorMessage(`Failed to start llama embeddings server: ${error.message}`);
+                this.postRuntimeState();
+            });
+            await this.refreshEmbeddingsServerProps(8, 500);
+            this.wasEmbeddingsServerStartedByPlugin = true;
+            this.postRuntimeState();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            vscode.window.showErrorMessage(`Failed to start llama embeddings server: ${errorMessage}`);
+            this.embeddingsServerProcess = null;
+            this.embeddingsServerProps = null;
+            this.wasEmbeddingsServerStartedByPlugin = false;
+            this.postRuntimeState(webviewView);
+        }
+    }
+
+    private handleStopEmbeddingsServer(): void {
+        if (!this.embeddingsServerProcess) {
+            this.embeddingsServerProps = null;
+            this.wasEmbeddingsServerStartedByPlugin = false;
+            this.postRuntimeState();
+            return;
+        }
+
+        this.embeddingsServerProcess.kill();
+        this.embeddingsServerProcess = null;
+        this.embeddingsServerProps = null;
+        this.wasEmbeddingsServerStartedByPlugin = false;
         this.postRuntimeState();
     }
 
@@ -571,8 +689,13 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
                 collectionId: useCaseResult.result.collectionId
             });
         } catch (error) {
-            this.logger.error('rag', 'RAG indexing failed', error);
             const message = error instanceof Error ? error.message : 'Unknown indexing error';
+            const stack = error instanceof Error ? error.stack : undefined;
+            this.logger.error('rag', 'RAG indexing failed', {
+                error: message,
+                stack,
+                workspaceRoot: this.getWorkspaceRoot()
+            });
             vscode.window.showErrorMessage(`RAG indexing failed: ${message}`);
             this.sessionManager.setRagIndexState({
                 status: 'idle',
@@ -692,6 +815,7 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             }
 
             await this.refreshServerProps();
+            await this.refreshEmbeddingsServerProps();
             await this.refreshChromaAvailability();
             this.postRuntimeState();
         });
@@ -738,6 +862,14 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         return readLlamaRuntimeConfig(this.getServerLaunchConfig());
     }
 
+    private getEmbeddingsServerLaunchConfig(): LlamaEmbeddingsServerLaunchConfig {
+        return readLlamaEmbeddingsServerLaunchConfig();
+    }
+
+    private getLlamaEmbeddingsConfig() {
+        return readLlamaEmbeddingsRuntimeConfig(this.getEmbeddingsServerLaunchConfig());
+    }
+
     private getWorkspaceRoot(): string | undefined {
         return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || this._extensionUri.fsPath;
     }
@@ -758,6 +890,21 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
         for (let attempt = 0; attempt < retries; attempt++) {
             this.serverProps = await LlamaAdapter.fetchServerProps(config.apiUrl);
             if (this.serverProps) {
+                return;
+            }
+
+            if (attempt < retries - 1 && delayMs > 0) {
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
+    }
+
+    private async refreshEmbeddingsServerProps(retries = 1, delayMs = 0): Promise<void> {
+        const config = this.getLlamaEmbeddingsConfig();
+
+        for (let attempt = 0; attempt < retries; attempt++) {
+            this.embeddingsServerProps = await LlamaAdapter.fetchServerProps(config.apiUrl);
+            if (this.embeddingsServerProps) {
                 return;
             }
 
@@ -798,6 +945,18 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             wasServerStartedByPlugin: this.wasServerStartedByPlugin,
             parameterRows: buildServerParameterRows(launchConfig),
             commandLine
+        });
+
+        const embeddingsLaunchConfig = this.getEmbeddingsServerLaunchConfig();
+        const embeddingsCommand = buildEmbeddingsServerLaunchCommand(embeddingsLaunchConfig, this.getWorkspaceRoot());
+        const embeddingsCommandLine = [embeddingsCommand.command, ...embeddingsCommand.args].join(' ');
+
+        webviewView.webview.postMessage({
+            type: 'updateEmbeddingsServerState',
+            isRunning: this.embeddingsServerProps !== null,
+            wasServerStartedByPlugin: this.wasEmbeddingsServerStartedByPlugin,
+            parameterRows: buildEmbeddingsServerParameterRows(embeddingsLaunchConfig),
+            commandLine: embeddingsCommandLine
         });
     }
 
@@ -853,7 +1012,17 @@ export class LaLlamaChatViewProvider implements vscode.WebviewViewProvider, vsco
             this.serverProcess = null;
         }
 
+        if (this.wasEmbeddingsServerStartedByPlugin && this.embeddingsServerProcess) {
+            try {
+                this.embeddingsServerProcess.kill();
+            } catch (error) {
+                this.logger.error('server', 'Error killing embeddings server process', error);
+            }
+            this.embeddingsServerProcess = null;
+        }
+
         this.serverProps = null;
+        this.embeddingsServerProps = null;
     }
 
 }

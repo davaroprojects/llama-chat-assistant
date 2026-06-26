@@ -56,7 +56,7 @@ What it tries to optimize:
 
 ### 2. Conceptual KNN query
 
-This path is available in the adapter and scans stored documents in pages, computing cosine similarity against rebuilt embeddings.
+This path is available in the adapter and scans stored documents in pages, computing cosine similarity against stored chunk embeddings.
 
 It is useful when a caller wants a full conceptual pass over the collection, with an explicit similarity threshold.
 
@@ -187,95 +187,7 @@ If the retrieval feels wrong, the first things to review are:
 3. whether the query text mentions the file name or path clearly,
 4. whether the file path filter or lexical scoring should be tightened.
 
-## Phase 2: Reranking with Cross-Encoder
+## Ranking notes
 
-### Overview
-
-After semantic retrieval and hybrid ranking (Phase 1), the query pipeline optionally applies a **second ranking phase** using a cross-encoder transformer model from `@eidentic/transformers`.
-
-The reranker (`LocalReranker` with `ms-marco-MiniLM-L-6-v2` model) receives the candidate pool and re-scores them based on deep semantic understanding of the relationship between the query and the candidate text.
-
-### When reranking helps
-
-- **Exact class/method queries**: "Show me the QueryHandler execute method" benefits from the reranker understanding that `className` and `methodName` are important structural signals.
-- **File path queries**: "Find the schema.ts file" gets boosted when the reranker sees the filename in context.
-- **Conceptual queries with specificity**: "How does the caching mechanism work in StorageAdapter?" benefits from the reranker distinguishing between truly relevant implementations vs. tangentially related code.
-
-### Configuration
-
-Reranking is controlled by three settings in VS Code configuration (`laLlamaChat.chromaDb.*` or legacy `rag.*`):
-
-| Variable | Default | Description |
-|---|---|---|
-| `rerankEnabled` | `true` | Enable/disable the reranker in Phase 2 |
-| `rerankTimeoutMs` | `5000` | Maximum time (ms) to load model and rerank candidates; exceeding triggers fallback |
-| `rerankFallbackToHybrid` | `true` | If reranker fails or times out, fall back to hybrid (vector + lexical) ranking instead of returning empty results |
-
-### Behavior
-
-**Phase 2 pipeline:**
-
-1. Phase 1 produces ranked candidates sorted by `combinedScore` (0.7×vector + 0.3×lexical for semantic; 0.75×cosine + 0.25×lexical for KNN).
-2. If `rerankEnabled` is `true`, candidates are sent to `LocalReranker.rerank(queryText, candidates)`.
-3. Reranker scores each candidate's `content` field against the `queryText`.
-4. Results are sorted by `rerankScore` (descending) and top `maxQueryResults` are returned.
-5. If reranker fails or times out, and `rerankFallbackToHybrid` is `true`, results are sorted by hybrid score and returned.
-
-**Log entries:**
-
-- `[RerankerSingleton] LocalReranker loaded successfully (Xms)` — Model loaded and cached.
-- `[rag] Starting reranking phase { candidateCount: N, rerankTimeoutMs: 5000 }` — Reranking phase initiated.
-- `[rag] Reranking failed, falling back to hybrid ranking { error: "..." }` — Reranker timed out or errored; using Phase 1 scores.
-- `[rag] Reranking phase completed { candidateCount: N, appliedReranking: true }` — Reranking successful.
-
-### Model details
-
-- **Model**: `ms-marco-MiniLM-L-6-v2` (via `@eidentic/transformers`)
-- **Size**: ~33MB (downloaded once, cached in `~/.cache`)
-- **Latency**: ~10-100ms per candidate (varies by hardware and model cache state)
-- **Architecture**: Cross-encoder (takes query + candidate text together) vs. bi-encoder (embeds separately)
-
-Cross-encoders are more accurate for ranking but slower than bi-encoders, so reranking is applied only after Phase 1 narrowing.
-
-### Scoring formula (Phase 2)
-
-```
-rerankScore = LocalReranker output score in range [0, 1]
-  where 1.0 = most relevant
-        0.0 = least relevant
-```
-
-The reranker is trained on MS MARCO (Microsoft Machine Reading Comprehension) data and understands relevance from a search/ranking perspective.
-
-### Fallback and error handling
-
-If the reranker is disabled, unavailable, or times out:
-- Log warning with reason (timeout, load error, etc.)
-- If `rerankFallbackToHybrid` is `true`, use hybrid ranking from Phase 1
-- If `rerankFallbackToHybrid` is `false`, return empty results (rare; use only if you want strict reranker-only mode)
-
-### Example: Before and after reranking
-
-**Phase 1 (Hybrid ranking) result:**
-
-```
-Candidate A: "function doQuery(...) { ... }"
-  vectorScore:   0.75
-  lexicalScore:  0.40
-  combinedScore: 0.65
-
-Candidate B: "class QueryHandler { execute() { ... } }"
-  vectorScore:   0.72
-  lexicalScore:  0.15
-  combinedScore: 0.62  ← Phase 1 ranking (lexical penalizes long path)
-```
-
-**Phase 2 (Reranking):**
-
-```
-Candidate A: rerankScore = 0.52  (function doQuery is relevant but generic)
-Candidate B: rerankScore = 0.89  ← Cross-encoder sees "QueryHandler" + "execute" + semantics
-```
-
-**Final ranking after Phase 2:** Candidate B is now first (as it should be).
+The current pipeline uses a single hybrid ranking phase (vector + lexical) and does not apply a second reranking stage.
 

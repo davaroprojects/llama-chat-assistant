@@ -119,7 +119,9 @@ code --install-extension llama-chat-0.0.1.vsix
   "laLlamaChat.chromaDb.fallbackChunkTokens": 300,
   "laLlamaChat.chromaDb.vectorCandidatePool": 50,
   "laLlamaChat.chromaDb.maxQueryResults": 12,
-  "laLlamaChat.chromaDb.minCosineSimilarity": 0.2
+  "laLlamaChat.chromaDb.minCosineSimilarity": 0.2,
+  "laLlamaChat.chromaDb.embeddingBatchSize": 32,
+  "laLlamaChat.chromaDb.indexWriteBatchSize": 64
 }
 ```
 
@@ -172,6 +174,8 @@ code --install-extension llama-chat-0.0.1.vsix
 | `laLlamaChat.chromaDb.vectorCandidatePool` | `50` | Candidate pool for semantic retrieval |
 | `laLlamaChat.chromaDb.maxQueryResults` | `12` | Max results returned per query |
 | `laLlamaChat.chromaDb.minCosineSimilarity` | `0.2` | Minimum cosine similarity threshold |
+| `laLlamaChat.chromaDb.embeddingBatchSize` | `32` | Chunks per embeddings request during indexing |
+| `laLlamaChat.chromaDb.indexWriteBatchSize` | `64` | Chunks per ChromaDB write operation |
 | `laLlamaChat.chat.temperature` | `0.2` | Generation temperature |
 | `laLlamaChat.chat.maxTokens` | `2048` | Max tokens per response |
 | `laLlamaChat.chat.debug` | `false` | Enable verbose logs |
@@ -199,6 +203,17 @@ Click **Start Server** in the extension panel, or run manually:
   --jinja
 ```
 
+For embeddings, start a dedicated llama.cpp instance (or use the new Embeddings action panel):
+
+```bash
+./build/bin/llama-server \
+  --model ./models/jina-embeddings-v4-text-code-Q8_0.gguf \
+  --host 127.0.0.1 \
+  --port 8044 \
+  --pooling mean \
+  --embeddings
+```
+
 ### Step 2 — Index your workspace into ChromaDB
 
 Open the La Llama Chat panel in the Activity Bar and click **Index Workspace**. The extension will:
@@ -207,7 +222,7 @@ Open the La Llama Chat panel in the Activity Bar and click **Index Workspace**. 
 2. Chunk file contents with Tree-sitter when supported (`ts`, `tsx`, `js`, `jsx`, `java`, `py`, `json`, `yaml`, `xml`, `properties`, `.env*`).
 3. Apply token-budgeted chunk sizing using `js-tiktoken` (`targetChunkTokens`, `maxChunkTokens`, `minChunkTokens`).
 4. Fall back to manual chunking for unsupported types (including `.conf`) using `fallbackChunkTokens`.
-5. Compute 384-dimensional vector embeddings using `Xenova/all-MiniLM-L6-v2` (runs locally via `@huggingface/transformers`, ~22 MB cached).
+5. Compute vector embeddings through the llama.cpp embeddings endpoint (`/v1/embeddings`) using the configured embeddings GGUF model.
 6. Store everything in ChromaDB under a workspace-specific collection.
 
 > Re-index after significant refactors to keep context fresh.
@@ -239,16 +254,16 @@ Click the **Attach** button (📎) to add individual files to the context:
 
 ### Debugging & Logging
 
-When `laLlamaChat.chat.debug = true` is set in VS Code settings, the extension emits comprehensive logs to the **RAG** output channel. This includes:
+When `laLlamaChat.chat.debug = true` is set in VS Code settings, the extension emits comprehensive logs to the **La Llama Chat** output channel. This includes:
 
 - **Indexing diagnostics:** File scan statistics, parser errors with samples, chunk counts, embedding duration
-- **Query analytics:** Retrieval candidates, Phase 1 (semantic) and Phase 2 (reranking) scores, metadata extraction
+- **Query analytics:** Retrieval candidates, hybrid ranking scores, metadata extraction
 - **ReAct agent steps:** Action parsing, query execution, observation formatting, duplicate detection
 
 To view logs:
 
 1. Open the **Output** panel (`Ctrl+Shift+U`)
-2. Select **RAG** from the dropdown
+2. Select **La Llama Chat** from the dropdown
 
 Example log output:
 
@@ -257,15 +272,15 @@ Example log output:
 [DEBUG] [rag] File scan finished for indexing | {"readErrors": 0, "uniqueFiles": 181, "totalChunks": 365}
 [DEBUG] [rag] query.dispatch | {"query": "find tag handler", "maxResults": 12}
 [DEBUG] [rag] query.ranking_phase1 | {"candidates": 50, "avgScore": 0.74}
-[DEBUG] [rag] query.reranking | {"crossEncoderModel": "ms-marco-MiniLM-L-6-v2"}
+[DEBUG] [rag] query.semantic.rank.complete | {"topCandidates": [{"path": "src/example.ts", "combinedScore": 0.92}]}
 [INFO]  [rag] action.observation | {"step": 1, "matches": 5}
 ```
 
-**Two-Phase Ranking Pipeline:**
+**Ranking Pipeline:**
 
 1. **Phase 1 (Semantic Retrieval):** Hybrid scoring combines vector similarity (0.7 weight) and lexical path matching (0.3 weight). Tree-sitter syntax trees extract structural metadata (class names, method names, keyword entities) for enhanced lexical scoring.
 
-2. **Phase 2 (Cross-Encoder Reranking):** The top candidates from Phase 1 are re-scored using a cross-encoder transformer model (`ms-marco-MiniLM-L-6-v2`) to refine relevance ranking based on query-candidate semantic similarity.
+2. **Final ranking:** The top candidates are returned directly using the combined semantic and lexical score.
 
 ### Keyboard Shortcuts
 

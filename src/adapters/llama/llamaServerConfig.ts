@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import { LlamaServerLaunchConfig, ServerParameterRow } from '../../core/model/llamaServer';
+import { LlamaEmbeddingsServerLaunchConfig, LlamaServerLaunchConfig, ServerParameterRow } from '../../core/model/llamaServer';
 
 export function resolveWorkspacePath(value: string, workspaceRoot?: string): string {
     if (!value || !workspaceRoot || path.isAbsolute(value)) {
@@ -46,11 +46,54 @@ export function buildServerParameterRows(config: LlamaServerLaunchConfig): Serve
     ];
 }
 
+export function buildEmbeddingsServerLaunchCommand(
+    config: LlamaEmbeddingsServerLaunchConfig,
+    workspaceRoot?: string
+): { command: string; args: string[] } {
+    const command = resolveWorkspacePath(config.executablePath, workspaceRoot);
+    const args = [
+        '-m', resolveWorkspacePath(config.modelPath, workspaceRoot),
+        '-ngl', String(config.gpuLayers),
+        '-c', String(config.contextSize),
+        '--flash-attn', config.flashAttention ? 'on' : 'off',
+        '--host', config.host,
+        '--port', String(config.port),
+        '--pooling', 'mean',
+        '--embeddings'
+    ];
+
+    return { command, args };
+}
+
+export function buildEmbeddingsServerParameterRows(config: LlamaEmbeddingsServerLaunchConfig): ServerParameterRow[] {
+    return [
+        { property: 'binaryPath', value: config.executablePath },
+        { property: 'model', value: config.modelPath },
+        { property: 'ngl', value: String(config.gpuLayers) },
+        { property: 'c', value: String(config.contextSize) },
+        { property: 'flash-attn', value: config.flashAttention ? 'on' : 'off' },
+        { property: 'host', value: config.host },
+        { property: 'port', value: String(config.port) },
+        { property: 'embeddingsPath', value: config.embeddingsPath }
+    ];
+}
+
 export function buildChatApiUrl(config: LlamaServerLaunchConfig): string {
     const rawPath = config.chatCompletionsPath;
 
     if (rawPath.includes('..')) {
         throw new Error(`Invalid chatCompletionsPath: path traversal sequences are not allowed: "${rawPath}"`);
+    }
+
+    const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+    return `http://${config.host}:${config.port}${normalizedPath}`;
+}
+
+export function buildEmbeddingsApiUrl(config: LlamaEmbeddingsServerLaunchConfig): string {
+    const rawPath = config.embeddingsPath;
+
+    if (rawPath.includes('..')) {
+        throw new Error(`Invalid embeddingsPath: path traversal sequences are not allowed: "${rawPath}"`);
     }
 
     const normalizedPath = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;

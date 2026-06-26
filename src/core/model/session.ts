@@ -9,6 +9,7 @@ export interface ChatSession {
 
 export interface SettingsAccordionState {
     llamaOpen: boolean;
+    embeddingsOpen: boolean;
     chromadbOpen: boolean;
 }
 

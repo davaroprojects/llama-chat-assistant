@@ -52,6 +52,29 @@ export interface WebviewLabels {
     newSessionLabel: string;
     externalServerBlockedLabel: string;
     repositoryBadgeLabel: string;
+    ragSwitchText: string;
+    ragNoDataButtonLabel: string;
+    llamaPanelTitle: string;
+    embeddingsPanelTitle: string;
+    chromaPanelTitle: string;
+    panelStateNotRunning: string;
+    panelButtonStart: string;
+    panelButtonStop: string;
+    panelButtonStarting: string;
+    panelButtonIndex: string;
+    panelButtonCopyText: string;
+    statusRunningLabel: string;
+    statusStoppedLabel: string;
+    statusStartedLabel: string;
+    modelMenuAriaLabel: string;
+    tokenUsageAriaLabel: string;
+    tokenUsageTitle: string;
+    tabChatAriaLabel: string;
+    tabSettingsAriaLabel: string;
+    tabAboutAriaLabel: string;
+    tabChatTitle: string;
+    tabSettingsTitle: string;
+    tabAboutTitle: string;
 }
 
 export function getWebviewLabels(_language?: string): WebviewLabels {
@@ -157,7 +180,30 @@ export function getWebviewLabels(_language?: string): WebviewLabels {
         copyClipboardTitle: 'Copy to clipboard',
         newSessionLabel: 'New Session',
         externalServerBlockedLabel: 'Server started externally. Cannot stop from here.',
-        repositoryBadgeLabel: 'Repository'
+        repositoryBadgeLabel: 'Repository',
+        ragSwitchText: 'rag',
+        ragNoDataButtonLabel: 'no data',
+        llamaPanelTitle: 'Llama.cpp',
+        embeddingsPanelTitle: 'Llama.cpp Embeddings',
+        chromaPanelTitle: 'ChromaDB',
+        panelStateNotRunning: 'Not running',
+        panelButtonStart: 'Start',
+        panelButtonStop: 'Stop',
+        panelButtonStarting: 'Starting',
+        panelButtonIndex: 'Index',
+        panelButtonCopyText: 'Copy text',
+        statusRunningLabel: 'running',
+        statusStoppedLabel: 'stopped',
+        statusStartedLabel: 'started',
+        modelMenuAriaLabel: 'Model',
+        tokenUsageAriaLabel: 'Token usage',
+        tokenUsageTitle: 'Click for details',
+        tabChatAriaLabel: 'Chat',
+        tabSettingsAriaLabel: 'Settings',
+        tabAboutAriaLabel: 'Information',
+        tabChatTitle: 'Chat',
+        tabSettingsTitle: 'Settings',
+        tabAboutTitle: 'Information'
     };
 }
 

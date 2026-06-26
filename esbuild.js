@@ -35,7 +35,7 @@ async function main() {
 		sourcesContent: false,
 		platform: 'node',
 		outfile: 'dist/extension.js',
-		external: ['vscode', 'onnxruntime-node'],
+		external: ['vscode', 'onnxruntime-node', '@huggingface/transformers', '@eidentic/transformers'],
 		logLevel: 'silent',
 		plugins: [
 			/* add to the end of plugins array */

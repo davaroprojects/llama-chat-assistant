@@ -7,7 +7,7 @@
     {{stylePlaceholder}}
 </head>
 
-<body data-empty-chat-ready-label="{{emptyChatReadyLabel}}" data-empty-server-stopped-label="{{emptyServerStoppedLabel}}" data-delete-session-label="{{deleteSessionLabel}}" data-session-unavailable-label="{{sessionUnavailableLabel}}" data-generation-canceled-label="{{generationCanceledLabel}}" data-remove-file-title="{{removeFileTitle}}" data-unavailable-short-label="{{unavailableShortLabel}}" data-copy-code-title="{{copyCodeTitle}}" data-copy-clipboard-title="{{copyClipboardTitle}}" data-new-session-label="{{newSessionLabel}}" data-external-server-blocked-label="{{externalServerBlockedLabel}}" data-repository-badge-label="{{repositoryBadgeLabel}}" data-rag-idle-label="{{ragIdleLabel}}" data-rag-indexing-label="{{ragIndexingLabel}}" data-rag-indexed-label="{{ragIndexedLabel}}" data-rag-never-indexed-label="{{ragNeverIndexedLabel}}" data-rag-chroma-unavailable-label="{{ragChromaUnavailableLabel}}" data-about-markdown="{{aboutMarkdown}}">
+<body data-empty-chat-ready-label="{{emptyChatReadyLabel}}" data-empty-server-stopped-label="{{emptyServerStoppedLabel}}" data-delete-session-label="{{deleteSessionLabel}}" data-session-unavailable-label="{{sessionUnavailableLabel}}" data-generation-canceled-label="{{generationCanceledLabel}}" data-remove-file-title="{{removeFileTitle}}" data-unavailable-short-label="{{unavailableShortLabel}}" data-copy-code-title="{{copyCodeTitle}}" data-copy-clipboard-title="{{copyClipboardTitle}}" data-new-session-label="{{newSessionLabel}}" data-external-server-blocked-label="{{externalServerBlockedLabel}}" data-repository-badge-label="{{repositoryBadgeLabel}}" data-rag-idle-label="{{ragIdleLabel}}" data-rag-indexing-label="{{ragIndexingLabel}}" data-rag-indexed-label="{{ragIndexedLabel}}" data-rag-never-indexed-label="{{ragNeverIndexedLabel}}" data-rag-chroma-unavailable-label="{{ragChromaUnavailableLabel}}" data-rag-switch-text="{{ragSwitchText}}" data-rag-no-data-button-label="{{ragNoDataButtonLabel}}" data-llama-panel-title="{{llamaPanelTitle}}" data-embeddings-panel-title="{{embeddingsPanelTitle}}" data-chroma-panel-title="{{chromaPanelTitle}}" data-panel-state-not-running="{{panelStateNotRunning}}" data-panel-button-start="{{panelButtonStart}}" data-panel-button-stop="{{panelButtonStop}}" data-panel-button-starting="{{panelButtonStarting}}" data-panel-button-index="{{panelButtonIndex}}" data-panel-button-copy-text="{{panelButtonCopyText}}" data-status-running-label="{{statusRunningLabel}}" data-status-stopped-label="{{statusStoppedLabel}}" data-status-started-label="{{statusStartedLabel}}" data-model-menu-aria-label="{{modelMenuAriaLabel}}" data-model-menu-title="{{modelMenuTitle}}" data-token-usage-aria-label="{{tokenUsageAriaLabel}}" data-token-usage-title="{{tokenUsageTitle}}" data-tab-chat-aria-label="{{tabChatAriaLabel}}" data-tab-settings-aria-label="{{tabSettingsAriaLabel}}" data-tab-about-aria-label="{{tabAboutAriaLabel}}" data-tab-chat-title="{{tabChatTitle}}" data-tab-settings-title="{{tabSettingsTitle}}" data-tab-about-title="{{tabAboutTitle}}" data-about-markdown="{{aboutMarkdown}}">
     <div class="main-content">
         <div id="chat-tab-panel" class="tab-panel">
         <div id="active-session-header" class="active-session-nav" style="display: none;">
@@ -43,11 +43,11 @@
                     </div>
                         <div id="rag-context-control" class="rag-context-control">
                             <label id="rag-switch-label" class="rag-switch-label" for="rag-enabled">
-                                <span class="rag-switch-text">rag</span>
+                                <span class="rag-switch-text">{{ragSwitchText}}</span>
                                 <input type="checkbox" id="rag-enabled" name="ragEnabled" />
                                 <span class="rag-switch-track" aria-hidden="true"></span>
                             </label>
-                            <button id="rag-no-data-btn" class="action-icon-btn rag-no-data-btn" type="button" style="display:none;">no data</button>
+                            <button id="rag-no-data-btn" class="action-icon-btn rag-no-data-btn" type="button" style="display:none;">{{ragNoDataButtonLabel}}</button>
                         </div>
                 </div>
                 <div class="chat-action-buttons">
@@ -79,15 +79,15 @@
             <div class="settings-components">
             <div class="action-panel">
                 <div class="action-header">
-                    <span class="action-header-title">Llama.cpp</span>
-                    <span id="llama-status-badge" class="llama-status-badge is-stopped">stopped</span>
+                    <span class="action-header-title">{{llamaPanelTitle}}</span>
+                    <span id="llama-status-badge" class="llama-status-badge is-stopped">{{statusStoppedLabel}}</span>
                 </div>
                 <div class="action-content">
-                    <span id="server-action-text" class="action-text">Not running</span><span id="server-action-loader" class="action-loader" style="display:none;"></span>
+                    <span id="server-action-text" class="action-text">{{panelStateNotRunning}}</span><span id="server-action-loader" class="action-loader" style="display:none;"></span>
                 </div>
                 <div class="action-buttons">
                     <div class="action-buttons-left">
-                        <button id="server-action-copy-icon" class="action-icon-btn" type="button" title="Copy text">
+                        <button id="server-action-copy-icon" class="action-icon-btn" type="button" title="{{panelButtonCopyText}}">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
                                 <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
                                 <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
@@ -95,12 +95,12 @@
                         </button>
                     </div>
                     <div class="action-buttons-right">
-                        <button id="server-action-start-icon" class="action-icon-btn" type="button" title="Start" style="display:none;">
+                        <button id="server-action-start-icon" class="action-icon-btn" type="button" title="{{panelButtonStart}}" style="display:none;">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                 <polygon points="5 3 19 12 5 21"></polygon>
                             </svg>
                         </button>
-                        <button id="server-action-stop-icon" class="action-icon-btn" type="button" title="Stop" style="display:none;">
+                        <button id="server-action-stop-icon" class="action-icon-btn" type="button" title="{{panelButtonStop}}" style="display:none;">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                                 <rect x="4" y="4" width="16" height="16" rx="2"></rect>
                             </svg>
@@ -111,14 +111,15 @@
 
             <div class="action-panel">
                 <div class="action-header">
-                    <span class="action-header-title">ChromaDB</span>
+                    <span class="action-header-title">{{embeddingsPanelTitle}}</span>
+                    <span id="embeddings-status-badge" class="llama-status-badge is-stopped">{{statusStoppedLabel}}</span>
                 </div>
                 <div class="action-content">
-                    <span id="rag-action-text" class="action-text">The project has not been indexed</span><span id="rag-action-loader" class="action-loader" style="display:none;"></span>
+                    <span id="embeddings-action-text" class="action-text">{{panelStateNotRunning}}</span><span id="embeddings-action-loader" class="action-loader" style="display:none;"></span>
                 </div>
                 <div class="action-buttons">
                     <div class="action-buttons-left">
-                        <button id="rag-action-copy-icon" class="action-icon-btn" type="button" title="Copy text">
+                        <button id="embeddings-action-copy-icon" class="action-icon-btn" type="button" title="{{panelButtonCopyText}}">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
                                 <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
                                 <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
@@ -126,7 +127,38 @@
                         </button>
                     </div>
                     <div class="action-buttons-right">
-                        <button id="rag-action-refresh-icon" class="action-icon-btn" type="button" title="Index">
+                        <button id="embeddings-action-start-icon" class="action-icon-btn" type="button" title="{{panelButtonStart}}" style="display:none;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <polygon points="5 3 19 12 5 21"></polygon>
+                            </svg>
+                        </button>
+                        <button id="embeddings-action-stop-icon" class="action-icon-btn" type="button" title="{{panelButtonStop}}" style="display:none;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-panel">
+                <div class="action-header">
+                    <span class="action-header-title">{{chromaPanelTitle}}</span>
+                </div>
+                <div class="action-content">
+                    <span id="rag-action-text" class="action-text">{{panelStateNotRunning}}</span><span id="rag-action-loader" class="action-loader" style="display:none;"></span>
+                </div>
+                <div class="action-buttons">
+                    <div class="action-buttons-left">
+                        <button id="rag-action-copy-icon" class="action-icon-btn" type="button" title="{{panelButtonCopyText}}">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="action-buttons-right">
+                        <button id="rag-action-refresh-icon" class="action-icon-btn" type="button" title="{{panelButtonIndex}}">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
                                 <polyline points="23 4 23 10 17 10"></polyline>
                                 <polyline points="1 20 1 14 7 14"></polyline>
@@ -143,20 +175,20 @@
 
     <div id="bottom-panel" class="bottom-panel">
         <div class="bottom-panel-left" aria-label="Primary navigation" role="toolbar">
-            <div id="messages-icon-trigger" class="footer-icon-button" role="button" aria-label="Chat" tabindex="0" title="Chat">
+            <div id="messages-icon-trigger" class="footer-icon-button" role="button" aria-label="{{tabChatAriaLabel}}" tabindex="0" title="{{tabChatTitle}}">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
             </div>
             <span class="footer-control-separator" aria-hidden="true">|</span>
-            <div id="settings-icon-trigger" class="footer-icon-button" role="button" aria-label="Settings" tabindex="0" title="Settings">
+            <div id="settings-icon-trigger" class="footer-icon-button" role="button" aria-label="{{tabSettingsAriaLabel}}" tabindex="0" title="{{tabSettingsTitle}}">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="12" cy="12" r="3"></circle>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                 </svg>
             </div>
             <span class="footer-control-separator" aria-hidden="true">|</span>
-            <div id="about-icon-trigger" class="footer-icon-button" role="button" aria-label="Information" tabindex="0" title="Information">
+            <div id="about-icon-trigger" class="footer-icon-button" role="button" aria-label="{{tabAboutAriaLabel}}" tabindex="0" title="{{tabAboutTitle}}">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="12" y1="16" x2="12" y2="12"></line>
@@ -166,7 +198,7 @@
         </div>
         <div id="token-counter" class="token-counter">
             <div class="token-counter-right">
-                <div id="model-menu-trigger" class="footer-icon-button" role="button" aria-label="Model" tabindex="0" title="Click for model details">
+                <div id="model-menu-trigger" class="footer-icon-button" role="button" aria-label="{{modelMenuAriaLabel}}" tabindex="0" title="{{modelMenuTitle}}">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
                         <rect x="3" y="4" width="18" height="12" rx="2"></rect>
                         <line x1="8" y1="20" x2="16" y2="20"></line>
@@ -174,8 +206,8 @@
                     </svg>
                 </div>
                 <span class="footer-control-separator" aria-hidden="true">|</span>
-                <div id="token-usage-container" class="token-usage-container" role="button" aria-label="Token usage" tabindex="0">
-                    <div id="token-usage-chart" class="token-usage-chart" title="Click for details">
+                <div id="token-usage-container" class="token-usage-container" role="button" aria-label="{{tokenUsageAriaLabel}}" tabindex="0">
+                    <div id="token-usage-chart" class="token-usage-chart" title="{{tokenUsageTitle}}">
                     </div>
                     <div id="token-usage-percentage" class="token-usage-percentage">0%</div>
                 </div>

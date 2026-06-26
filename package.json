@@ -3,7 +3,7 @@
   "publisher": "davaro",
   "displayName": "%ext.displayName%",
   "description": "%ext.description%",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "license": "GPL-3.0-or-later",
   "engines": {
     "node": ">=24.0.0",
@@ -100,6 +100,11 @@
             "default": "./models/qwen2.5-coder-7b-instruct-q4_k_m.gguf",
             "description": "%config.server.modelPath.description%"
           },
+          "laLlamaChat.llamaCpp.embeddingsModelPath": {
+            "type": "string",
+            "default": "./models/jina-embeddings-v4-text-code-Q8_0.gguf",
+            "description": "%config.server.embeddingsModelPath.description%"
+          },
           "laLlamaChat.llamaCpp.gpuLayers": {
             "type": "number",
             "default": 99,
@@ -128,10 +133,28 @@
             "maximum": 65535,
             "description": "%config.server.port.description%"
           },
+          "laLlamaChat.llamaCpp.embeddingsPort": {
+            "type": "number",
+            "default": 8044,
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "%config.server.embeddingsPort.description%"
+          },
           "laLlamaChat.llamaCpp.chatCompletionsPath": {
             "type": "string",
             "default": "/v1/chat/completions",
             "description": "%config.server.chatCompletionsPath.description%"
+          },
+          "laLlamaChat.llamaCpp.embeddingsPath": {
+            "type": "string",
+            "default": "/v1/embeddings",
+            "description": "%config.server.embeddingsPath.description%"
+          },
+          "laLlamaChat.llamaCpp.embeddingsTimeoutMs": {
+            "type": "number",
+            "default": 180000,
+            "minimum": 1000,
+            "description": "%config.server.embeddingsTimeoutMs.description%"
           },
           "laLlamaChat.llamaCpp.jinja": {
             "type": "boolean",
@@ -247,22 +270,17 @@
             "maximum": 1,
             "description": "%config.rag.minCosineSimilarity.description%"
           },
-          "laLlamaChat.chromaDb.rerankEnabled": {
-            "type": "boolean",
-            "default": true,
-            "description": "%config.rag.rerankEnabled.description%"
-          },
-          "laLlamaChat.chromaDb.rerankTimeoutMs": {
+          "laLlamaChat.chromaDb.embeddingBatchSize": {
             "type": "number",
-            "default": 5000,
-            "minimum": 1000,
-            "maximum": 30000,
-            "description": "%config.rag.rerankTimeoutMs.description%"
+            "default": 32,
+            "minimum": 1,
+            "description": "%config.rag.embeddingBatchSize.description%"
           },
-          "laLlamaChat.chromaDb.rerankFallbackToHybrid": {
-            "type": "boolean",
-            "default": true,
-            "description": "%config.rag.rerankFallbackToHybrid.description%"
+          "laLlamaChat.chromaDb.indexWriteBatchSize": {
+            "type": "number",
+            "default": 64,
+            "minimum": 1,
+            "description": "%config.rag.indexWriteBatchSize.description%"
           }
         }
       },
@@ -369,9 +387,7 @@
     "typescript-eslint": "^8.56.1"
   },
   "dependencies": {
-    "@eidentic/transformers": "^0.1.4",
     "@hey-api/client-fetch": "^0.13.1",
-    "@huggingface/transformers": "^4.2.0",
     "@langchain/core": "^1.2.1",
     "@lumis-sh/wasm-json": "^0.26.2",
     "@lumis-sh/wasm-xml": "^0.26.1",

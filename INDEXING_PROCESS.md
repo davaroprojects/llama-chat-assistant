@@ -24,7 +24,7 @@ IndexWorkspaceUseCase.execute()
                         │       ├── getSplitterForFile() → chunking
                         │       └── extractJavaSymbolMetadata() (if .java)
                         │
-                        └── computeEmbedding() x chunk → HuggingFace pipeline
+                        └── computeEmbedding() x chunk → llama.cpp embeddings endpoint
                                 │
                                 └── collection.add() → ChromaDB
 ```
@@ -243,15 +243,15 @@ Only executed when `language === 'java'`. Applies two regex passes over the cont
 
 ## 7. Embeddings
 
-File: `src/adapters/chroma/utils/embeddings/huggingfaceEmbedding.ts`
+File: `src/adapters/llama/llamaEmbeddingsAdapter.ts`
 
-### Model
+### Runtime
 
-**`Xenova/all-MiniLM-L6-v2`** via `@huggingface/transformers` (`feature-extraction` pipeline)
+Embeddings are generated through a dedicated llama.cpp server process started with `--embeddings`.
 
-- Output vector dimension: **384**
-- **Lazy initialisation** (first indexing or query call)
-- `env.allowRemoteModels = true`, `env.allowLocalModels = false`
+- Endpoint: `http://{host}:{embeddingsPort}{embeddingsPath}`
+- Request payload: `{ model, input: [...] }`
+- Timeout: `laLlamaChat.llamaCpp.embeddingsTimeoutMs`
 
 ### Embedding input (`buildEmbeddingInput`)
 
@@ -272,20 +272,11 @@ The model does not receive only the chunk text — it receives a metadata-enrich
 
 This lets semantic similarity account for the structural context of the fragment, not just its raw content.
 
-### Text pre-processing
+### Request and response contract
 
-Before invoking the model:
-- Truncated to **512 characters** (approximately 512 tokens)
-- Whitespace normalised: `replace(/\s+/g, ' ')`
-- If the result is empty → zero vector of 384 dimensions
-
-### Post-processing
-
-The resulting vector is **normalised to unit norm** (L2 normalisation):
-
-$$\hat{v} = \frac{v}{\|v\|_2}$$
-
-Pipeline parameters: `pooling: 'mean'`, `normalize: true`
+- Inputs are sent in batches (`computeEmbeddings`) to reduce round trips, controlled by `laLlamaChat.chromaDb.embeddingBatchSize`.
+- The adapter validates that response size equals input size.
+- Any non-OK HTTP response fails indexing/query immediately.
 
 ---
 
@@ -296,11 +287,11 @@ Pipeline parameters: `pooling: 'mean'`, `normalize: true`
 Before indexing:
 1. If a previous collection exists (`previousCollectionId ≠ collectionId`) → it is deleted.
 2. If the current collection already exists → it is deleted (clean re-index).
-3. A new collection is created with `createHuggingFaceEmbeddingFunction()` registered.
+3. A new collection is created and populated with precomputed embeddings.
 
 ### Batch insertion
 
-Chunks are inserted in batches of **64** (`batchSize = 64`) via `collection.add()`.
+Chunks are inserted in batches via `collection.add()`, controlled by `laLlamaChat.chromaDb.indexWriteBatchSize`.
 
 ### ChromaDB metadata schema
 
@@ -372,10 +363,10 @@ flowchart TD
     M -- No --> O[className/methodName empty]
     N --> P[IndexedChunk]
     O --> P
-    P --> Q{Batch of 64 chunks?}
+    P --> Q{Batch size reached?}
     Q -- No --> F
     Q -- Yes --> R[buildEmbeddingInput\nmetadata + content]
-    R --> S[computeEmbedding\nXenova/all-MiniLM-L6-v2\ndim=384]
+    R --> S[computeEmbedding\nllama.cpp /v1/embeddings]
     S --> T[collection.add\nids + docs + embeddings + metadatas]
     T --> F
     F -- Traversal complete --> S([RagIndexResult])
